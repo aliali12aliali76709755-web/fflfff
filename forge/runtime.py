@@ -73,8 +73,7 @@ class Manager:
         try:
             token = crypto.dec(row.token)
         except Exception as e:
-            log.error("Token decryption failed for bot %d (@%s): %s", row.id, row.username, e)
-            await self._fail(row.id, "مفتاح التشفير غير مطابق. أعد إدخال التوكن من غرفة التحكم.")
+            log.warning("Token decryption failed for bot %d (@%s): %s", row.id, row.username, e)
             self._busy.discard(row.id)
             return False, "Token decryption failed"
         try:
