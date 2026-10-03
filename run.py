@@ -142,12 +142,30 @@ async def handle_test_start(req: web.Request) -> web.Response:
         return web.Response(text=f"ERROR during /start execution:\n{err}", status=500)
 
 
+async def handle_reload_bots(_req: web.Request) -> web.Response:
+    try:
+        from forge.runtime import manager
+        from forge import db
+        from sqlalchemy import select
+        async with db.Session() as s:
+            rows = (await s.execute(select(db.Bot).where(db.Bot.status.in_(["active", "error"])))).scalars().all()
+        started = 0
+        for r in rows:
+            ok, _ = await manager.start_bot(r)
+            if ok:
+                started += 1
+        return web.Response(text=f"Reloaded: {started}/{len(rows)} bots running. Total apps={len(manager.apps)}", status=200)
+    except Exception as e:
+        return web.Response(text=f"Error reloading bots: {e}", status=500)
+
+
 async def start_http_server(port: int):
     app = web.Application()
     app.router.add_get("/", handle_health)
     app.router.add_get("/healthz", handle_health)
     app.router.add_get("/debug", handle_debug)
     app.router.add_get("/test_start", handle_test_start)
+    app.router.add_get("/reload_bots", handle_reload_bots)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)

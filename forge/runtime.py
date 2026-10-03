@@ -194,7 +194,7 @@ class Manager:
         log.info("maker @%s started", self.maker.bot.username)
         self.maker.create_task(maker.set_commands(self.maker))
         async with db.Session() as s:
-            rows = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().all()
+            rows = (await s.execute(select(db.Bot).where(db.Bot.status.in_(["active", "error"])))).scalars().all()
         sem = asyncio.Semaphore(8)
 
         async def boot(r: db.Bot):
