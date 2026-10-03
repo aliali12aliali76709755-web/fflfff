@@ -178,7 +178,11 @@ class Manager:
         maker.register(self.maker)
         await self.maker.initialize()
         await self.maker.start()
-        await self.maker.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+
+        def on_maker_poll_error(err: TelegramError) -> None:
+            log.warning("Maker bot polling error: %s (%s)", type(err).__name__, err)
+
+        await self.maker.updater.start_polling(allowed_updates=Update.ALL_TYPES, error_callback=on_maker_poll_error)
         log.info("maker @%s started", self.maker.bot.username)
         self.maker.create_task(maker.set_commands(self.maker))
         async with db.Session() as s:

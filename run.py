@@ -1,12 +1,15 @@
 """نقطة التشغيل: python run.py"""
 import asyncio
+import datetime as dt
 import json
 import logging
 import os
 import signal
 import sys
+import threading
 import traceback
 import urllib.request
+import aiohttp
 from aiohttp import web
 from telegram import Update
 
@@ -37,7 +40,7 @@ root_logger.setLevel(logging.INFO)
 root_logger.addHandler(mem_handler)
 
 
-def notify(text: str) -> None:
+def _send_tg_notification(text: str) -> None:
     token = os.environ.get("MAKER_TOKEN", "")
     admin = os.environ.get("ADMIN_ID", "")
     if token and admin:
@@ -48,9 +51,14 @@ def notify(text: str) -> None:
                 data=json.dumps({"chat_id": int(admin), "text": text[:4000]}).encode(),
                 headers={"Content-Type": "application/json"},
             )
-            urllib.request.urlopen(req, timeout=8)
+            urllib.request.urlopen(req, timeout=6)
         except Exception:
             pass
+
+
+def notify(text: str) -> None:
+    """إشعار غير متزامن في خيط منفصل لا يجمّد حلقة الأحداث نهائياً."""
+    threading.Thread(target=_send_tg_notification, args=(text,), daemon=True).start()
 
 
 _bot_started = False
@@ -68,19 +76,57 @@ async def handle_debug(_req: web.Request) -> web.Response:
         maker_stat = "Not initialized"
         if hasattr(manager, "maker") and manager.maker:
             try:
-                up_run = manager.maker.updater.running if manager.maker.updater else False
-                maker_stat = f"username=@{manager.maker.bot.username}, running={manager.maker.running}, polling={up_run}"
+                up = manager.maker.updater
+                up_run = up.running if up else False
+                task = getattr(up, "_Updater__polling_task", None) if up else None
+                task_alive = bool(task and not task.done())
+                maker_stat = (f"username=@{manager.maker.bot.username}, "
+                              f"running={manager.maker.running}, "
+                              f"polling_prop={up_run}, task_alive={task_alive}")
             except Exception as e:
                 maker_stat = f"error accessing maker props: {e}"
         status_lines.append(f"Maker: {maker_stat}")
         status_lines.append(f"Child bots: {len(manager.apps) if hasattr(manager, 'apps') else 0}")
     except Exception as e:
         status_lines.append(f"Manager error: {e}")
-    status_lines.append("\n=== RECENT LOGS (last 80) ===")
+    status_lines.append("\n=== RECENT LOGS (last 100) ===")
     return web.Response(
-        text="\n".join(status_lines) + "\n" + ("\n".join(LOGS[-80:]) or "No logs yet"),
-        content_type="text/plain",
+        text="\n".join(status_lines) + "\n" + ("\n".join(LOGS[-100:]) or "No logs yet"),
+        content_type="text/plain; charset=utf-8",
     )
+
+
+async def handle_test_start(req: web.Request) -> web.Response:
+    """نقطة تشخيصية لمحاكاة وصول أمر /start ومعالجته وإرسال القائمة الحقيقية للمستخدم."""
+    try:
+        from forge.runtime import manager
+        from telegram import Chat, Message, Update, User
+        from telegram.constants import ChatType
+
+        if not hasattr(manager, "maker") or not manager.maker:
+            return web.Response(text="ERROR: Maker not initialized yet", status=503)
+
+        uid_str = req.query.get("uid", os.environ.get("ADMIN_ID", "6641619062"))
+        user_id = int(uid_str)
+
+        fake_user = User(id=user_id, is_bot=False, first_name="Ali", username="DRK450", language_code="ar")
+        fake_chat = Chat(id=user_id, type=ChatType.PRIVATE)
+        fake_msg = Message(
+            message_id=999999,
+            date=dt.datetime.utcnow(),
+            chat=fake_chat,
+            from_user=fake_user,
+            text="/start",
+        )
+        fake_update = Update(update_id=999999, message=fake_msg)
+
+        logging.info("Triggering test /start update for uid=%d", user_id)
+        await manager.maker.process_update(fake_update)
+        return web.Response(text=f"OK: /start processed for uid={user_id}. Check Telegram!", status=200)
+    except Exception as e:
+        err = traceback.format_exc()
+        logging.exception("handle_test_start exception: %s", err)
+        return web.Response(text=f"ERROR during /start execution:\n{err}", status=500)
 
 
 async def start_http_server(port: int):
@@ -88,6 +134,7 @@ async def start_http_server(port: int):
     app.router.add_get("/", handle_health)
     app.router.add_get("/healthz", handle_health)
     app.router.add_get("/debug", handle_debug)
+    app.router.add_get("/test_start", handle_test_start)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
@@ -97,21 +144,19 @@ async def start_http_server(port: int):
 
 
 async def _self_ping_loop(port: int) -> None:
-    """Ping الخادم كل 10 دقائق لمنع Render Free Tier من النوم وإيقاف البوت."""
-    await asyncio.sleep(60)  # انتظر دقيقة حتى يكتمل التشغيل
-    # Render يوفر الرابط الخارجي في متغير RENDER_EXTERNAL_URL
+    """Ping غير متزامن كل 9 دقائق لمنع Render Free Tier من النوم."""
+    await asyncio.sleep(45)
     external = os.environ.get("RENDER_EXTERNAL_URL", "").rstrip("/")
-    ping_url = f"{external}/healthz" if external else ""
+    ping_url = f"{external}/healthz" if external else f"http://127.0.0.1:{port}/healthz"
+    timeout = aiohttp.ClientTimeout(total=10)
     while True:
-        if ping_url:
-            try:
-                req = urllib.request.Request(ping_url, headers={"User-Agent": "BotForge-KeepAlive/1.0"})
-                urllib.request.urlopen(req, timeout=15)
-                logging.info("Keep-alive ping OK → %s", ping_url)
-            except Exception as e:
-                logging.warning("Keep-alive ping failed: %s", e)
-        await asyncio.sleep(540)  # كل 9 دقائق (أقل من حد الـ 15 دقيقة)
-
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(ping_url) as resp:
+                    logging.info("Keep-alive ping OK (HTTP %d) → %s", resp.status, ping_url)
+        except Exception as e:
+            logging.warning("Keep-alive ping error: %s", e)
+        await asyncio.sleep(540)  # كل 9 دقائق
 
 
 async def _try_start_all() -> bool:
@@ -127,7 +172,7 @@ async def _try_start_all() -> bool:
     except SystemExit as e:
         logging.error("FATAL SystemExit in start_all: %s", e)
         notify(f"❌ Fatal: {e}")
-        return False  # لا تعيد المحاولة - مشكلة إعداد
+        return False
     except Exception:
         err = traceback.format_exc()
         logging.error("start_all failed: %s", err)
@@ -140,19 +185,17 @@ async def main() -> None:
     for noisy in ("httpx", "httpcore", "apscheduler", "telegram.ext.Updater", "telegram.ext._updater"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    # 1. بدء خادم HTTP أولاً حتى يتعرف Render على الخدمة
+    # 1. بدء خادم HTTP أولاً لـ Render
     port = int(os.environ.get("PORT", os.environ.get("WEB_PORT", 0)) or 0)
     runner = None
     ping_task = None
     if port > 0:
         try:
             runner = await start_http_server(port)
-            # ابدأ self-ping لمنع Render من إيقاف الخدمة تلقائياً (Free Tier)
             ping_task = asyncio.create_task(_self_ping_loop(port))
-            logging.info("Self-ping keep-alive started (every 10 min)")
+            logging.info("Self-ping keep-alive task started (every 9 min)")
         except Exception:
             logging.exception("Failed to start health HTTP server on port %s", port)
-
 
     # 2. محاولة تشغيل البوت مع إعادة المحاولة التلقائية
     notify("🚀 BotForge initializing...")
@@ -178,25 +221,24 @@ async def main() -> None:
         except NotImplementedError:
             pass
 
-    # 4. Watchdog: يراقب البوت كل 10 ثوانٍ ويعيد تشغيله إذا توقف
+    # 4. Watchdog: يراقب البوت كل 10 ثوانٍ ويفحص المهمة الفعلية
     async def _watchdog():
         while not stop.is_set():
             try:
                 await asyncio.sleep(10)
                 from forge.runtime import manager
 
-                # فحص حالة polling
                 maker_ok = False
                 if hasattr(manager, "maker") and manager.maker:
                     try:
                         up = manager.maker.updater
-                        maker_ok = bool(up and up.running)
+                        task = getattr(up, "_Updater__polling_task", None) if up else None
+                        maker_ok = bool(up and up.running and task and not task.done())
                     except Exception:
                         maker_ok = False
 
-                if not maker_ok:
-                    logging.warning("⚠️ Watchdog: polling is DOWN! Attempting recovery...")
-                    # محاولة إعادة تشغيل polling فقط أولاً
+                if not maker_ok and _bot_started:
+                    logging.warning("⚠️ Watchdog: polling task is DOWN! Attempting recovery...")
                     recovered = False
                     if hasattr(manager, "maker") and manager.maker and manager.maker.updater:
                         try:
@@ -211,7 +253,6 @@ async def main() -> None:
                             logging.error("Watchdog polling revival failed: %s", poll_err)
 
                     if not recovered:
-                        # إعادة تشغيل كاملة
                         logging.warning("⚠️ Watchdog: full restart...")
                         try:
                             await manager.shutdown()
