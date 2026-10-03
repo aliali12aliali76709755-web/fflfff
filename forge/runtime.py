@@ -166,6 +166,7 @@ class Manager:
         templates.load()
         await db.init()
         await platform.preload()
+        await self._start_web()
         if not config.ADMIN_ID:  # المدير يُحدَّد تلقائياً: أول من يفتح الصانع
             config.ADMIN_ID = int(await db.kv_get(0, "sys:admin", 0) or 0)
         if not config.MAKER_TOKEN:
@@ -177,7 +178,6 @@ class Manager:
         await self.maker.start()
         await self.maker.updater.start_polling(allowed_updates=Update.ALL_TYPES)
         log.info("maker @%s started", self.maker.bot.username)
-        await self._start_web()      # قبل البوتات: ليُضبط زر القائمة في كل بوت على الرابط الصحيح من أول مرة
         self.maker.create_task(maker.set_commands(self.maker))
         async with db.Session() as s:
             rows = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().all()
