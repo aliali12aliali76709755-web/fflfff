@@ -97,17 +97,20 @@ async def start_http_server(port: int):
 
 
 async def _self_ping_loop(port: int) -> None:
-    """Ping نفس الخادم كل 10 دقائق لمنع Render Free Tier من النوم وإيقاف البوت."""
-    await asyncio.sleep(60)  # انتظر دقيقة أولاً حتى يكتمل التشغيل
+    """Ping الخادم كل 10 دقائق لمنع Render Free Tier من النوم وإيقاف البوت."""
+    await asyncio.sleep(60)  # انتظر دقيقة حتى يكتمل التشغيل
+    # Render يوفر الرابط الخارجي في متغير RENDER_EXTERNAL_URL
+    external = os.environ.get("RENDER_EXTERNAL_URL", "").rstrip("/")
+    ping_url = f"{external}/healthz" if external else ""
     while True:
-        try:
-            url = f"http://127.0.0.1:{port}/healthz"
-            req = urllib.request.Request(url)
-            urllib.request.urlopen(req, timeout=10)
-            logging.debug("Self-ping OK")
-        except Exception as e:
-            logging.warning("Self-ping failed: %s", e)
-        await asyncio.sleep(600)  # كل 10 دقائق
+        if ping_url:
+            try:
+                req = urllib.request.Request(ping_url, headers={"User-Agent": "BotForge-KeepAlive/1.0"})
+                urllib.request.urlopen(req, timeout=15)
+                logging.info("Keep-alive ping OK → %s", ping_url)
+            except Exception as e:
+                logging.warning("Keep-alive ping failed: %s", e)
+        await asyncio.sleep(540)  # كل 9 دقائق (أقل من حد الـ 15 دقيقة)
 
 
 
