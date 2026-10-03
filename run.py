@@ -96,6 +96,21 @@ async def start_http_server(port: int):
     return runner
 
 
+async def _self_ping_loop(port: int) -> None:
+    """Ping نفس الخادم كل 10 دقائق لمنع Render Free Tier من النوم وإيقاف البوت."""
+    await asyncio.sleep(60)  # انتظر دقيقة أولاً حتى يكتمل التشغيل
+    while True:
+        try:
+            url = f"http://127.0.0.1:{port}/healthz"
+            req = urllib.request.Request(url)
+            urllib.request.urlopen(req, timeout=10)
+            logging.debug("Self-ping OK")
+        except Exception as e:
+            logging.warning("Self-ping failed: %s", e)
+        await asyncio.sleep(600)  # كل 10 دقائق
+
+
+
 async def _try_start_all() -> bool:
     """محاولة واحدة لتشغيل البوت. تعيد True عند النجاح."""
     global _bot_started
@@ -125,11 +140,16 @@ async def main() -> None:
     # 1. بدء خادم HTTP أولاً حتى يتعرف Render على الخدمة
     port = int(os.environ.get("PORT", os.environ.get("WEB_PORT", 0)) or 0)
     runner = None
+    ping_task = None
     if port > 0:
         try:
             runner = await start_http_server(port)
+            # ابدأ self-ping لمنع Render من إيقاف الخدمة تلقائياً (Free Tier)
+            ping_task = asyncio.create_task(_self_ping_loop(port))
+            logging.info("Self-ping keep-alive started (every 10 min)")
         except Exception:
             logging.exception("Failed to start health HTTP server on port %s", port)
+
 
     # 2. محاولة تشغيل البوت مع إعادة المحاولة التلقائية
     notify("🚀 BotForge initializing...")
@@ -214,6 +234,8 @@ async def main() -> None:
         await stop.wait()
     finally:
         watchdog_task.cancel()
+        if ping_task:
+            ping_task.cancel()
         if runner:
             await runner.cleanup()
         try:
