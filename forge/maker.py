@@ -116,18 +116,22 @@ async def ensure_user(m: M, ref: int = 0) -> bool:
     key = (m.fid, m.uid)
     if not ref and key in _SEEN_USERS:
         return False
-    async with db.Session() as s:
-        row = await s.get(db.MUser, key)
-        is_new = row is None
-        if is_new:
-            row = db.MUser(factory_id=m.fid, user_id=m.uid, ref_by=ref if ref != m.uid else 0)
-            s.add(row)
-        row.name = (m.user.full_name or "")[:128]
-        row.username = m.user.username or ""
-        if row.lang:
-            m.lang = row.lang
-            m.udata["mlang"] = row.lang
-        await s.commit()
+    try:
+        async with db.Session() as s:
+            row = await s.get(db.MUser, key)
+            is_new = row is None
+            if is_new:
+                row = db.MUser(factory_id=m.fid, user_id=m.uid, ref_by=ref if ref != m.uid else 0)
+                s.add(row)
+            row.name = (m.user.full_name or "")[:128]
+            row.username = m.user.username or ""
+            if row.lang:
+                m.lang = row.lang
+                m.udata["mlang"] = row.lang
+            await s.commit()
+    except Exception as db_err:
+        log.warning("DB ensure_user failed for %s: %s", key, db_err)
+        is_new = False
     if len(_SEEN_USERS) > 100000:
         _SEEN_USERS.clear()
     _SEEN_USERS.add(key)
@@ -175,9 +179,13 @@ async def gate(m: M) -> bool:
 
 
 async def my_bots(m: M) -> list[db.Bot]:
-    async with db.Session() as s:
-        return list((await s.execute(select(db.Bot).where(db.Bot.factory_id == m.fid, db.Bot.owner_id == m.uid)
-                                     .order_by(db.Bot.created.desc()))).scalars().all())
+    try:
+        async with db.Session() as s:
+            return list((await s.execute(select(db.Bot).where(db.Bot.factory_id == m.fid, db.Bot.owner_id == m.uid)
+                                         .order_by(db.Bot.created.desc()))).scalars().all())
+    except Exception as e:
+        log.warning("my_bots error: %s", e)
+        return []
 
 
 async def get_bot(m: M, bot_id: int, admin: bool = False) -> db.Bot | None:

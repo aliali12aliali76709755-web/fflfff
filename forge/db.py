@@ -115,7 +115,7 @@ class Report(Base):
 
 _pool_args = {"pool_pre_ping": True}
 if not config.DATABASE_URL.startswith("sqlite"):
-    _pool_args.update(pool_size=50, max_overflow=50, pool_timeout=30, pool_recycle=1800)
+    _pool_args.update(pool_size=4, max_overflow=2, pool_timeout=10, pool_recycle=60)
 
 engine = create_async_engine(config.DATABASE_URL, **_pool_args)
 Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
