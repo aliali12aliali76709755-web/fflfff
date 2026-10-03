@@ -7,6 +7,30 @@ import signal
 import sys
 import traceback
 import urllib.request
+from aiohttp import web
+
+for _s in (sys.stdout, sys.stderr):  # طرفية ويندوز قد لا تدعم العربية افتراضياً
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+LOGS = []
+
+
+class MemoryHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            LOGS.append(self.format(record))
+            if len(LOGS) > 300:
+                LOGS.pop(0)
+        except Exception:
+            pass
+
+
+mem_handler = MemoryHandler()
+mem_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+logging.getLogger().addHandler(mem_handler)
 
 
 def notify(text: str) -> None:
@@ -25,43 +49,73 @@ def notify(text: str) -> None:
             pass
 
 
-for _s in (sys.stdout, sys.stderr):  # طرفية ويندوز قد لا تدعم العربية افتراضياً
-    try:
-        _s.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
+async def handle_health(_req: web.Request) -> web.Response:
+    return web.Response(text="BotForge is running OK", status=200)
 
-try:
-    from forge.runtime import manager  # noqa: E402
-except Exception as e:
-    notify(f"❌ Failed to import forge.runtime:\n{traceback.format_exc()}")
-    raise
+
+async def handle_debug(_req: web.Request) -> web.Response:
+    return web.Response(text="\n".join(LOGS) or "No logs yet", content_type="text/plain")
+
+
+async def start_http_server(port: int):
+    app = web.Application()
+    app.router.add_get("/", handle_health)
+    app.router.add_get("/healthz", handle_health)
+    app.router.add_get("/debug", handle_debug)
+    runner = web.AppRunner(app, access_log=None)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info("Render health HTTP server listening on 0.0.0.0:%d", port)
+    return runner
 
 
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     for noisy in ("httpx", "httpcore", "apscheduler", "telegram.ext.Updater"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+
+    # 1. Start HTTP server first for Render health checks
+    port = int(os.environ.get("PORT", os.environ.get("WEB_PORT", 0)) or 0)
+    runner = None
+    if port > 0:
+        try:
+            runner = await start_http_server(port)
+        except Exception:
+            logging.exception("Failed to start health HTTP server on port %s", port)
+
+    # 2. Start BotForge
     notify("🚀 BotForge is initializing on server...")
     try:
+        from forge.runtime import manager
+
         await manager.start_all()
-    except Exception as e:
-        notify(f"❌ Error in manager.start_all():\n{traceback.format_exc()}")
-        raise
-    notify(f"✅ BotForge is LIVE on server!\nBot: @{manager.maker.bot.username}")
-    print(f"\n✅ BotForge is running — maker bot: https://t.me/{manager.maker.bot.username}")
-    print(f"   Child bots running: {len(manager.apps)}.  Press Ctrl+C to stop.\n")
+        notify(f"✅ BotForge is LIVE on server!\nBot: @{manager.maker.bot.username}")
+        print(f"\n✅ BotForge is running — maker bot: https://t.me/{manager.maker.bot.username}")
+        print(f"   Child bots running: {len(manager.apps)}. Press Ctrl+C to stop.\n")
+    except BaseException:
+        err = traceback.format_exc()
+        logging.error("FATAL in start_all: %s", err)
+        notify(f"❌ Error in start_all:\n{err}")
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, stop.set)
-        except NotImplementedError:  # Windows
+        except NotImplementedError:
             pass
     try:
         await stop.wait()
     finally:
-        await manager.shutdown()
+        if runner:
+            await runner.cleanup()
+        try:
+            from forge.runtime import manager
+
+            await manager.shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
@@ -69,6 +123,7 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-    except Exception as e:
-        notify(f"❌ Unhandled Exception in run.py:\n{traceback.format_exc()}")
-        raise
+    except BaseException:
+        err = traceback.format_exc()
+        notify(f"❌ Unhandled Exception in run.py:\n{err}")
+        sys.exit(1)
