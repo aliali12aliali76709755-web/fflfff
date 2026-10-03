@@ -71,7 +71,14 @@ class Manager:
             return True, ""
         self._busy.add(row.id)
         try:
-            app = self.build(crypto.dec(row.token))
+            token = crypto.dec(row.token)
+        except Exception as e:
+            log.error("Token decryption failed for bot %d (@%s): %s", row.id, row.username, e)
+            await self._fail(row.id, "مفتاح التشفير غير مطابق. أعد إدخال التوكن من غرفة التحكم.")
+            self._busy.discard(row.id)
+            return False, "Token decryption failed"
+        try:
+            app = self.build(token)
             tpl = templates.get(row.template)
             core = await child.load_core(row.id)
             app.bot_data["manager"] = self
@@ -167,6 +174,7 @@ class Manager:
         from . import maker  # تأجيل الاستيراد لتفادي الحلقة
         templates.load()
         await db.init()
+        await crypto.init()
         await platform.preload()
         await self._start_web()
         if not config.ADMIN_ID:  # المدير يُحدَّد تلقائياً: أول من يفتح الصانع
