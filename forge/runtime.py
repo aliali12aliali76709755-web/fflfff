@@ -194,8 +194,12 @@ class Manager:
         self._ticker = asyncio.create_task(self._tick_loop())
 
     async def _start_web(self) -> None:
-        self.web = None
         self.tunnel = None
+        try:
+            from .web import server as webserver
+            self.web = await webserver.start(self)
+        except Exception:
+            self.web = None
 
     async def _on_tunnel_url(self, url: str) -> None:
         """رابط النفق يتغير مع كل تشغيل: نعتمده رابطاً عاماً ونعيد ضبط أزرار القوائم."""

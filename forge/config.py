@@ -56,8 +56,7 @@ TZ_HOURS = _int("TZ_HOURS", 3)  # فرق التوقيت عن UTC لعرض الت
 # مفتاح خدمة ocr.space (مجاني) يُستخدم لقراءة الصور حين لا يكون Tesseract مثبتاً على الجهاز
 OCR_SPACE_KEY = os.environ.get("OCR_SPACE_KEY", "helloworld")
 
-# موقع الويب المرتبط بالبوتات: خادم داخلي يعمل مع المنصة (0 = إيقاف)
-WEB_PORT = _int("WEB_PORT", 8080)
+WEB_PORT = _int("PORT", _int("WEB_PORT", 8080))
 WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0")
 # الرابط العام الذي يصل به الناس إلى الخادم، مثل https://bots.example.com — بدونه تبقى المواقع محلية ولا تظهر أزرارها في البوتات
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
