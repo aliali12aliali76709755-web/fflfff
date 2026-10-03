@@ -8,6 +8,7 @@ import sys
 import traceback
 import urllib.request
 from aiohttp import web
+from telegram import Update
 
 for _s in (sys.stdout, sys.stderr):  # طرفية ويندوز قد لا تدعم العربية افتراضياً
     try:
@@ -120,9 +121,31 @@ async def main() -> None:
             loop.add_signal_handler(sig, stop.set)
         except NotImplementedError:
             pass
+
+    async def _watchdog():
+        while not stop.is_set():
+            try:
+                await asyncio.sleep(15)
+                from forge.runtime import manager
+                if hasattr(manager, "maker") and manager.maker:
+                    up = manager.maker.updater
+                    if up and not up.running:
+                        logging.warning("⚠️ Watchdog: Polling was stopped! Automatically reviving polling...")
+                        try:
+                            await up.start_polling(allowed_updates=Update.ALL_TYPES)
+                            logging.info("✅ Watchdog: Polling successfully revived!")
+                        except Exception as poll_err:
+                            logging.error("Watchdog failed to revive polling: %s", poll_err)
+            except asyncio.CancelledError:
+                break
+            except Exception as w_err:
+                logging.error("Watchdog exception: %s", w_err)
+
+    watchdog_task = asyncio.create_task(_watchdog())
     try:
         await stop.wait()
     finally:
+        watchdog_task.cancel()
         if runner:
             await runner.cleanup()
         try:

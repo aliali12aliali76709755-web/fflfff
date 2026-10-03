@@ -113,7 +113,11 @@ class Report(Base):
     created: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
 
-engine = create_async_engine(config.DATABASE_URL, pool_pre_ping=True)
+_pool_args = {"pool_pre_ping": True}
+if not config.DATABASE_URL.startswith("sqlite"):
+    _pool_args.update(pool_size=50, max_overflow=50, pool_timeout=30, pool_recycle=1800)
+
+engine = create_async_engine(config.DATABASE_URL, **_pool_args)
 Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 if config.DATABASE_URL.startswith("sqlite"):

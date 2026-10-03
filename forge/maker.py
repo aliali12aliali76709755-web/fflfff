@@ -17,7 +17,7 @@ from urllib.parse import quote, urlparse
 from sqlalchemy import delete, func, select
 from telegram import Update
 from telegram.constants import ChatType, ParseMode
-from telegram.error import Forbidden, InvalidToken, TelegramError
+from telegram.error import Forbidden, InvalidToken, RetryAfter, TelegramError
 from telegram.ext import (Application, CallbackQueryHandler, ChatJoinRequestHandler, ChatMemberHandler,
                           CommandHandler, ContextTypes, ManagedBotUpdatedHandler, MessageHandler, filters)
 
@@ -30,6 +30,8 @@ log = logging.getLogger("forge.maker")
 TOKEN_RE = re.compile(r"\b(\d{6,12}:[A-Za-z0-9_-]{30,})\b")
 LEVELS = [(0, "🥉 مبتدئ", "🥉 Starter"), (100, "🥈 صاعد", "🥈 Rising"), (1000, "🥇 محترف", "🥇 Pro"), (10000, "💎 نخبة", "💎 Elite")]
 _last_user_notify: float = 0.0
+_SEEN_USERS: set[tuple[int, int]] = set()
+_KNOWN_CHANNELS: set[int] = set()
 
 
 class M:
@@ -111,8 +113,11 @@ class M:
 
 # ───────────────────────── المستخدمون والبوابة ─────────────────────────
 async def ensure_user(m: M, ref: int = 0) -> bool:
+    key = (m.fid, m.uid)
+    if not ref and key in _SEEN_USERS:
+        return False
     async with db.Session() as s:
-        row = await s.get(db.MUser, (m.fid, m.uid))
+        row = await s.get(db.MUser, key)
         is_new = row is None
         if is_new:
             row = db.MUser(factory_id=m.fid, user_id=m.uid, ref_by=ref if ref != m.uid else 0)
@@ -123,6 +128,9 @@ async def ensure_user(m: M, ref: int = 0) -> bool:
             m.lang = row.lang
             m.udata["mlang"] = row.lang
         await s.commit()
+    if len(_SEEN_USERS) > 100000:
+        _SEEN_USERS.clear()
+    _SEEN_USERS.add(key)
     if m.fid == 0 and not config.ADMIN_ID:
         config.ADMIN_ID = m.uid
         await db.kv_set(0, "sys:admin", m.uid)
@@ -1311,7 +1319,7 @@ async def set_commands(app: Application) -> None:
 
 
 async def on_chat_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """قبول فوري وتلقائي لأي طلب انضمام لقناة أو مجموعة."""
+    """قبول فوري وتلقائي لأي طلب انضمام لقناة أو مجموعة مع دعم الضغط العالي والفيضان."""
     jr = update.chat_join_request
     if not jr:
         return
@@ -1319,26 +1327,51 @@ async def on_chat_join_request(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = jr.from_user.id
     name = jr.from_user.full_name or ""
     title = jr.chat.title or "القناة"
-    try:
-        await context.bot.approve_chat_join_request(chat_id, user_id)
-        log.info("Auto-approved join request for user %s (%s) in chat %s (%s)", user_id, name, chat_id, title)
+
+    # 1. قبول الطلب مع إعادة المحاولة التلقائية في حال طلب تيليجرام مهلة (Flood / RetryAfter)
+    approved = False
+    for _ in range(3):
         try:
-            channels = await db.kv_get(0, "sys:channels", []) or []
-            if chat_id not in [c.get("id") for c in channels]:
-                channels.append({"id": chat_id, "title": title, "type": jr.chat.type})
-                await db.kv_set(0, "sys:channels", channels)
-        except Exception:
-            pass
-        try:
-            await context.bot.send_message(
-                user_id,
-                f"🎉 أهلاً <b>{esc(name)}</b>!\nتم قبول طلب انضمامك إلى <b>{esc(title)}</b> بنجاح ✅",
-                parse_mode=ParseMode.HTML,
-            )
-        except Exception:
-            pass
-    except Exception as e:
-        log.warning("Failed to approve join request for %s in %s: %s", user_id, chat_id, e)
+            await context.bot.approve_chat_join_request(chat_id, user_id)
+            approved = True
+            log.info("Auto-approved join request for user %s (%s) in chat %s (%s)", user_id, name, chat_id, title)
+            break
+        except RetryAfter as e:
+            await asyncio.sleep(e.retry_after + 0.1)
+        except TelegramError as e:
+            # تم قبوله مسبقاً أو ملغي
+            log.debug("Join request exception for %s: %s", user_id, e)
+            approved = True
+            break
+        except Exception as e:
+            log.warning("Failed to approve join request for %s in %s: %s", user_id, chat_id, e)
+            break
+
+    # 2. تسجيل القناة في الذاكرة والقاعدة دون إبطاء البوت
+    if chat_id not in _KNOWN_CHANNELS:
+        _KNOWN_CHANNELS.add(chat_id)
+        async def _save_chan():
+            try:
+                channels = await db.kv_get(0, "sys:channels", []) or []
+                if chat_id not in [c.get("id") for c in channels]:
+                    channels.append({"id": chat_id, "title": title, "type": jr.chat.type})
+                    await db.kv_set(0, "sys:channels", channels)
+            except Exception:
+                pass
+        asyncio.create_task(_save_chan())
+
+    # 3. إرسال رسالة ترحيب في الخلفية بشكل غير متزامن تماماً لعدم استهلاك وقت المعالجة
+    if approved:
+        async def _send_welcome():
+            try:
+                await context.bot.send_message(
+                    user_id,
+                    f"🎉 أهلاً <b>{esc(name)}</b>!\nتم قبول طلب انضمامك إلى <b>{esc(title)}</b> بنجاح ✅",
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                pass
+        asyncio.create_task(_send_welcome())
 
 
 async def on_my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
