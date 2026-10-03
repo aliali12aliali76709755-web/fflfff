@@ -89,6 +89,16 @@ async def handle_debug(_req: web.Request) -> web.Response:
         status_lines.append(f"Child bots: {len(manager.apps) if hasattr(manager, 'apps') else 0}")
     except Exception as e:
         status_lines.append(f"Manager error: {e}")
+    status_lines.append("\n=== RECENT TECHNICAL ERRORS ===")
+    try:
+        from forge import errors as forge_errors
+        if forge_errors.RECENT:
+            for item in list(forge_errors.RECENT)[:10]:
+                status_lines.append(f"[{item.get('at')}] {item.get('where')}: {item.get('err')}")
+        else:
+            status_lines.append("No technical errors recorded.")
+    except Exception as e:
+        status_lines.append(f"Error reading errors: {e}")
     status_lines.append("\n=== RECENT LOGS (last 100) ===")
     return web.Response(
         text="\n".join(status_lines) + "\n" + ("\n".join(LOGS[-100:]) or "No logs yet"),

@@ -17,13 +17,40 @@ def esc(s) -> str:
     return html.escape(str(s if s is not None else ""), quote=False)
 
 
+_VALID_SCHEMES = ("http://", "https://", "tg://")
+
+
+def clean_url(u: str | None) -> str | None:
+    """يتحقق من صحة الرابط لتيليجرام ويعيد الرابط بعد تنظيفه، أو None إن كان غير صالح."""
+    if not u or not isinstance(u, str):
+        return None
+    u = u.strip()
+    if u.startswith("@"):
+        u = f"https://t.me/{u[1:]}"
+    elif u.startswith("t.me/"):
+        u = f"https://{u}"
+    if not any(u.startswith(s) for s in _VALID_SCHEMES):
+        return None
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(u)
+        if u.startswith(("http://", "https://")):
+            if not parsed.netloc or " " in parsed.netloc or not parsed.hostname:
+                return None
+        return u
+    except Exception:
+        return None
+
+
 def B(text: str, data: str | None = None, *, url: str | None = None, style: str | None = None, **kw):
     """زر شفاف. style: primary | success | danger (ألوان الأزرار في Bot API الحديث)."""
-    if url:
-        return InlineKeyboardButton(text, url=url, style=style, **kw)
+    valid_u = clean_url(url) if url else None
+    if valid_u:
+        return InlineKeyboardButton(text, url=valid_u, style=style, **kw)
     if data is None and kw:
         return InlineKeyboardButton(text, style=style, **kw)
     return InlineKeyboardButton(text, callback_data=(data or "noop")[:64], style=style, **kw)
+
 
 
 def kb(rows: Iterable[Sequence | None]) -> InlineKeyboardMarkup:

@@ -22,7 +22,7 @@ from . import config, db, errors, ui
 from . import plat as platform
 from .ctx import Ctx
 from .i18n import LANGS, LANG_NAMES, norm
-from .ui import B, esc, kb
+from .ui import B, esc, kb, clean_url
 
 log = logging.getLogger("forge.child")
 
@@ -121,34 +121,63 @@ async def check_sub(c: Ctx) -> bool:
     c.x.user_data["fs_blocked"] = True
     text = c.core.get("fs_msg") or c.t("🔐 للاستخدام، اشترك أولاً في القنوات التالية ثم اضغط «تحقّقت».",
                                        "🔐 Please join the following first, then tap “I joined”.")
-    rows = [[B(f"📢 {x.get('title') or 'Channel'}", url=x["url"])] for x in missing if x.get("url")]
-    rows.append([B(c.t("✅ تحقّقت", "✅ I joined"), "sub:check", style="success")])
-    await c.send(text, kb(rows))
-    return False
+    if missing:
+        rows = []
+        for x in missing:
+            u = clean_url(x.get("url"))
+            if u:
+                rows.append([B(f"📢 {x.get('title') or 'Channel'}", url=u)])
+        if rows:
+            rows.append([B(c.t("✅ تحقّقت", "✅ I joined"), "sub:check", style="success")])
+            await c.send(text, kb(rows))
+            return False
+    return True
 
 
 # ───────────────────────── شاشات البداية ─────────────────────────
 def parse_buttons(text: str) -> list[list[dict]]:
-    """كل سطر صف. الأزرار في السطر تُفصل بـ && والصيغة: نص - رابط"""
+    """كل سطر صف. الأزرار في السطر تُفصل بـ && والصيغة: نص - رابط أو رابط - نص أو نص | رابط"""
     rows = []
     for line in text.splitlines():
         row = []
         for part in line.split("&&"):
-            if " - " not in part:
+            part = part.strip()
+            if not part:
                 continue
-            t, u = part.rsplit(" - ", 1)
-            u = u.strip()
-            if u.startswith("@"):
-                u = "https://t.me/" + u[1:]
-            if t.strip() and (u.startswith("http://") or u.startswith("https://") or u.startswith("tg://")):
-                row.append({"t": t.strip()[:60], "u": u})
+            sep = None
+            for candidate in (" - ", " | ", " : ", "-", "|", ":"):
+                if candidate in part:
+                    sep = candidate
+                    break
+            if not sep:
+                continue
+            t, u = part.split(sep, 1)
+            t, u = t.strip(), u.strip()
+            u_clean = clean_url(u)
+            t_clean = clean_url(t)
+            if not u_clean and t_clean:
+                t, u = u, t
+                u_clean = t_clean
+            if t and u_clean:
+                row.append({"t": t[:60], "u": u_clean})
         if row:
             rows.append(row)
     return rows
 
 
 def buttons_kb(rows: list[list[dict]]):
-    return kb([[B(b["t"], url=b["u"]) for b in r] for r in rows]) if rows else None
+    valid_rows = []
+    for r in (rows or []):
+        row = []
+        for b in r:
+            t = b.get("t") or "زر"
+            u = clean_url(b.get("u"))
+            if u:
+                row.append(B(t, url=u))
+        if row:
+            valid_rows.append(row)
+    return kb(valid_rows) if valid_rows else None
+
 
 
 async def user_home(c: Ctx) -> None:
@@ -1440,10 +1469,18 @@ async def owner_input(c: Ctx, st: dict) -> None:  # noqa: C901
         core.setdefault("fs", []).append({"type": "chat", "chat_id": chat.id, "title": chat.title or str(ref), "url": url, "on": True})
         await done(["fs"], t("✅ تمت الإضافة.", "✅ Added."))
     elif k == "o_fs_link":
-        if "|" not in text or "http" not in text:
-            return await c.send(t("الصيغة: <code>الاسم | الرابط</code>", "Format: <code>Title | link</code>"))
-        title, url = [x.strip() for x in text.split("|", 1)]
-        core.setdefault("fs", []).append({"type": "link", "title": title, "url": url, "on": True})
+        sep = "|" if "|" in text else (" - " if " - " in text else ("-" if "-" in text else None))
+        if not sep:
+            return await c.send(t("الصيغة: <code>الاسم | الرابط</code> أو <code>الاسم - الرابط</code>", "Format: <code>Title | link</code>"))
+        title, url = [x.strip() for x in text.split(sep, 1)]
+        u_clean = clean_url(url)
+        t_clean = clean_url(title)
+        if not u_clean and t_clean:
+            title, url = url, title
+            u_clean = t_clean
+        if not u_clean:
+            return await c.send(t("⚠️ الرابط غير صالح. يجب أن يبدأ بـ https:// أو @المعرف.", "⚠️ Invalid link. Must start with https:// or @username."))
+        core.setdefault("fs", []).append({"type": "link", "title": title[:60] or "Link", "url": u_clean, "on": True})
         await done(["fs"], t("✅ تمت الإضافة.", "✅ Added."))
     elif k == "o_fs_msg":
         core["fs_msg"] = c.msg.text_html or ""
@@ -1466,8 +1503,16 @@ async def owner_input(c: Ctx, st: dict) -> None:  # noqa: C901
         core.setdefault("welcome", {})["text"] = c.msg.text_html or ""
         await done(["wel"], t("✅ تم حفظ الترحيب.", "✅ Welcome saved."))
     elif k == "o_welbtn":
-        core.setdefault("welcome", {})["buttons"] = [] if text == "0" else parse_buttons(text)
-        await done(["wel"], t("✅ تم حفظ الأزرار.", "✅ Buttons saved."))
+        if text.strip() == "0":
+            core.setdefault("welcome", {})["buttons"] = []
+            await done(["wel"], t("✅ تم حذف الأزرار.", "✅ Buttons removed."))
+        else:
+            parsed = parse_buttons(text)
+            if not parsed:
+                return await c.send(t("⚠️ لم يتم العثور على أي زر برابط صالح.\nالصيغة: <code>نص الزر - https://example.com</code>\nأو أرسل <code>0</code> لإلغاء الأزرار.",
+                                      "⚠️ No valid buttons with URLs found.\nFormat: <code>Button text - https://example.com</code>\nOr send <code>0</code> to clear."))
+            core.setdefault("welcome", {})["buttons"] = parsed
+            await done(["wel"], t(f"✅ تم حفظ {sum(len(r) for r in parsed)} زر بنجاح.", f"✅ Saved {sum(len(r) for r in parsed)} buttons."))
     elif k == "o_qr_k":
         c.set_state("o_qr_v", key=text[:60])
         await c.send(t("✍️ الآن أرسل نص الرد.", "✍️ Now send the reply text."))
