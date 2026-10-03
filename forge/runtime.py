@@ -174,7 +174,7 @@ class Manager:
         if not config.MAKER_TOKEN:
             raise SystemExit("MAKER_TOKEN غير موجود. ضعه في ملف .env")
         self.maker = self.build(config.MAKER_TOKEN)
-        self.maker.bot_data.update(manager=self, factory_id=0)
+        self.maker.bot_data.update(manager=self, factory_id=0, maker_fid=0)
         maker.register(self.maker)
         await self.maker.initialize()
         await self.maker.start()

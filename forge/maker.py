@@ -38,41 +38,53 @@ _BATCH_WORKER_STARTED: bool = False
 
 async def _user_batch_worker() -> None:
     """معالج دفعي خفيف لتسجيل المستخدمين في قاعدة البيانات بدون أي تأخير للبوت."""
+    _fail_streak = 0
     while True:
-        batch = []
         try:
-            item = await _USER_BATCH_QUEUE.get()
-            batch.append(item)
+            # انتظر أول عنصر
+            item = await asyncio.wait_for(_USER_BATCH_QUEUE.get(), timeout=5.0)
             _USER_BATCH_QUEUE.task_done()
-            while len(batch) < 100:
+            batch = [item]
+            # جمع المزيد فوراً بدون انتظار
+            while len(batch) < 200:
                 try:
                     batch.append(_USER_BATCH_QUEUE.get_nowait())
                     _USER_BATCH_QUEUE.task_done()
                 except asyncio.QueueEmpty:
                     break
-            if batch:
-                async with db.Session() as s:
-                    for fid, uid, name, username, lang, ref in batch:
-                        try:
-                            row = await s.get(db.MUser, (fid, uid))
-                            if row is None:
-                                s.add(db.MUser(
-                                    factory_id=fid,
-                                    user_id=uid,
-                                    name=(name or "")[:128],
-                                    username=username or "",
-                                    lang=lang or "",
-                                    ref_by=ref,
-                                ))
-                            else:
-                                row.name = (name or "")[:128]
-                                row.username = username or ""
-                        except Exception:
-                            pass
-                    await s.commit()
+            # كتابة الدفعة في قاعدة البيانات
+            async with db.Session() as s:
+                for fid, uid, name, username, lang, ref in batch:
+                    try:
+                        row = await s.get(db.MUser, (fid, uid))
+                        if row is None:
+                            s.add(db.MUser(
+                                factory_id=fid,
+                                user_id=uid,
+                                name=(name or "")[:128],
+                                username=username or "",
+                                lang=lang or "",
+                                ref_by=ref,
+                            ))
+                        else:
+                            row.name = (name or "")[:128]
+                            row.username = username or ""
+                    except Exception:
+                        pass
+                await s.commit()
+            _fail_streak = 0
+        except asyncio.TimeoutError:
+            # لا توجد عناصر، تابع الانتظار
+            _fail_streak = 0
+            continue
+        except asyncio.CancelledError:
+            break
         except Exception as e:
-            log.warning("user batch worker error: %s", e)
-        await asyncio.sleep(0.5)
+            _fail_streak += 1
+            wait = min(2 ** _fail_streak, 30)
+            log.warning("user batch worker error (streak=%d, wait=%ds): %s", _fail_streak, wait, e)
+            await asyncio.sleep(wait)
+
 
 
 class M:
@@ -188,11 +200,26 @@ async def gate(m: M) -> bool:
     """يعيد True إن سُمح للمستخدم بالمتابعة (غير محظور، لا صيانة، ومشترك في قنوات الصانع)."""
     if m.is_admin:
         return True
-    p = await platform.get(m.fid)
-    if m.uid in p["banned"] or (m.fid and m.uid in (await platform.get(0))["banned"]):
+    # استخدام try/except لضمان عدم توقف البوت عند فشل DB أثناء الضغط العالي
+    try:
+        p = await platform.get(m.fid)
+    except Exception:
+        log.warning("gate: platform.get failed, allowing user through")
+        return True
+    if m.uid in p["banned"]:
         text = m.t("🚫 تم إيقاف حسابك في هذا الصانع.", "🚫 Your account is suspended here.")
         await m.answer(text, True) if m.q else await m.send(text)
         return False
+    # فحص الحظر في الصانع الرئيسي (فقط إذا كنا في صانع فرعي)
+    if m.fid:
+        try:
+            p0 = await platform.get(0)
+            if m.uid in p0["banned"]:
+                text = m.t("🚫 تم إيقاف حسابك في هذا الصانع.", "🚫 Your account is suspended here.")
+                await m.answer(text, True) if m.q else await m.send(text)
+                return False
+        except Exception:
+            pass
     if p["maintenance"]:
         text = m.t("🛠 الصانع في صيانة قصيرة ويعود بعد قليل. بوتاتك تعمل كالمعتاد.", "🛠 The maker is under brief maintenance. Your bots keep running.")
         await m.answer(text, True) if m.q else await m.send(text)
@@ -212,6 +239,7 @@ async def gate(m: M) -> bool:
         await m.send(m.t("🔐 للاستخدام المجاني، اشترك في قناتنا أولاً ثم اضغط الزر.", "🔐 To use the maker for free, join our channel first, then tap the button."), kb(rows))
         return False
     return True
+
 
 
 async def my_bots(m: M) -> list[db.Bot]:
@@ -1252,43 +1280,51 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
 
 
 async def on_start(update: Update, context: ContextTypes.DEFAULT_TYPE, param: str | None = None) -> None:
-    m = M(update, context)
-    if update.effective_chat is None or update.effective_chat.type != ChatType.PRIVATE or m.user is None:
-        return
-    if param is None:
-        param = context.args[0] if context.args else ""
-    ref = int(param[4:]) if param.startswith("ref_") and param[4:].isdigit() else 0
-    await ensure_user(m, ref)
-    m.udata["mseen"] = True
-    if not await gate(m):
-        return
-    if param.startswith(("adm_", "bot_")) and param[4:].isascii() and param[4:].isdecimal():
-        if param.startswith("adm_") and m.is_admin:
-            return await admin.admin_bot(m, int(param[4:]))
-        if await get_bot(m, int(param[4:])) is not None:
-            return await bot_card(m, int(param[4:]))
-    if param.startswith("tr_"):
-        async with db.Session() as s:
-            tr = await s.get(db.Transfer, param[3:])
-            if tr is None or tr.used or tr.expires < db.now():
-                await m.send(m.t("⚠️ رابط النقل غير صالح أو انتهت صلاحيته.", "⚠️ Transfer link is invalid or expired."))
-            else:
-                row = await s.get(db.Bot, tr.bot_id)
-                lk = platform.lock_of(await platform.adm(tr.bot_id))
-                if row is None or row.owner_id != tr.from_id or (lk is not None and lk["mode"] != "maint"):
-                    await m.send(m.t("⚠️ رابط النقل غير صالح.", "⚠️ Transfer link is invalid."))
-                else:
-                    old = row.owner_id
-                    row.owner_id, tr.used = m.uid, True
-                    await s.commit()
-                    m.mgr.set_owner(row.id, m.uid)
-                    await m.send(m.t(f"✅ أصبحت مالك البوت @{row.username}.", f"✅ You now own @{row.username}."),
-                                 kb([[B(m.t("🗂 بطاقة البوت", "🗂 Bot card"), f"m:b:{row.id}")]]))
-                    try:
-                        await m.bot.send_message(old, f"📤 انتقلت ملكية @{row.username} إلى {esc(m.user.full_name)}.", parse_mode=ParseMode.HTML)
-                    except TelegramError:
-                        pass
-    await home(m, new=True)
+    try:
+        m = M(update, context)
+        if update.effective_chat is None or update.effective_chat.type != ChatType.PRIVATE or m.user is None:
+            return
+        if param is None:
+            param = context.args[0] if context.args else ""
+        ref = int(param[4:]) if param.startswith("ref_") and param[4:].isdigit() else 0
+        await ensure_user(m, ref)
+        m.udata["mseen"] = True
+        if not await gate(m):
+            return
+        if param.startswith(("adm_", "bot_")) and param[4:].isascii() and param[4:].isdecimal():
+            if param.startswith("adm_") and m.is_admin:
+                return await admin.admin_bot(m, int(param[4:]))
+            if await get_bot(m, int(param[4:])) is not None:
+                return await bot_card(m, int(param[4:]))
+        if param.startswith("tr_"):
+            try:
+                async with db.Session() as s:
+                    tr = await s.get(db.Transfer, param[3:])
+                    if tr is None or tr.used or tr.expires < db.now():
+                        await m.send(m.t("⚠️ رابط النقل غير صالح أو انتهت صلاحيته.", "⚠️ Transfer link is invalid or expired."))
+                    else:
+                        row = await s.get(db.Bot, tr.bot_id)
+                        lk = platform.lock_of(await platform.adm(tr.bot_id))
+                        if row is None or row.owner_id != tr.from_id or (lk is not None and lk["mode"] != "maint"):
+                            await m.send(m.t("⚠️ رابط النقل غير صالح.", "⚠️ Transfer link is invalid."))
+                        else:
+                            old = row.owner_id
+                            row.owner_id, tr.used = m.uid, True
+                            await s.commit()
+                            m.mgr.set_owner(row.id, m.uid)
+                            await m.send(m.t(f"✅ أصبحت مالك البوت @{row.username}.", f"✅ You now own @{row.username}."),
+                                         kb([[B(m.t("🗂 بطاقة البوت", "🗂 Bot card"), f"m:b:{row.id}")]]))
+                            try:
+                                await m.bot.send_message(old, f"📤 انتقلت ملكية @{row.username} إلى {esc(m.user.full_name)}.", parse_mode=ParseMode.HTML)
+                            except TelegramError:
+                                pass
+            except Exception as e:
+                log.warning("on_start tr_ error: %s", e)
+        await home(m, new=True)
+    except Exception as e:
+        log.error("on_start unhandled error for user %s: %s", getattr(update.effective_user, 'id', '?') if update else '?', e)
+
+
 
 
 async def on_managed_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

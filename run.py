@@ -23,7 +23,7 @@ class MemoryHandler(logging.Handler):
     def emit(self, record):
         try:
             LOGS.append(self.format(record))
-            if len(LOGS) > 500:
+            if len(LOGS) > 1000:
                 LOGS.pop(0)
         except Exception:
             pass
@@ -53,24 +53,34 @@ def notify(text: str) -> None:
             pass
 
 
+_bot_started = False
+
+
 async def handle_health(_req: web.Request) -> web.Response:
-    return web.Response(text="BotForge is running OK", status=200)
+    return web.Response(text="BotForge OK", status=200)
 
 
 async def handle_debug(_req: web.Request) -> web.Response:
     status_lines = ["=== BOT STATUS ==="]
+    status_lines.append(f"bot_started={_bot_started}")
     try:
         from forge.runtime import manager
         maker_stat = "Not initialized"
         if hasattr(manager, "maker") and manager.maker:
-            up_run = manager.maker.updater.running if manager.maker.updater else False
-            maker_stat = f"username=@{manager.maker.bot.username}, running={manager.maker.running}, polling={up_run}"
+            try:
+                up_run = manager.maker.updater.running if manager.maker.updater else False
+                maker_stat = f"username=@{manager.maker.bot.username}, running={manager.maker.running}, polling={up_run}"
+            except Exception as e:
+                maker_stat = f"error accessing maker props: {e}"
         status_lines.append(f"Maker: {maker_stat}")
         status_lines.append(f"Child bots: {len(manager.apps) if hasattr(manager, 'apps') else 0}")
     except Exception as e:
         status_lines.append(f"Manager error: {e}")
-    status_lines.append("\n=== RECENT LOGS ===")
-    return web.Response(text="\n".join(status_lines) + "\n" + ("\n".join(LOGS) or "No logs yet"), content_type="text/plain")
+    status_lines.append("\n=== RECENT LOGS (last 80) ===")
+    return web.Response(
+        text="\n".join(status_lines) + "\n" + ("\n".join(LOGS[-80:]) or "No logs yet"),
+        content_type="text/plain",
+    )
 
 
 async def start_http_server(port: int):
@@ -82,16 +92,37 @@ async def start_http_server(port: int):
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logging.info("Render health HTTP server listening on 0.0.0.0:%d", port)
+    logging.info("Health HTTP server listening on 0.0.0.0:%d", port)
     return runner
 
 
+async def _try_start_all() -> bool:
+    """محاولة واحدة لتشغيل البوت. تعيد True عند النجاح."""
+    global _bot_started
+    try:
+        from forge.runtime import manager
+        await manager.start_all()
+        _bot_started = True
+        logging.info("✅ BotForge started successfully!")
+        notify(f"✅ BotForge LIVE!\nBot: @{manager.maker.bot.username}")
+        return True
+    except SystemExit as e:
+        logging.error("FATAL SystemExit in start_all: %s", e)
+        notify(f"❌ Fatal: {e}")
+        return False  # لا تعيد المحاولة - مشكلة إعداد
+    except Exception:
+        err = traceback.format_exc()
+        logging.error("start_all failed: %s", err)
+        return False
+
+
 async def main() -> None:
+    global _bot_started
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    for noisy in ("httpx", "httpcore", "apscheduler", "telegram.ext.Updater"):
+    for noisy in ("httpx", "httpcore", "apscheduler", "telegram.ext.Updater", "telegram.ext._updater"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    # 1. Start HTTP server first for Render health checks
+    # 1. بدء خادم HTTP أولاً حتى يتعرف Render على الخدمة
     port = int(os.environ.get("PORT", os.environ.get("WEB_PORT", 0)) or 0)
     runner = None
     if port > 0:
@@ -100,20 +131,22 @@ async def main() -> None:
         except Exception:
             logging.exception("Failed to start health HTTP server on port %s", port)
 
-    # 2. Start BotForge
-    notify("🚀 BotForge is initializing on server...")
-    try:
-        from forge.runtime import manager
+    # 2. محاولة تشغيل البوت مع إعادة المحاولة التلقائية
+    notify("🚀 BotForge initializing...")
+    max_retries = 10
+    for attempt in range(1, max_retries + 1):
+        ok = await _try_start_all()
+        if ok:
+            break
+        if attempt < max_retries:
+            wait = min(attempt * 5, 30)
+            logging.warning("Retry %d/%d in %ds...", attempt, max_retries, wait)
+            await asyncio.sleep(wait)
+        else:
+            logging.error("All %d attempts failed. Bot will stay down.", max_retries)
+            notify("❌ BotForge failed to start after all retries.")
 
-        await manager.start_all()
-        notify(f"✅ BotForge is LIVE on server!\nBot: @{manager.maker.bot.username}")
-        print(f"\n✅ BotForge is running — maker bot: https://t.me/{manager.maker.bot.username}")
-        print(f"   Child bots running: {len(manager.apps)}. Press Ctrl+C to stop.\n")
-    except BaseException:
-        err = traceback.format_exc()
-        logging.error("FATAL in start_all: %s", err)
-        notify(f"❌ Error in start_all:\n{err}")
-
+    # 3. إعداد إشارات الإيقاف
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -122,20 +155,55 @@ async def main() -> None:
         except NotImplementedError:
             pass
 
+    # 4. Watchdog: يراقب البوت كل 10 ثوانٍ ويعيد تشغيله إذا توقف
     async def _watchdog():
         while not stop.is_set():
             try:
-                await asyncio.sleep(15)
+                await asyncio.sleep(10)
                 from forge.runtime import manager
+
+                # فحص حالة polling
+                maker_ok = False
                 if hasattr(manager, "maker") and manager.maker:
-                    up = manager.maker.updater
-                    if up and not up.running:
-                        logging.warning("⚠️ Watchdog: Polling was stopped! Automatically reviving polling...")
+                    try:
+                        up = manager.maker.updater
+                        maker_ok = bool(up and up.running)
+                    except Exception:
+                        maker_ok = False
+
+                if not maker_ok:
+                    logging.warning("⚠️ Watchdog: polling is DOWN! Attempting recovery...")
+                    # محاولة إعادة تشغيل polling فقط أولاً
+                    recovered = False
+                    if hasattr(manager, "maker") and manager.maker and manager.maker.updater:
                         try:
-                            await up.start_polling(allowed_updates=Update.ALL_TYPES)
-                            logging.info("✅ Watchdog: Polling successfully revived!")
+                            await manager.maker.updater.start_polling(
+                                allowed_updates=Update.ALL_TYPES,
+                                drop_pending_updates=False,
+                            )
+                            recovered = True
+                            logging.info("✅ Watchdog: polling revived!")
+                            notify("✅ Watchdog revived polling!")
                         except Exception as poll_err:
-                            logging.error("Watchdog failed to revive polling: %s", poll_err)
+                            logging.error("Watchdog polling revival failed: %s", poll_err)
+
+                    if not recovered:
+                        # إعادة تشغيل كاملة
+                        logging.warning("⚠️ Watchdog: full restart...")
+                        try:
+                            await manager.shutdown()
+                        except Exception:
+                            pass
+                        for attempt in range(5):
+                            ok = await _try_start_all()
+                            if ok:
+                                logging.info("✅ Watchdog: full restart succeeded!")
+                                notify("✅ Watchdog: bot fully restarted!")
+                                break
+                            await asyncio.sleep(10)
+                        else:
+                            logging.error("Watchdog: full restart failed after 5 attempts")
+
             except asyncio.CancelledError:
                 break
             except Exception as w_err:
@@ -150,7 +218,6 @@ async def main() -> None:
             await runner.cleanup()
         try:
             from forge.runtime import manager
-
             await manager.shutdown()
         except Exception:
             pass
@@ -163,5 +230,5 @@ if __name__ == "__main__":
         pass
     except BaseException:
         err = traceback.format_exc()
-        notify(f"❌ Unhandled Exception in run.py:\n{err}")
+        notify(f"❌ Unhandled Exception:\n{err}")
         sys.exit(1)
