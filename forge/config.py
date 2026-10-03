@@ -34,7 +34,15 @@ TMP_DIR.mkdir(exist_ok=True)
 
 MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "")
 ADMIN_ID = _int("ADMIN_ID")
-DATABASE_URL = os.environ.get("DATABASE_URL") or f"sqlite+aiosqlite:///{(DATA_DIR / 'forge.db').as_posix()}"
+_raw_db = os.environ.get("DATABASE_URL", "").strip()
+if _raw_db:
+    if _raw_db.startswith("postgres://"):
+        _raw_db = _raw_db.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif _raw_db.startswith("postgresql://") and not _raw_db.startswith("postgresql+"):
+        _raw_db = _raw_db.replace("postgresql://", "postgresql+asyncpg://", 1)
+    DATABASE_URL = _raw_db
+else:
+    DATABASE_URL = f"sqlite+aiosqlite:///{(DATA_DIR / 'forge.db').as_posix()}"
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 
 # خادم Bot API. اتركه افتراضياً، أو ضع عنوان خادمك المحلي لرفع ملفات حتى 2GB.
