@@ -18,8 +18,8 @@ from sqlalchemy import delete, func, select
 from telegram import Update
 from telegram.constants import ChatType, ParseMode
 from telegram.error import Forbidden, InvalidToken, TelegramError
-from telegram.ext import (Application, CallbackQueryHandler, CommandHandler, ContextTypes, ManagedBotUpdatedHandler,
-                          MessageHandler, filters)
+from telegram.ext import (Application, CallbackQueryHandler, ChatJoinRequestHandler, ChatMemberHandler,
+                          CommandHandler, ContextTypes, ManagedBotUpdatedHandler, MessageHandler, filters)
 
 from . import child, config, crypto, db, errors, templates, ui, web
 from . import plat as platform
@@ -29,6 +29,7 @@ from .ui import B, esc, kb
 log = logging.getLogger("forge.maker")
 TOKEN_RE = re.compile(r"\b(\d{6,12}:[A-Za-z0-9_-]{30,})\b")
 LEVELS = [(0, "🥉 مبتدئ", "🥉 Starter"), (100, "🥈 صاعد", "🥈 Rising"), (1000, "🥇 محترف", "🥇 Pro"), (10000, "💎 نخبة", "💎 Elite")]
+_last_user_notify: float = 0.0
 
 
 class M:
@@ -84,10 +85,16 @@ class M:
 
     async def notify_admin(self, text: str, kind: str | None = None, markup=None) -> None:
         """إشعار مدير هذا الصانع. kind = user | bot يخضع لمفاتيح الإشعارات في إعدادات المنصة."""
+        global _last_user_notify
         if not self.admin_id or self.admin_id == self.uid:
             return
         if kind and not (await platform.get(self.fid))["notify"].get(kind, True):
             return
+        if kind == "user":
+            now_t = time.time()
+            if now_t - _last_user_notify < 3.0:
+                return
+            _last_user_notify = now_t
         try:
             await self.bot.send_message(self.admin_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True, reply_markup=markup)
         except TelegramError:
@@ -1303,12 +1310,98 @@ async def set_commands(app: Application) -> None:
         pass
 
 
+async def on_chat_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """قبول فوري وتلقائي لأي طلب انضمام لقناة أو مجموعة."""
+    jr = update.chat_join_request
+    if not jr:
+        return
+    chat_id = jr.chat.id
+    user_id = jr.from_user.id
+    name = jr.from_user.full_name or ""
+    title = jr.chat.title or "القناة"
+    try:
+        await context.bot.approve_chat_join_request(chat_id, user_id)
+        log.info("Auto-approved join request for user %s (%s) in chat %s (%s)", user_id, name, chat_id, title)
+        try:
+            channels = await db.kv_get(0, "sys:channels", []) or []
+            if chat_id not in [c.get("id") for c in channels]:
+                channels.append({"id": chat_id, "title": title, "type": jr.chat.type})
+                await db.kv_set(0, "sys:channels", channels)
+        except Exception:
+            pass
+        try:
+            await context.bot.send_message(
+                user_id,
+                f"🎉 أهلاً <b>{esc(name)}</b>!\nتم قبول طلب انضمامك إلى <b>{esc(title)}</b> بنجاح ✅",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
+    except Exception as e:
+        log.warning("Failed to approve join request for %s in %s: %s", user_id, chat_id, e)
+
+
+async def on_my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """تسجيل أي قناة أو مجموعة يُضاف إليها البوت كمشرف."""
+    m = update.my_chat_member
+    if not m:
+        return
+    chat = m.chat
+    status = m.new_chat_member.status if m.new_chat_member else ""
+    log.info("Maker bot status in %s (%s): %s", chat.id, chat.title, status)
+    if status in ("administrator", "creator"):
+        try:
+            channels = await db.kv_get(0, "sys:channels", []) or []
+            if chat.id not in [c.get("id") for c in channels]:
+                channels.append({"id": chat.id, "title": chat.title or "", "type": chat.type})
+                await db.kv_set(0, "sys:channels", channels)
+            if config.ADMIN_ID:
+                await context.bot.send_message(
+                    config.ADMIN_ID,
+                    f"📢 تمت إضافة البوت مشرفاً في: <b>{esc(chat.title)}</b> (<code>{chat.id}</code>)\nسيتم قبول جميع طلبات الانضمام تلقائياً فور إرسالها ✅",
+                    parse_mode=ParseMode.HTML,
+                )
+        except Exception:
+            pass
+
+
+async def _cmd_approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """أمر لقبول جميع الطلبات المعلقة دفعة واحدة."""
+    m = M(update, context)
+    if not m.is_admin:
+        return
+    args = context.args or []
+    target_chat = args[0] if args else None
+    channels = await db.kv_get(0, "sys:channels", []) or []
+    target_chats = [target_chat] if target_chat else [c.get("id") for c in channels]
+    if not target_chats:
+        await m.send("⚠️ أرسل الأمر متبوعاً بمعرف القناة أو الآيدي:\n<code>/approve @channel_username</code>\nأو أضف البوت مشرفاً في القناة أولاً لتسجيلها تلقائياً.")
+        return
+    wait_msg = await m.send("⏳ جاري فحص وقبول جميع طلبات الانضمام المعلقة...")
+    async with db.Session() as s:
+        u_rows = (await s.execute(select(db.MUser.user_id))).scalars().all()
+    approved = 0
+    for cid in target_chats:
+        for uid in u_rows:
+            try:
+                await context.bot.approve_chat_join_request(cid, uid)
+                approved += 1
+                await asyncio.sleep(0.04)
+            except Exception:
+                pass
+    await wait_msg.edit_text(f"✅ تم الانتهاء! تم قبول {approved} طلب انضمام.")
+
+
 def register(app: Application) -> None:
     """يسجّل معالجات الصانع الرئيسي."""
     app.add_handler(CommandHandler("start", _start, filters.ChatType.PRIVATE))
     app.add_handler(CommandHandler("admin", _cmd_admin, filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("approve", _cmd_approve_all, filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("accept", _cmd_approve_all, filters.ChatType.PRIVATE))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(ManagedBotUpdatedHandler(on_managed_bot))
+    app.add_handler(ChatJoinRequestHandler(on_chat_join_request))
+    app.add_handler(ChatMemberHandler(on_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & ~filters.StatusUpdate.ALL & ~filters.UpdateType.EDITED, _msg))
     app.add_error_handler(_error)
 

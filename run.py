@@ -22,7 +22,7 @@ class MemoryHandler(logging.Handler):
     def emit(self, record):
         try:
             LOGS.append(self.format(record))
-            if len(LOGS) > 300:
+            if len(LOGS) > 500:
                 LOGS.pop(0)
         except Exception:
             pass
@@ -30,7 +30,10 @@ class MemoryHandler(logging.Handler):
 
 mem_handler = MemoryHandler()
 mem_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-logging.getLogger().addHandler(mem_handler)
+mem_handler.setLevel(logging.INFO)
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(mem_handler)
 
 
 def notify(text: str) -> None:
@@ -54,7 +57,19 @@ async def handle_health(_req: web.Request) -> web.Response:
 
 
 async def handle_debug(_req: web.Request) -> web.Response:
-    return web.Response(text="\n".join(LOGS) or "No logs yet", content_type="text/plain")
+    status_lines = ["=== BOT STATUS ==="]
+    try:
+        from forge.runtime import manager
+        maker_stat = "Not initialized"
+        if hasattr(manager, "maker") and manager.maker:
+            up_run = manager.maker.updater.running if manager.maker.updater else False
+            maker_stat = f"username=@{manager.maker.bot.username}, running={manager.maker.running}, polling={up_run}"
+        status_lines.append(f"Maker: {maker_stat}")
+        status_lines.append(f"Child bots: {len(manager.apps) if hasattr(manager, 'apps') else 0}")
+    except Exception as e:
+        status_lines.append(f"Manager error: {e}")
+    status_lines.append("\n=== RECENT LOGS ===")
+    return web.Response(text="\n".join(status_lines) + "\n" + ("\n".join(LOGS) or "No logs yet"), content_type="text/plain")
 
 
 async def start_http_server(port: int):
