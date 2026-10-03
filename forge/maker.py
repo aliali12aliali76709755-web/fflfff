@@ -364,6 +364,7 @@ async def home(m: M, *, new: bool = False) -> None:
         links.append(f'<a href="{config.UPDATES_URL}">{T("📣 جديد الصانع", "📣 What is new")}</a>')
     if config.PRIVACY_URL and m.fid == 0:
         links.append(f'<a href="{config.PRIVACY_URL}">{T("🔏 الخصوصية", "🔏 Privacy")}</a>')
+    tail = ("\n" + " · ".join(links)) if links else ""
     try:
         await m.show(head + body + tail, kb([
             [B(T("➕ ابنِ بوتاً جديداً", "➕ Build a new bot"), "m:new", style="success")],
@@ -373,7 +374,7 @@ async def home(m: M, *, new: bool = False) -> None:
             [B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home", style="primary")] if m.is_admin else None,
         ]), new=new)
     except Exception as err:
-        log.debug("home show error (flood/rate limit): %s", err)
+        log.error("home show error: %s", err)
 
 
 # ───────────────────────── بناء بوت: اختيار النوع ─────────────────────────
