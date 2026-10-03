@@ -110,16 +110,18 @@ async def handle_test_start(req: web.Request) -> web.Response:
         uid_str = req.query.get("uid", os.environ.get("ADMIN_ID", "6641619062"))
         user_id = int(uid_str)
 
-        fake_user = User(id=user_id, is_bot=False, first_name="Ali", username="DRK450", language_code="ar")
-        fake_chat = Chat(id=user_id, type=ChatType.PRIVATE)
-        fake_msg = Message(
-            message_id=999999,
-            date=dt.datetime.utcnow(),
-            chat=fake_chat,
-            from_user=fake_user,
-            text="/start",
-        )
-        fake_update = Update(update_id=999999, message=fake_msg)
+        data = {
+            "update_id": 999999,
+            "message": {
+                "message_id": 999999,
+                "date": int(dt.datetime.utcnow().timestamp()),
+                "chat": {"id": user_id, "type": "private"},
+                "from": {"id": user_id, "is_bot": False, "first_name": "Ali", "username": "DRK450"},
+                "text": "/start",
+                "entities": [{"offset": 0, "length": 6, "type": "bot_command"}],
+            },
+        }
+        fake_update = Update.de_json(data, manager.maker.bot)
 
         logging.info("Triggering test /start update for uid=%d", user_id)
         await manager.maker.process_update(fake_update)
