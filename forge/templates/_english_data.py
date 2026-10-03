@@ -1,0 +1,81 @@
+"""محتوى قالب تعليم الإنجليزية: اختبار تحديد المستوى، الدروس، والمفردات."""
+
+# (السؤال، الخيارات، رقم الخيار الصحيح، المستوى الذي يقيسه)
+PLACEMENT = [
+    ("I ___ a student.", ["am", "is", "are"], 0, 1),
+    ("She ___ to school every day.", ["go", "goes", "going"], 1, 1),
+    ("There ___ two books on the table.", ["is", "are", "be"], 1, 1),
+    ("What is the opposite of “big”?", ["tall", "small", "fast"], 1, 1),
+    ("Yesterday I ___ a film.", ["watch", "watched", "watching"], 1, 2),
+    ("He is ___ than his brother.", ["tall", "taller", "tallest"], 1, 2),
+    ("We ___ dinner when the phone rang.", ["were having", "have", "had have"], 0, 2),
+    ("I have lived here ___ 2015.", ["for", "since", "from"], 1, 2),
+    ("If it rains, we ___ at home.", ["stay", "will stay", "stayed"], 1, 3),
+    ("The letter ___ yesterday.", ["was sent", "sent", "is sending"], 0, 3),
+    ("I wish I ___ more time.", ["have", "had", "will have"], 1, 3),
+    ("She asked me where I ___.", ["live", "lived", "am living"], 1, 3),
+]
+
+LEVELS = {1: "A1 مبتدئ", 2: "A2 أساسي", 3: "B1 متوسط"}
+
+# كل درس: (المستوى، العنوان، الشرح، أمثلة، [(سؤال، خيارات، الصحيح)])
+LESSONS = [
+    (1, "فعل الكينونة: am / is / are",
+     "نستخدم <b>am</b> مع I، و<b>is</b> مع he / she / it، و<b>are</b> مع you / we / they.\nللنفي نضيف not: I am not, he isn't, they aren't.",
+     ["I am a teacher. — أنا معلم.", "She is happy. — هي سعيدة.", "They are at home. — هم في البيت."],
+     [("We ___ friends.", ["am", "is", "are"], 2), ("He ___ not tired.", ["is", "are", "am"], 0)]),
+    (1, "المضارع البسيط Present Simple",
+     "للعادات والحقائق. مع he / she / it نضيف <b>s</b> للفعل: he works.\nللسؤال والنفي نستخدم do / does: Do you work? She doesn't work.",
+     ["I drink coffee every morning. — أشرب القهوة كل صباح.", "He plays football. — هو يلعب كرة القدم.", "Do you speak English? — هل تتكلم الإنجليزية؟"],
+     [("She ___ in a bank.", ["work", "works", "working"], 1), ("___ you like tea?", ["Do", "Does", "Are"], 0)]),
+    (1, "أدوات التعريف والتنكير a / an / the",
+     "<b>a</b> قبل اسم مفرد يبدأ بصوت ساكن، و<b>an</b> قبل صوت متحرك (a, e, i, o, u). <b>the</b> لشيء محدد يعرفه السامع.",
+     ["a book — كتاب", "an apple — تفاحة", "The sun is hot. — الشمس حارة."],
+     [("I have ___ orange.", ["a", "an", "the"], 1), ("___ moon is beautiful tonight.", ["A", "An", "The"], 2)]),
+    (2, "الماضي البسيط Past Simple",
+     "لحدث انتهى في الماضي. الأفعال المنتظمة تأخذ <b>ed</b>: worked. وغير المنتظمة تُحفظ: go → went, see → saw.\nللسؤال والنفي نستخدم did: Did you go? I didn't go.",
+     ["I visited my uncle yesterday. — زرت عمي أمس.", "She went to Istanbul. — ذهبت إلى إسطنبول.", "Did you see him? — هل رأيته؟"],
+     [("We ___ pizza last night.", ["eat", "ate", "eaten"], 1), ("He didn't ___ to work.", ["go", "went", "goes"], 0)]),
+    (2, "المقارنة والتفضيل",
+     "للصفات القصيرة: نضيف <b>er</b> للمقارنة و<b>est</b> للتفضيل: tall → taller → the tallest.\nللصفات الطويلة: more / the most: more expensive, the most expensive.",
+     ["This phone is cheaper than that one. — هذا الهاتف أرخص من ذاك.", "It is the best shop in the city. — إنه أفضل متجر في المدينة."],
+     [("My car is ___ than yours.", ["fast", "faster", "fastest"], 1), ("This is the ___ interesting book.", ["more", "most", "much"], 1)]),
+    (2, "المضارع التام Present Perfect",
+     "have / has + التصريف الثالث. لحدث بدأ في الماضي وما زال أثره، أو لتجربة دون تحديد وقت.\n<b>for</b> لمدة، و<b>since</b> لنقطة بداية.",
+     ["I have finished my work. — أنهيت عملي.", "She has lived here for five years. — تعيش هنا منذ خمس سنوات."],
+     [("They ___ already eaten.", ["has", "have", "had been"], 1), ("I have known him ___ 2020.", ["for", "since", "ago"], 1)]),
+    (3, "الجمل الشرطية (النوع الأول والثاني)",
+     "<b>الأول</b> (ممكن): If + مضارع بسيط، will + فعل. <b>الثاني</b> (خيالي): If + ماضٍ بسيط، would + فعل.",
+     ["If you study, you will pass. — إذا درست ستنجح.", "If I had money, I would travel. — لو كان معي مال لسافرت."],
+     [("If it ___ tomorrow, we will stay home.", ["rains", "rained", "will rain"], 0), ("If I ___ you, I would accept.", ["am", "were", "be"], 1)]),
+    (3, "المبني للمجهول Passive",
+     "نستخدمه حين يهمنا الحدث لا الفاعل: be + التصريف الثالث.\nThe house was built in 1990. — بُني البيت عام 1990.",
+     ["English is spoken here. — تُتكلم الإنجليزية هنا.", "The order will be delivered tomorrow. — سيُسلَّم الطلب غداً."],
+     [("The bot ___ created last week.", ["is", "was", "were"], 1), ("Messages ___ sent every day.", ["are", "is", "be"], 0)]),
+    (3, "الكلام المنقول Reported Speech",
+     "عند نقل كلام شخص نرجع الزمن خطوة للخلف: “I am tired” → He said he <b>was</b> tired.\nالأسئلة تصبح بترتيب الجملة الخبرية: She asked where I lived.",
+     ["He said he was busy. — قال إنه مشغول.", "She asked if I could help. — سألت إن كنت أستطيع المساعدة."],
+     [("She said she ___ coming.", ["is", "was", "will"], 1), ("He asked me what I ___.", ["want", "wanted", "am want"], 1)]),
+]
+
+# (المستوى، الكلمة، المعنى)
+WORDS = [
+    (1, "house", "بيت"), (1, "water", "ماء"), (1, "friend", "صديق"), (1, "book", "كتاب"), (1, "food", "طعام"),
+    (1, "family", "عائلة"), (1, "school", "مدرسة"), (1, "city", "مدينة"), (1, "money", "مال"), (1, "work", "عمل"),
+    (1, "time", "وقت"), (1, "day", "يوم"), (1, "night", "ليل"), (1, "happy", "سعيد"), (1, "big", "كبير"),
+    (1, "small", "صغير"), (1, "new", "جديد"), (1, "old", "قديم"), (1, "good", "جيد"), (1, "bad", "سيئ"),
+    (1, "eat", "يأكل"), (1, "drink", "يشرب"), (1, "go", "يذهب"), (1, "come", "يأتي"), (1, "buy", "يشتري"),
+    (1, "open", "يفتح"), (1, "close", "يغلق"), (1, "write", "يكتب"), (1, "read", "يقرأ"), (1, "speak", "يتكلم"),
+    (2, "market", "سوق"), (2, "price", "سعر"), (2, "customer", "زبون"), (2, "order", "طلب"), (2, "delivery", "توصيل"),
+    (2, "weather", "طقس"), (2, "journey", "رحلة"), (2, "airport", "مطار"), (2, "ticket", "تذكرة"), (2, "luggage", "أمتعة"),
+    (2, "meeting", "اجتماع"), (2, "message", "رسالة"), (2, "answer", "إجابة"), (2, "question", "سؤال"), (2, "problem", "مشكلة"),
+    (2, "cheap", "رخيص"), (2, "expensive", "غالٍ"), (2, "busy", "مشغول"), (2, "ready", "جاهز"), (2, "important", "مهم"),
+    (2, "arrive", "يصل"), (2, "leave", "يغادر"), (2, "choose", "يختار"), (2, "pay", "يدفع"), (2, "send", "يرسل"),
+    (2, "receive", "يستلم"), (2, "explain", "يشرح"), (2, "remember", "يتذكر"), (2, "forget", "ينسى"), (2, "borrow", "يستعير"),
+    (3, "experience", "خبرة"), (3, "opportunity", "فرصة"), (3, "decision", "قرار"), (3, "advantage", "ميزة"), (3, "agreement", "اتفاق"),
+    (3, "competition", "منافسة"), (3, "development", "تطوير"), (3, "environment", "بيئة"), (3, "government", "حكومة"), (3, "knowledge", "معرفة"),
+    (3, "responsibility", "مسؤولية"), (3, "relationship", "علاقة"), (3, "requirement", "متطلب"), (3, "solution", "حل"), (3, "profit", "ربح"),
+    (3, "reliable", "موثوق"), (3, "available", "متاح"), (3, "efficient", "فعّال"), (3, "necessary", "ضروري"), (3, "similar", "مشابه"),
+    (3, "achieve", "يحقق"), (3, "improve", "يحسّن"), (3, "increase", "يزيد"), (3, "reduce", "يقلل"), (3, "provide", "يوفّر"),
+    (3, "require", "يتطلب"), (3, "suggest", "يقترح"), (3, "manage", "يدير"), (3, "avoid", "يتجنب"), (3, "convince", "يقنع"),
+]

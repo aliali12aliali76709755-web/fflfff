@@ -1,0 +1,9 @@
+services:
+  botforge:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"      # موقع الويب المرتبط بالبوتات (ضع أمامه وسيطاً بشهادة https)
+    volumes:
+      - ./data:/app/data
