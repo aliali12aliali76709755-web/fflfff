@@ -32,6 +32,47 @@ LEVELS = [(0, "🥉 مبتدئ", "🥉 Starter"), (100, "🥈 صاعد", "🥈 R
 _last_user_notify: float = 0.0
 _SEEN_USERS: set[tuple[int, int]] = set()
 _KNOWN_CHANNELS: set[int] = set()
+_USER_BATCH_QUEUE: asyncio.Queue = asyncio.Queue()
+_BATCH_WORKER_STARTED: bool = False
+
+
+async def _user_batch_worker() -> None:
+    """معالج دفعي خفيف لتسجيل المستخدمين في قاعدة البيانات بدون أي تأخير للبوت."""
+    while True:
+        batch = []
+        try:
+            item = await _USER_BATCH_QUEUE.get()
+            batch.append(item)
+            _USER_BATCH_QUEUE.task_done()
+            while len(batch) < 100:
+                try:
+                    batch.append(_USER_BATCH_QUEUE.get_nowait())
+                    _USER_BATCH_QUEUE.task_done()
+                except asyncio.QueueEmpty:
+                    break
+            if batch:
+                async with db.Session() as s:
+                    for fid, uid, name, username, lang, ref in batch:
+                        try:
+                            row = await s.get(db.MUser, (fid, uid))
+                            if row is None:
+                                s.add(db.MUser(
+                                    factory_id=fid,
+                                    user_id=uid,
+                                    name=(name or "")[:128],
+                                    username=username or "",
+                                    lang=lang or "",
+                                    ref_by=ref,
+                                ))
+                            else:
+                                row.name = (name or "")[:128]
+                                row.username = username or ""
+                        except Exception:
+                            pass
+                    await s.commit()
+        except Exception as e:
+            log.warning("user batch worker error: %s", e)
+        await asyncio.sleep(0.5)
 
 
 class M:
@@ -113,39 +154,34 @@ class M:
 
 # ───────────────────────── المستخدمون والبوابة ─────────────────────────
 async def ensure_user(m: M, ref: int = 0) -> bool:
+    global _BATCH_WORKER_STARTED
+    if not _BATCH_WORKER_STARTED:
+        _BATCH_WORKER_STARTED = True
+        asyncio.create_task(_user_batch_worker())
+
     key = (m.fid, m.uid)
     if not ref and key in _SEEN_USERS:
         return False
-    try:
-        async with db.Session() as s:
-            row = await s.get(db.MUser, key)
-            is_new = row is None
-            if is_new:
-                row = db.MUser(factory_id=m.fid, user_id=m.uid, ref_by=ref if ref != m.uid else 0)
-                s.add(row)
-            row.name = (m.user.full_name or "")[:128]
-            row.username = m.user.username or ""
-            if row.lang:
-                m.lang = row.lang
-                m.udata["mlang"] = row.lang
-            await s.commit()
-    except Exception as db_err:
-        log.warning("DB ensure_user failed for %s: %s", key, db_err)
-        is_new = False
-    if len(_SEEN_USERS) > 100000:
+    if len(_SEEN_USERS) > 200000:
         _SEEN_USERS.clear()
     _SEEN_USERS.add(key)
+
+    # وضع المستخدم في الطابور الخلفي الفوري دون أي قفل لقاعدة البيانات
+    name = (m.user.full_name or "")[:128] if m.user else ""
+    username = m.user.username or "" if m.user else ""
+    _USER_BATCH_QUEUE.put_nowait((m.fid, m.uid, name, username, m.lang, ref if ref != m.uid else 0))
+
     if m.fid == 0 and not config.ADMIN_ID:
         config.ADMIN_ID = m.uid
-        await db.kv_set(0, "sys:admin", m.uid)
-        try:
-            await m.bot.send_message(m.uid, "👑 أنت أول من فتح البوت، فأصبحت <b>مدير المنصة</b>.\nسيظهر لك زر «لوحة الإدارة» في القائمة الرئيسية.", parse_mode=ParseMode.HTML)
-        except TelegramError:
-            pass
-    if is_new:
-        await m.notify_admin(f"🆕 مستخدم جديد في الصانع: {esc(m.user.full_name)} (<code>{m.uid}</code>)"
-                             + (f"\n🎁 عبر دعوة: <code>{ref}</code>" if ref else ""), "user")
-    return is_new
+        async def _set_admin():
+            try:
+                await db.kv_set(0, "sys:admin", m.uid)
+                await m.bot.send_message(m.uid, "👑 أنت أول من فتح البوت، فأصبحت <b>مدير المنصة</b>.\nسيظهر لك زر «لوحة الإدارة» في القائمة الرئيسية.", parse_mode=ParseMode.HTML)
+            except Exception:
+                pass
+        asyncio.create_task(_set_admin())
+
+    return True
 
 
 async def gate(m: M) -> bool:
@@ -300,14 +336,16 @@ async def home(m: M, *, new: bool = False) -> None:
         links.append(f'<a href="{config.UPDATES_URL}">{T("📣 جديد الصانع", "📣 What is new")}</a>')
     if config.PRIVACY_URL and m.fid == 0:
         links.append(f'<a href="{config.PRIVACY_URL}">{T("🔏 الخصوصية", "🔏 Privacy")}</a>')
-    tail = ("\n\n" + "  ·  ".join(links)) if links else ""
-    await m.show(head + body + tail, kb([
-        [B(T("➕ ابنِ بوتاً جديداً", "➕ Build a new bot"), "m:new", style="success")],
-        [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T("📊 لوحتي", "📊 My dashboard"), "m:stats")],
-        [B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref"), B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
-        [B(T("🆘 مساعدة", "🆘 Help"), "m:more"), B(T("🖥 لوحتي على الويب", "🖥 My web dashboard"), "m:web") if bots and web.enabled() else None],
-        [B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home", style="primary")] if m.is_admin else None,
-    ]), new=new)
+    try:
+        await m.show(head + body + tail, kb([
+            [B(T("➕ ابنِ بوتاً جديداً", "➕ Build a new bot"), "m:new", style="success")],
+            [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T("📊 لوحتي", "📊 My dashboard"), "m:stats")],
+            [B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref"), B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
+            [B(T("🆘 مساعدة", "🆘 Help"), "m:more"), B(T("🖥 لوحتي على الويب", "🖥 My web dashboard"), "m:web") if bots and web.enabled() else None],
+            [B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home", style="primary")] if m.is_admin else None,
+        ]), new=new)
+    except Exception as err:
+        log.debug("home show error (flood/rate limit): %s", err)
 
 
 # ───────────────────────── بناء بوت: اختيار النوع ─────────────────────────
