@@ -92,7 +92,8 @@ async def handle_debug(_req: web.Request) -> web.Response:
     status_lines.append("\n=== RECENT LOGS (last 100) ===")
     return web.Response(
         text="\n".join(status_lines) + "\n" + ("\n".join(LOGS[-100:]) or "No logs yet"),
-        content_type="text/plain; charset=utf-8",
+        content_type="text/plain",
+        charset="utf-8",
     )
 
 
