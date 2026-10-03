@@ -31,8 +31,8 @@ class Manager:
         b = (ApplicationBuilder().token(token).base_url(config.BOT_API_BASE).base_file_url(config.BOT_API_FILE_BASE)
              .connect_timeout(20).read_timeout(40).write_timeout(120).pool_timeout(30)
              .get_updates_read_timeout(40)
-             .concurrent_updates(128)
-             .connection_pool_size(256))
+             .concurrent_updates(32)
+             .connection_pool_size(8))
         if config.LOCAL_API:
             b = b.local_mode(True)
         return b.build()

@@ -1282,6 +1282,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
 async def on_start(update: Update, context: ContextTypes.DEFAULT_TYPE, param: str | None = None) -> None:
     try:
         m = M(update, context)
+        log.info("▶ /start uid=%s chat=%s", m.uid, update.effective_chat.type if update.effective_chat else "?")
         if update.effective_chat is None or update.effective_chat.type != ChatType.PRIVATE or m.user is None:
             return
         if param is None:
@@ -1290,7 +1291,10 @@ async def on_start(update: Update, context: ContextTypes.DEFAULT_TYPE, param: st
         await ensure_user(m, ref)
         m.udata["mseen"] = True
         if not await gate(m):
+            log.info("▶ /start uid=%s blocked by gate", m.uid)
             return
+        log.info("▶ /start uid=%s gate passed, showing home", m.uid)
+
         if param.startswith(("adm_", "bot_")) and param[4:].isascii() and param[4:].isdecimal():
             if param.startswith("adm_") and m.is_admin:
                 return await admin.admin_bot(m, int(param[4:]))
