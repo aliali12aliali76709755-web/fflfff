@@ -53,22 +53,33 @@ async def touch(c: Ctx, *, start: bool = False, count: bool = True, source: str 
     if not c.user:
         return False, False
     u = c.user
-    async with db.Session() as s:
-        row = await s.get(db.BUser, (c.bot_id, u.id))
-        is_new = row is None
-        if is_new:
-            row = db.BUser(bot_id=c.bot_id, user_id=u.id, source=source[:32])
-            s.add(row)
-        row.name = (u.full_name or "")[:128]
-        row.username = u.username or ""
-        row.lang = (u.language_code or "")[:8]
-        row.premium = bool(u.is_premium)
-        row.last_seen = db.now()
-        row.blocked = False
-        if count:
-            row.msgs = (row.msgs or 0) + 1
-        banned = bool(row.banned)
-        await s.commit()
+    is_new = False
+    banned = False
+    for attempt in range(3):
+        try:
+            async with db.Session() as s:
+                row = await s.get(db.BUser, (c.bot_id, u.id))
+                is_new = row is None
+                if is_new:
+                    row = db.BUser(bot_id=c.bot_id, user_id=u.id, source=source[:32])
+                    s.add(row)
+                row.name = (u.full_name or "")[:128]
+                row.username = u.username or ""
+                row.lang = (u.language_code or "")[:8]
+                row.premium = bool(u.is_premium)
+                row.last_seen = db.now()
+                row.blocked = False
+                if count:
+                    row.msgs = (row.msgs or 0) + 1
+                banned = bool(row.banned)
+                await s.commit()
+            break
+        except Exception as e:
+            if attempt == 2:
+                log.warning("touch() error for bot %d user %d after 3 attempts: %s", c.bot_id, u.id, e)
+                return False, False
+            await asyncio.sleep(0.04 * (attempt + 1))
+
     inc = {}
     if is_new:
         inc["new"] = 1
@@ -747,28 +758,44 @@ async def on_my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     status = cm.new_chat_member.status
     gone = status in ("kicked", "left")
     if c.chat.type == ChatType.PRIVATE:
-        async with db.Session() as s:
-            await s.execute(sa_update(db.BUser).where(db.BUser.bot_id == c.bot_id, db.BUser.user_id == c.chat.id)
-                            .values(blocked=gone))
-            await s.commit()
+        for attempt in range(3):
+            try:
+                async with db.Session() as s:
+                    await s.execute(sa_update(db.BUser).where(db.BUser.bot_id == c.bot_id, db.BUser.user_id == c.chat.id)
+                                    .values(blocked=gone))
+                    await s.commit()
+                break
+            except Exception as e:
+                if attempt == 2:
+                    log.warning("private chat block update error: %s", e)
+                    break
+                await asyncio.sleep(0.04 * (attempt + 1))
         if gone:
             await db.bump(c.bot_id, left=1)
             if c.core.get("notify_block"):
                 await c.notify_owner(c.t(f"🚫 {c.name} حظر البوت.", f"🚫 {c.name} blocked the bot."))
         return
     kind = "channel" if c.chat.type == ChatType.CHANNEL else "group"
-    async with db.Session() as s:
-        row = await s.get(db.BUser, (c.bot_id, c.chat.id))
-        if row is None:
-            if gone:
-                return
-            s.add(db.BUser(bot_id=c.bot_id, user_id=c.chat.id, name=(c.chat.title or "")[:128],
-                           username=c.chat.username or "", kind=kind))
-            await db.bump(c.bot_id, groups=1)
-        else:
-            row.blocked = gone
-            row.name = (c.chat.title or "")[:128]
-        await s.commit()
+    for attempt in range(3):
+        try:
+            async with db.Session() as s:
+                row = await s.get(db.BUser, (c.bot_id, c.chat.id))
+                if row is None:
+                    if gone:
+                        return
+                    s.add(db.BUser(bot_id=c.bot_id, user_id=c.chat.id, name=(c.chat.title or "")[:128],
+                                   username=c.chat.username or "", kind=kind))
+                    await db.bump(c.bot_id, groups=1)
+                else:
+                    row.blocked = gone
+                    row.name = (c.chat.title or "")[:128]
+                await s.commit()
+            break
+        except Exception as e:
+            if attempt == 2:
+                log.warning("chat member update error for bot %d chat %d: %s", c.bot_id, c.chat.id, e)
+                break
+            await asyncio.sleep(0.04 * (attempt + 1))
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:

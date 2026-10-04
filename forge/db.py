@@ -143,13 +143,21 @@ async def kv_get(bot_id: int, key: str, default: Any = None) -> Any:
 
 
 async def kv_set(bot_id: int, key: str, value: Any) -> None:
-    async with Session() as s:
-        row = await s.get(KV, (bot_id, key))
-        if row is None:
-            s.add(KV(bot_id=bot_id, key=key, value=value))
-        else:
-            row.value = value
-        await s.commit()
+    for attempt in range(3):
+        try:
+            async with Session() as s:
+                row = await s.get(KV, (bot_id, key))
+                if row is None:
+                    s.add(KV(bot_id=bot_id, key=key, value=value))
+                else:
+                    row.value = value
+                await s.commit()
+            break
+        except Exception:
+            if attempt == 2:
+                raise
+            await asyncio.sleep(0.04 * (attempt + 1))
+
 
 
 async def kv_all(bot_id: int) -> dict[str, Any]:
@@ -223,19 +231,64 @@ async def rec_del(bot_id: int, rid: int) -> None:
 
 
 # ───────────────────────── Counters ─────────────────────────
+_BUMP_LOCK = asyncio.Lock()
+_BUMP_BUFFER: dict[tuple[int, str], dict[str, int]] = {}
+_BUMP_TASK: asyncio.Task | None = None
+
+
+async def _bump_flush_loop() -> None:
+    while True:
+        await asyncio.sleep(2.0)
+        try:
+            await _flush_bumps()
+        except Exception as e:
+            log.warning("Bump flush loop error: %s", e)
+
+
+async def _flush_bumps() -> None:
+    global _BUMP_BUFFER
+    if not _BUMP_BUFFER:
+        return
+    async with _BUMP_LOCK:
+        batch = _BUMP_BUFFER
+        _BUMP_BUFFER = {}
+
+    for (bot_id, day), inc in batch.items():
+        for attempt in range(3):
+            try:
+                async with Session() as s:
+                    row = await s.get(Daily, (bot_id, day))
+                    if row is None:
+                        row = Daily(bot_id=bot_id, day=day, data={})
+                        s.add(row)
+                    d = dict(row.data or {})
+                    for k, v in inc.items():
+                        d[k] = int(d.get(k, 0)) + v
+                    row.data = d
+                    await s.commit()
+                break
+            except Exception as e:
+                if attempt == 2:
+                    log.warning("Flush bump exhausted for bot %d: %s", bot_id, e)
+                await asyncio.sleep(0.04 * (attempt + 1))
+
+
 async def bump(bot_id: int, **inc: int) -> None:
-    """يزيد عدادات اليوم: new, starts, links, groups, msgs, left."""
+    """يزيد عدادات اليوم فورياً في الذاكرة دون قفل قاعدة البيانات، وتُحفظ كل ثانيتين تلقائياً."""
+    global _BUMP_TASK
+    if _BUMP_TASK is None:
+        try:
+            loop = asyncio.get_running_loop()
+            _BUMP_TASK = loop.create_task(_bump_flush_loop())
+        except RuntimeError:
+            pass
+
     day = today()
-    async with Session() as s:
-        row = await s.get(Daily, (bot_id, day))
-        if row is None:
-            row = Daily(bot_id=bot_id, day=day, data={})
-            s.add(row)
-        d = dict(row.data or {})
+    key = (bot_id, day)
+    async with _BUMP_LOCK:
+        cur = _BUMP_BUFFER.setdefault(key, {})
         for k, v in inc.items():
-            d[k] = int(d.get(k, 0)) + v
-        row.data = d
-        await s.commit()
+            cur[k] = cur.get(k, 0) + v
 
 
 async def daily(bot_ids: list[int], day: str) -> dict[str, int]:
@@ -247,4 +300,12 @@ async def daily(bot_ids: list[int], day: str) -> dict[str, int]:
     for r in rows:
         for k, v in (r.data or {}).items():
             out[k] = out.get(k, 0) + int(v)
+
+    # دمج العدادات اللحظية من الذاكرة لضمان دقة الأرقام في نفس اللحظة
+    async with _BUMP_LOCK:
+        for (b_id, d_day), b_inc in _BUMP_BUFFER.items():
+            if b_id in bot_ids and d_day == day:
+                for k, v in b_inc.items():
+                    out[k] = out.get(k, 0) + int(v)
+
     return out
