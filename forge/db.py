@@ -1,8 +1,12 @@
 """قاعدة البيانات: النماذج ودوال الوصول المشتركة."""
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
+import logging
 from typing import Any
+
+log = logging.getLogger("forge.db")
 
 from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Integer, String, Text, delete, event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -231,9 +235,16 @@ async def rec_del(bot_id: int, rid: int) -> None:
 
 
 # ───────────────────────── Counters ─────────────────────────
-_BUMP_LOCK = asyncio.Lock()
+_BUMP_LOCK: asyncio.Lock | None = None
 _BUMP_BUFFER: dict[tuple[int, str], dict[str, int]] = {}
 _BUMP_TASK: asyncio.Task | None = None
+
+
+def _get_bump_lock() -> asyncio.Lock:
+    global _BUMP_LOCK
+    if _BUMP_LOCK is None:
+        _BUMP_LOCK = asyncio.Lock()
+    return _BUMP_LOCK
 
 
 async def _bump_flush_loop() -> None:
@@ -249,7 +260,7 @@ async def _flush_bumps() -> None:
     global _BUMP_BUFFER
     if not _BUMP_BUFFER:
         return
-    async with _BUMP_LOCK:
+    async with _get_bump_lock():
         batch = _BUMP_BUFFER
         _BUMP_BUFFER = {}
 
@@ -285,7 +296,7 @@ async def bump(bot_id: int, **inc: int) -> None:
 
     day = today()
     key = (bot_id, day)
-    async with _BUMP_LOCK:
+    async with _get_bump_lock():
         cur = _BUMP_BUFFER.setdefault(key, {})
         for k, v in inc.items():
             cur[k] = cur.get(k, 0) + v
@@ -302,7 +313,7 @@ async def daily(bot_ids: list[int], day: str) -> dict[str, int]:
             out[k] = out.get(k, 0) + int(v)
 
     # دمج العدادات اللحظية من الذاكرة لضمان دقة الأرقام في نفس اللحظة
-    async with _BUMP_LOCK:
+    async with _get_bump_lock():
         for (b_id, d_day), b_inc in _BUMP_BUFFER.items():
             if b_id in bot_ids and d_day == day:
                 for k, v in b_inc.items():
