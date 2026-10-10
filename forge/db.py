@@ -8,7 +8,7 @@ from typing import Any
 
 log = logging.getLogger("forge.db")
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Integer, String, Text, delete, event, func, select
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, Integer, String, Text, delete, event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -115,6 +115,77 @@ class Report(Base):
     kind: Mapped[str] = mapped_column(String(12))
     text: Mapped[str] = mapped_column(Text)
     created: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
+class UserBalance(Base):
+    """محفظة رصيد المستخدمين بالدولار. bot_id=0 لمالك البوت في الصانع الرئيسي."""
+    __tablename__ = "user_balances"
+    bot_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    balance_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    updated: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class LedgerEntry(Base):
+    """سجل الحركات المالية الذرية غير القابل للحذف."""
+    __tablename__ = "ledger_entries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tx_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    direction: Mapped[str] = mapped_column(String(10))  # credit | debit
+    amount_usd: Mapped[float] = mapped_column(Float)
+    balance_after_usd: Mapped[float] = mapped_column(Float)
+    kind: Mapped[str] = mapped_column(String(32), index=True)
+    ref_id: Mapped[str] = mapped_column(String(64), default="")
+    description: Mapped[str] = mapped_column(String(255), default="")
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class PaymentReceipt(Base):
+    """إيصالات الدفع والشحن (يدوي/آلي/نجوم)."""
+    __tablename__ = "payment_receipts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    receipt_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_name: Mapped[str] = mapped_column(String(128), default="")
+    username: Mapped[str] = mapped_column(String(64), default="")
+    method: Mapped[str] = mapped_column(String(64))
+    amount: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(16))
+    amount_usd: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)  # pending | approved | rejected
+    proof_file_id: Mapped[str] = mapped_column(String(255), default="")
+    proof_text: Mapped[str] = mapped_column(Text, default="")
+    seller_note: Mapped[str] = mapped_column(String(255), default="")
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+    resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class ServiceOrder(Base):
+    """طلبات الخدمات (تفاعل، أرقام، نجوم، ألعاب واشتراكات)."""
+    __tablename__ = "service_orders"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    tpl_key: Mapped[str] = mapped_column(String(32), index=True)
+    service_id: Mapped[str] = mapped_column(String(64))
+    service_name: Mapped[str] = mapped_column(String(255))
+    target: Mapped[str] = mapped_column(String(255))
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    cost_provider_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    cost_platform_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    price_user_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    currency: Mapped[str] = mapped_column(String(16), default="USD")
+    price_user_currency: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    provider_name: Mapped[str] = mapped_column(String(64), default="")
+    provider_order_id: Mapped[str] = mapped_column(String(128), default="")
+    details: Mapped[Any] = mapped_column(JSON, default=dict)
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+    updated: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
 
 _pool_args = {"pool_pre_ping": True}
