@@ -1056,7 +1056,7 @@ async def scr_set(c: Ctx) -> None:
             f"📊 {t('إجمالي من حظروا البوت', 'Users who blocked the bot')}: {n['blocked']}\n"
             f"🚪 {t('روابط البداية', 'Start links')}: {len(core.get('links', {}))}\n"
             f"🛠 {t('وضع الصيانة', 'Maintenance mode')}: {onoff((core.get('maint') or {}).get('on'))}\n"
-            f"📤 {t('زر «شارك البوت» في الرئيسية', 'Share button on the home screen')}: {onoff(core.get('share', True))}\n\n" +
+            f"📤 {t('زر «شارك البوت» في الرئيسية', 'Share button on the home screen')}: {onoff(core.get('share', False))}\n\n" +
             t("قفل المحتوى يمنع تحويل/حفظ الرسائل والوسائط الجديدة التي يرسلها البوت.",
               "Content protection prevents forwarding/saving new messages sent by the bot.") + "\n" +
             t("وضع الصيانة يوقف البوت عن الأعضاء مؤقتاً ويعرض لهم رسالتك، وأنت تتابع العمل في غرفة التحكم.",
@@ -1067,7 +1067,7 @@ async def scr_set(c: Ctx) -> None:
         [B(tog(core.get("notify_block"), "إشعار حظر البوت", "block notifications"), "o:tg:notify_block")],
         [B(tog(core.get("protect"), "قفل المحتوى", "content protection"), "o:tg:protect")],
         [B(tog((core.get("maint") or {}).get("on"), "وضع الصيانة", "maintenance mode"), "o:mt"), B(t("✏️ رسالة الصيانة", "✏️ Maintenance text"), "o:mttxt")],
-        [B(tog(core.get("share", True), "زر مشاركة البوت", "share button"), "o:tg:share")],
+        [B(tog(core.get("share", False), "زر مشاركة البوت", "share button"), "o:tg:share")],
         [B(t("🌐 لغة البوت", "🌐 Bot language"), "o:setl")], _back(c)]))
 
 
@@ -1351,7 +1351,7 @@ async def owner_cb(c: Ctx, a: list[str]) -> None:  # noqa: C901
     elif act == "set":
         await scr_set(c)
     elif act == "tg" and arg in ("notify_join", "notify_block", "protect", "share"):
-        core[arg] = not core.get(arg, arg == "share")
+        core[arg] = not core.get(arg, False)
         await c.save_core()
         await scr_set(c)
     elif act == "setl":

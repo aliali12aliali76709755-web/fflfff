@@ -119,34 +119,41 @@ class ShazamTpl(Tpl):
         if song["label"]:
             cap += c.t(f"\n🏷️ الشركة: {esc(song['label'])}", f"\n🏷️ Label: {esc(song['label'])}")
 
-        rows = []
-        if song["url"]:
-            rows.append([B(c.t("🔗 صفحة الأغنية", "🔗 Song page"), url=song["url"])])
-        rows.append(c.home_row())
-
-        sent = False
-        if song["cover"]:
-            try:
-                await c.photo(song["cover"], caption=cap, kb=kb(rows))
-                sent = True
-            except Exception:
-                sent = False
-        if not sent:
-            await c.send(cap, kb(rows))
-
-        # مقطع صوتي قصير للأغنية إن توفّر
+        # 1) ملف الأغنية الصوتي أولاً، مع الصورة والمعلومات في وصفه (بلا أي روابط)
+        sent_audio = False
         if song["preview"]:
-            p = c.tmp(".m4a")
+            p = c.tmp(".mp3")
+            thumb = None
             try:
                 async with httpx.AsyncClient(timeout=40, follow_redirects=True) as cl:
                     r = await cl.get(song["preview"])
-                if r.status_code == 200:
-                    p.write_bytes(r.content)
-                    await c.audio(str(p), title=song["title"], performer=song["artist"])
+                    if r.status_code == 200:
+                        p.write_bytes(r.content)
+                        if song["cover"]:
+                            rc = await cl.get(song["cover"])
+                            if rc.status_code == 200:
+                                thumb = c.tmp(".jpg")
+                                thumb.write_bytes(rc.content)
+                        extra = {"thumbnail": str(thumb)} if thumb else {}
+                        await c.audio(str(p), caption=cap, title=song["title"],
+                                      performer=song["artist"], **extra)
+                        sent_audio = True
             except Exception:
-                pass
+                sent_audio = False
             finally:
-                cleanup(p)
+                cleanup(p, thumb)
+
+        # 2) إن تعذّر الملف الصوتي: صورة الغلاف مع المعلومات (ما زال بلا روابط)
+        if not sent_audio:
+            sent = False
+            if song["cover"]:
+                try:
+                    await c.photo(song["cover"], caption=cap, kb=kb([c.home_row()]))
+                    sent = True
+                except Exception:
+                    sent = False
+            if not sent:
+                await c.send(cap, kb([c.home_row()]))
         return True
 
 

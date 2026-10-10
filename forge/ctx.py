@@ -231,7 +231,7 @@ class Ctx:
         """آخر صف في الشاشة الرئيسية: مشاركة البوت للعضو، وغرفة التحكم للمالك."""
         from urllib.parse import quote
         row = []
-        if self.core.get("share", True) and self.chat is not None and self.chat.type == "private":
+        if self.core.get("share", False) and self.chat is not None and self.chat.type == "private":
             text = self.t("جرّب هذا البوت 👇", "Try this bot 👇")
             row.append(ui.B(self.t("📤 شارك البوت", "📤 Share the bot"), url=f"https://t.me/share/url?url={quote(self.link())}&text={quote(text)}"))
         if self.is_owner:

@@ -207,6 +207,11 @@ class Manager:
         self._ticker = asyncio.create_task(self._tick_loop())
 
     async def _start_web(self) -> None:
+        """خادم الويب، ثم النفق التلقائي إن لم يكن للمنصة رابط عام. أي خلل هنا لا يوقف البوتات."""
+        from . import web as _web
+        if not _web.enabled():        # المواقع معطّلة نهائياً: لا نشغّل خادم ويب ولا نفقاً
+            self.web = None
+            return
         self.tunnel = None
         try:
             from .web import server as webserver

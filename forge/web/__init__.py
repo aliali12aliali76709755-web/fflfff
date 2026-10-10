@@ -7,7 +7,8 @@ from .. import config
 
 
 def enabled() -> bool:
-    return config.WEB_PORT > 0
+    # المواقع والتطبيقات المصغّرة معطّلة نهائياً على مستوى المنصة.
+    return False
 
 
 def base() -> str:
