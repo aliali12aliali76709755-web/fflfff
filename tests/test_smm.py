@@ -31,7 +31,7 @@ async def test_smm_url_validation():
 @pytest.mark.anyio
 async def test_smm_catalog_and_margin():
     await db.init()
-    test_bot_id = 999111
+    test_bot_id = int(time.time() * 1000) % 900000000 + 100000
 
     # 1. فحص الكتالوج الافتراضي مع هامش 30%
     catalog = await smm_prov.SMMManager.get_services_catalog(test_bot_id)
@@ -62,7 +62,7 @@ async def test_smm_catalog_and_margin():
 @pytest.mark.anyio
 async def test_smm_failover_dispatch():
     await db.init()
-    test_bot_id = 999222
+    test_bot_id = int(time.time() * 1000) % 900000000 + 200000
 
     # اختبار الإرسال عبر المزود الافتراضي (Mock Adapter)
     ok, order_id, prov_name, cost = await smm_prov.SMMManager.dispatch_order_with_failover(
@@ -80,8 +80,8 @@ async def test_smm_failover_dispatch():
 @pytest.mark.anyio
 async def test_smm_order_workflow_and_ledger():
     await db.init()
-    test_bot_id = 999333
-    test_user_id = 888444
+    test_bot_id = int(time.time() * 1000) % 900000000 + 300000
+    test_user_id = test_bot_id + 1
 
     # 1. شحن رصيد للمستخدم
     await ledger.credit_user(test_bot_id, test_user_id, 20.0, "initial_test_deposit")
@@ -99,7 +99,7 @@ async def test_smm_order_workflow_and_ledger():
     final_price = order_amount - discount  # $4.50
 
     # 4. خصم الرصيد
-    ord_key = f"ord_test_{int(time.time())}"
+    ord_key = f"ord_test_{int(time.time() * 1000)}"
     ok_debit, tx, new_bal = await ledger.debit_user(
         test_bot_id,
         test_user_id,

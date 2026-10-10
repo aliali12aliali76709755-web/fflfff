@@ -20,6 +20,7 @@ from telegram.error import Forbidden, RetryAfter, TelegramError
 from . import child, config, crypto, db, errors, templates, ui
 from . import maker as mk
 from . import plat as platform
+from .modules import currency, ledger
 from .i18n import norm
 from .ui import B, esc, kb
 
@@ -306,8 +307,8 @@ async def admin_home(m: mk.M) -> None:
         [B("🧩 الأنواع", "m:adm:t"), B("🔐 اشتراك الصانع", "m:adm:fs")],
         [B("⚙️ إعدادات المنصة", "m:adm:s"), B("📜 سجل الإدارة", "m:adm:log")],
         [B(f"🐞 البلاغات ({reports})", "m:adm:rep"), B(f"🧯 الأخطاء ({len(errors.RECENT)})", "m:adm:err") if fid == 0 else None],
-        [B("📥 تصدير قائمة البوتات", "m:adm:exp"), B("🖥 لوحة الويب", "m:adm:web") if fid == 0 else None],
-        [B("🌐 حالة الويب والتطبيقات المصغّرة", "m:adm:wb")] if fid == 0 else None,
+        [B("📊 مبيعات وخدمات المنصة", "m:adm:svc_stats"), B("📥 تصدير قائمة البوتات", "m:adm:exp")],
+        [B("🖥 لوحة الويب", "m:adm:web"), B("🌐 حالة الويب", "m:adm:wb")] if fid == 0 else None,
         [B("🔄 تحديث", "m:adm:home"), m.home_btn()]]))
 
 
@@ -324,14 +325,16 @@ async def admin_user(m: mk.M, uid: int) -> None:
     banned = uid in p["banned"]
     agg = await mk._agg([b.id for b in bots])
     lim = platform.max_bots(p, uid)
-    own_lim = str(uid) in (p.get("limits") or {})
+    seller_bal = await ledger.get_seller_balance_display(uid)
     text = (f"👤 <b>{esc(u.name)}</b>" + (f"  @{u.username}" if u.username else "") + f"\n🆔 <code>{uid}</code>\n{ui.LINE}\n" + ui.rows([
         ("انضم", ui.when(u.created, "%Y-%m-%d")), ("اللغة", u.lang or "تلقائية"), ("بوتاته", len(bots)), ("جمهور بوتاته", ui.num(agg["total"])),
         ("دعا", refs), ("حد بوتاته", (lim or "بلا حد") if not own_lim else f"{lim or 'بلا حد'} (خاص به)"),
+        ("رصيد البائع في الصانع", seller_bal),
         ("الحالة", "🚫 محظور من الصانع" if banned else "✅ نشط")]))
     rows = [[B(f"{mk.status_icon(b)} @{b.username}", f"m:adm:bc:{b.id}")] for b in bots[:10]]
-    rows += [[B("✉️ مراسلته", f"m:adm:uxm:{uid}"), B("🔢 حد بوتاته", f"m:adm:uxl:{uid}")],
-             [B("🔒 إغلاق كل بوتاته", f"m:adm:uxc:{uid}"), B("🔓 فتح كل بوتاته", f"m:adm:uxo:{uid}")] if bots else None,
+    rows += [[B("💵 شحن رصيد البائع ($)", f"m:adm:crd_s:{uid}"), B("✉️ مراسلته", f"m:adm:uxm:{uid}")],
+             [B("🔢 حد بوتاته", f"m:adm:uxl:{uid}")] if not bots else [B("🔢 حد بوتاته", f"m:adm:uxl:{uid}"), B("🔒 إغلاق كل بوتاته", f"m:adm:uxc:{uid}")],
+             [B("🔓 فتح كل بوتاته", f"m:adm:uxo:{uid}")] if bots else None,
              [B("✅ رفع الحظر" if banned else "🚫 حظر من الصانع", f"m:adm:ub:{uid}", style=None if banned else "danger")],
              [B("⬅️ المستخدمون", "m:adm:u")]]
     await m.show(text, kb(rows))
@@ -523,6 +526,49 @@ def _report_bot(text: str) -> int | None:
     return int(mt.group(1)) if mt else None
 
 
+async def scr_services_stats(m: mk.M) -> None:
+    async with db.Session() as s:
+        async def tpl_stat(key: str):
+            cnt = (await s.execute(select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.tpl_key == key))).scalar() or 0
+            vol = (await s.execute(select(func.sum(db.ServiceOrder.price_user_usd)).where(db.ServiceOrder.tpl_key == key))).scalar() or 0.0
+            return cnt, float(vol)
+
+        smm_cnt, smm_vol = await tpl_stat("smm")
+        tg_cnt, tg_vol = await tpl_stat("tgstars")
+        sms_cnt, sms_vol = await tpl_stat("sms")
+        dig_cnt, dig_vol = await tpl_stat("digital")
+
+        total_orders = smm_cnt + tg_cnt + sms_cnt + dig_cnt
+        total_vol = smm_vol + tg_vol + sms_vol + dig_vol
+
+        recent_orders = (await s.execute(
+            select(db.ServiceOrder).order_by(db.ServiceOrder.created.desc()).limit(6)
+        )).scalars().all()
+
+    lines = []
+    for o in recent_orders:
+        lines.append(f"▫️ <b>#{o.order_id}</b> ({o.tpl_key}) | {esc(o.service_name[:18])} | <code>${o.price_user_usd:.2f}</code> | <b>{o.status}</b>")
+
+    text = (
+        f"📊 <b>إحصائيات خدمات ومبيعات المنصة المركزية</b>\n{ui.LINE}\n" +
+        ui.rows([
+            ("إجمالي الطلبات المنفذة", f"{total_orders:,} طلب"),
+            ("إجمالي حجم المبيعات", f"${total_vol:,.2f}"),
+            ("🚀 زيادة التفاعل (SMM)", f"{smm_cnt} طلب (${smm_vol:,.2f})"),
+            ("⭐ نجوم وتلغرام بريميوم", f"{tg_cnt} طلب (${tg_vol:,.2f})"),
+            ("📱 أرقام التفعيل (SMS)", f"{sms_cnt} طلب (${sms_vol:,.2f})"),
+            ("🎮 ألعاب وخدمات رقمية", f"{dig_cnt} طلب (${dig_vol:,.2f})"),
+        ]) +
+        ("\n\n<b>آخر الطلبات في المنصة:</b>\n" + "\n".join(lines) if lines else "\n\n<i>لا توجد طلبات منفذة بعد.</i>")
+    )
+    rows = [
+        [B("🚀 طلبات التفاعل", "m:adm:ord_tpl:smm"), B("⭐ طلبات النجوم", "m:adm:ord_tpl:tgstars")],
+        [B("📱 طلبات الأرقام", "m:adm:ord_tpl:sms"), B("🎮 طلبات الألعاب", "m:adm:ord_tpl:digital")],
+        [B("⬅️ لوحة الإدارة", "m:adm:home")],
+    ]
+    await m.show(text, kb(rows))
+
+
 # ───────────────────────── الأزرار ─────────────────────────
 async def admin_cb(m: mk.M, a: list[str]) -> None:  # noqa: C901
     act = a[0] if a else "home"
@@ -544,6 +590,21 @@ async def admin_cb(m: mk.M, a: list[str]) -> None:  # noqa: C901
     if act == "home":
         await admin_home(m)
 
+    elif act == "svc_stats":
+        await scr_services_stats(m)
+
+    elif act == "ord_tpl":
+        tpl_key = arg
+        async with db.Session() as s:
+            orders = (await s.execute(
+                select(db.ServiceOrder).where(db.ServiceOrder.tpl_key == tpl_key).order_by(db.ServiceOrder.created.desc()).limit(15)
+            )).scalars().all()
+        lines = []
+        for o in orders:
+            lines.append(f"▫️ <b>#{o.order_id}</b> | <code>${o.price_user_usd:.2f}</code> | <b>{o.status}</b>\n   {esc(o.service_name[:24])} (مستخدم: <code>{o.user_id}</code>)")
+        text = f"📋 <b>طلبات القالب ({tpl_key})</b>\n{ui.LINE}\n\n" + ("\n".join(lines) if lines else "<i>لا توجد طلبات بعد.</i>")
+        await m.show(text, kb([[B("⬅️ مبيعات المنصة", "m:adm:svc_stats")], [B("⬅️ لوحة الإدارة", "m:adm:home")]]))
+
     # ── المستخدمون ──
     elif act == "u":
         async with db.Session() as s:
@@ -557,6 +618,15 @@ async def admin_cb(m: mk.M, a: list[str]) -> None:  # noqa: C901
         await m.show("🔍 أرسل رقم (ID) المستخدم أو معرّفه (@username).", cancel)
     elif act == "uc" and arg.isdigit():
         await admin_user(m, int(arg))
+    elif act == "crd_s" and arg.isdigit():
+        target_uid = int(arg)
+        m.set_state("adm_crd_s", uid=target_uid)
+        await m.show(
+            f"💵 <b>شحن محفظة البائع</b> (<code>{target_uid}</code>)\n\n"
+            "أدخل المبلغ بالدولار الأمريكي (USD) لشحنه في رصيد البائع في المنصة:\n"
+            "مثال: <code>25</code> أو <code>50.5</code>\n\n/cancel للإلغاء",
+            kb([[B("❌ إلغاء", f"m:adm:uc:{target_uid}")]])
+        )
     elif act == "ub" and arg.isdigit():
         uid = int(arg)
         if uid == m.uid:
@@ -1167,6 +1237,39 @@ async def admin_input(m: mk.M, st: dict, text: str) -> None:  # noqa: C901
         await platform.save(fid)
         await platform.audit(fid, m.uid, "promo", info="تعديل النص")
         await m.send("✅ حُفظ نص الترويج.", kb([[B("👁 معاينة", "m:adm:pmv"), B("⬅️ رسالة الترويج", "m:adm:pm")]]))
+    elif k == "adm_crd_s":
+        target_uid = st["uid"]
+        try:
+            amt = float(text.replace(",", ".").strip())
+            assert amt > 0
+        except (ValueError, AssertionError):
+            await m.send("⚠️ يرجى إدخال مبلغ رقمي صحيح أكبر من 0 (مثال: 20 أو 15.5).")
+            return
+        m.clear_state()
+        ok, tx, new_bal = await ledger.credit_seller(
+            target_uid,
+            amt,
+            "admin_manual",
+            description=f"Manual credit by Platform Admin {m.uid}",
+        )
+        try:
+            await m.bot.send_message(
+                target_uid,
+                f"🎉 <b>تم شحن رصيدك كبائع!</b>\n\n"
+                f"💵 المبلغ: <code>+${amt:.2f}</code>\n"
+                f"💳 رصيدك الإجمالي الآن: <code>${new_bal:.2f}</code>\n"
+                f"الإشعار من إدارة منصة الصانع.",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
+        await m.send(
+            f"✅ تم شحن رصيد البائع بنجاح!\n\n"
+            f"👤 البائع: <code>{target_uid}</code>\n"
+            f"💵 المبلغ المضاف: <code>+${amt:.2f}</code>\n"
+            f"💳 الرصيد الجديد: <code>${new_bal:.2f}</code>",
+            kb([[B("⬅️ بطاقة المستخدم", f"m:adm:uc:{target_uid}")]])
+        )
     else:
         m.clear_state()
         await admin_home(m)

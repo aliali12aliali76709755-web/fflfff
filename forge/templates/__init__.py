@@ -18,7 +18,7 @@ CATEGORIES = [
     ("pro", "🏭", "منصات", "Platforms"),
 ]
 CAT_OF = {
-    "biz": ["store", "smm", "qrmenu", "booking", "vip", "tickets", "forms"],
+    "biz": ["store", "smm", "tgstars", "sms", "digital", "qrmenu", "booking", "vip", "tickets", "forms"],
     "aud": ["post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper"],
     "media": ["downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam"],
     "util": ["translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid"],
@@ -27,9 +27,12 @@ CAT_OF = {
     "pro": ["maker"],
 }
 # قوالب مقترحة للمبتدئ حين لا توجد بيانات استخدام بعد
-STARTERS = ["store", "smm", "contact", "buttons", "downloader", "joinreq", "vip", "quran", "booking"]
+STARTERS = ["store", "smm", "tgstars", "sms", "digital", "contact", "buttons", "downloader", "joinreq", "vip", "quran", "booking"]
 # ثلاث مزايا مختصرة تظهر في بطاقة كل قالب
 FEATS = {
+    "digital": ["شحن شدات ببجي، جواهر فري فاير، وروبلوكس", "اشتراكات نتفلكس، سبوتيفاي، ويوتيوب بريميوم", "مخزون بطاقات آيتونز وجوجل بلاي بتسليم فوري"],
+    "sms": ["أرقام تفعيل لعشرات الدول (العراق، مصر، أمريكا...)", "دعم تفعيل تلغرام وواتساب وجوجل وتيك توك", "استرجاع فوري وتلقائي للرصيد إذا لم يصل الكود"],
+    "tgstars": ["شحن نجوم تيليجرام من 50 حتى 10,000+ نجمة", "اشتراكات بريميوم الرسمية (3 و6 و12 شهراً)", "تفعيل باسم المستخدم فقط وبدون كلمات مرور"],
     "smm": ["متابعين ولايكات ومشاهدات لكل المنصات", "ربط تلقائي مع مزودي SMM Panels", "محفظة وشحن فوري بنجوم تيليجرام"],
     "downloader": ["يوتيوب، إنستغرام، تيك توك، X، فيسبوك وريديت", "فيديو أو صوت فقط", "بدون علامة مائية حين يتيحها المصدر"],
     "quran": ["قراءة واستماع بستة قرّاء مع التفسير الميسّر", "ورد يومي بتذكير وتتبّع الحفظ", "مصحف على الويب يحفظ موضع القارئ مع البوت"],
@@ -72,6 +75,9 @@ FEATS = {
 
 # جملة موجّهة لعضو البوت (لا لصانعه): تُستخدم وصفاً افتراضياً للبوت في تيليجرام وفي صفحته على الويب
 PITCH = {
+    "digital": ("شحن الألعاب واشتراكات التطبيقات والبطاقات الرقمية بسهولة.", "Game top-up, app subscriptions and digital vouchers made easy."),
+    "sms": ("أرقام وهمية لتفعيل التطبيقات مع استرجاع فوري إذا لم يصل الكود.", "Virtual numbers for app activation with instant auto-refund if SMS fails."),
+    "tgstars": ("شحن نجوم تيليجرام واشتراكات بريميوم وهدايا لحسابك أو لأصدقائك.", "Top up Telegram Stars, Premium and gifts for your account or friends."),
     "smm": ("زيادة المتابعين والتفاعلات لجميع المنصات وشحن رصيدك بسهولة.", "Boost followers and engagement across platforms with instant wallet top-up."),
     "store": ("تصفّح منتجاتنا، أضف ما يعجبك إلى السلة، واطلب بسهولة.", "Browse our products, add what you like to the cart and order easily."),
     "qrmenu": ("تصفّح المنيو واطلب مباشرة من هنا.", "Browse the menu and order right here."),
@@ -312,7 +318,7 @@ class Items:
 
 # ترتيب العرض مطابق لترتيب القائمة (14 في الصفحة)
 ORDER = [
-    "store", "smm", "qrmenu", "booking", "vip", "tickets", "forms",
+    "store", "smm", "tgstars", "sms", "digital", "qrmenu", "booking", "vip", "tickets", "forms",
     "post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper",
     "downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam",
     "translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid",
