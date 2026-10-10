@@ -18,7 +18,7 @@ CATEGORIES = [
     ("pro", "🏭", "منصات", "Platforms"),
 ]
 CAT_OF = {
-    "biz": ["store", "qrmenu", "booking", "vip", "tickets", "forms"],
+    "biz": ["store", "smm", "qrmenu", "booking", "vip", "tickets", "forms"],
     "aud": ["post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper"],
     "media": ["downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam"],
     "util": ["translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid"],
@@ -27,9 +27,10 @@ CAT_OF = {
     "pro": ["maker"],
 }
 # قوالب مقترحة للمبتدئ حين لا توجد بيانات استخدام بعد
-STARTERS = ["store", "contact", "buttons", "downloader", "joinreq", "vip", "quran", "booking"]
+STARTERS = ["store", "smm", "contact", "buttons", "downloader", "joinreq", "vip", "quran", "booking"]
 # ثلاث مزايا مختصرة تظهر في بطاقة كل قالب
 FEATS = {
+    "smm": ["متابعين ولايكات ومشاهدات لكل المنصات", "ربط تلقائي مع مزودي SMM Panels", "محفظة وشحن فوري بنجوم تيليجرام"],
     "downloader": ["يوتيوب، إنستغرام، تيك توك، X، فيسبوك وريديت", "فيديو أو صوت فقط", "بدون علامة مائية حين يتيحها المصدر"],
     "quran": ["قراءة واستماع بستة قرّاء مع التفسير الميسّر", "ورد يومي بتذكير وتتبّع الحفظ", "مصحف على الويب يحفظ موضع القارئ مع البوت"],
     "buttons": ["قوائم وأزرار بلا حدود", "كل زر يعرض نصاً أو صورة أو ملفاً", "صفحة روابط على الويب بالأزرار نفسها"],
@@ -71,6 +72,7 @@ FEATS = {
 
 # جملة موجّهة لعضو البوت (لا لصانعه): تُستخدم وصفاً افتراضياً للبوت في تيليجرام وفي صفحته على الويب
 PITCH = {
+    "smm": ("زيادة المتابعين والتفاعلات لجميع المنصات وشحن رصيدك بسهولة.", "Boost followers and engagement across platforms with instant wallet top-up."),
     "store": ("تصفّح منتجاتنا، أضف ما يعجبك إلى السلة، واطلب بسهولة.", "Browse our products, add what you like to the cart and order easily."),
     "qrmenu": ("تصفّح المنيو واطلب مباشرة من هنا.", "Browse the menu and order right here."),
     "booking": ("احجز موعدك في أقل من دقيقة: اختر الخدمة، اليوم، ثم الوقت.", "Book your appointment in under a minute: pick the service, the day and the time."),
@@ -310,7 +312,7 @@ class Items:
 
 # ترتيب العرض مطابق لترتيب القائمة (14 في الصفحة)
 ORDER = [
-    "store", "qrmenu", "booking", "vip", "tickets", "forms",
+    "store", "smm", "qrmenu", "booking", "vip", "tickets", "forms",
     "post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper",
     "downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam",
     "translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid",

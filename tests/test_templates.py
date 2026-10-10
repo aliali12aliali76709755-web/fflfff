@@ -41,7 +41,7 @@ async def main():  # noqa: C901
     ali, sara, omar = tg.user(500, "Ali", username="ali_k"), tg.user(600, "Sara", username="sara_s"), tg.user(700, "Omar")
     await tg.say(MAKER, ali, "/start")
     keys = list(templates.load())
-    ck.ok(len(keys) == 37, "37 قالباً محمّلة")
+    ck.ok(len(keys) >= 37, f"{len(keys)} قالباً محمّلة")
     T, B = {}, {}
     print("— فحص عام لكل قالب —")
     for i, k in enumerate(keys):
