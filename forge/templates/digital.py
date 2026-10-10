@@ -641,6 +641,140 @@ class Digital(Tpl):
                 await c.answer(t(f"تم تغيير عملة البوت إلى {new_c}", f"Currency changed to {new_c}"))
                 await self.cb(c, ["adm", "cur"])
 
+            # ── الإضافة السريعة / إكسل ──
+            elif sub == "bulk":
+                text = (
+                    ui.head(t("📥 أدوات الإضافة السريعة", "📥 Fast Bulk Import")) +
+                    t(
+                        "اختر الطريقة المناسبة لإضافة كميات كبيرة من المنتجات والخيارات:\n\n"
+                        "1. <b>نموذج الإكسل:</b> حمّل الملف، املأ البيانات، ثم ارفعه دفعة واحدة.\n"
+                        "2. <b>لصق نصي سريع:</b> أرسل قائمة بالخيارات والأسعار بأسلوب مبسط.",
+                        "Choose your bulk import method:\n1. Excel template.\n2. Quick text paste."
+                    )
+                )
+                rows = [
+                    [B(t("📄 تنزيل نموذج الإكسل الجاهز", "📄 Download Excel Template"), "t:adm:bulk_dl")],
+                    [B(t("📤 رفع ملف الإكسل / CSV", "📤 Upload Excel / CSV"), "t:adm:bulk_up")],
+                    [B(t("✍️ لصق نصي سريع", "✍️ Quick Text Paste"), "t:adm:bulk_txt")],
+                    [B(t("🎛 غرفة التحكم", "🎛 Control Room"), "o:home")],
+                ]
+                await c.edit(text, kb(rows))
+
+            elif sub == "bulk_dl":
+                import io
+                from ..modules.bulk_import import BulkImportManager
+                excel_bytes = BulkImportManager.generate_sample_excel()
+                await c.bot.send_document(
+                    c.chat_id,
+                    io.BytesIO(excel_bytes),
+                    filename="digital_products_template.xlsx",
+                    caption=t("📄 <b>نموذج المنتجات الجاهز</b>\nاملأ الأسعار والخيارات وأعد إرسال الملف للبوت.",
+                              "📄 Excel template ready."),
+                    parse_mode="HTML"
+                )
+                await c.answer(t("تم إرسال الملف!", "File sent!"))
+
+            elif sub == "bulk_up":
+                c.set_state("digital_adm_bulk_file")
+                await c.edit(
+                    ui.head(t("📤 رفع ملف الإكسل أو CSV", "📤 Upload Excel/CSV")) +
+                    t("قم بسحب وإرسال ملف الإكسل (.xlsx) أو CSV الآن:\n\n/cancel للإلغاء",
+                      "Send your .xlsx or .csv file now:\n\n/cancel to abort"),
+                    kb([[B(t("❌ إلغاء", "❌ Cancel"), "t:adm:bulk")]])
+                )
+
+            elif sub == "bulk_txt":
+                c.set_state("digital_adm_bulk_txt")
+                await c.edit(
+                    ui.head(t("✍️ لصق نصي سريع", "✍️ Quick Text Paste")) +
+                    t(
+                        "أرسل الخيارات والأسعار بالصيغة التالية (خيار في كل سطر):\n\n"
+                        "<code>اسم الخيار | السعر</code>\n"
+                        "أو\n"
+                        "<code>القسم | المنتج | الخيار | السعر</code>\n\n"
+                        "<b>مثال:</b>\n"
+                        "<code>60 شدة | 0.99\n325 شدة | 4.80\n660 شدة | 9.50</code>\n\n"
+                        "/cancel للإلغاء",
+                        "Send options as: <code>Name | Price</code> (one per line):\n\n/cancel to abort"
+                    ),
+                    kb([[B(t("❌ إلغاء", "❌ Cancel"), "t:adm:bulk")]])
+                )
+
+            # ── العروض المؤقتة ──
+            elif sub == "flash":
+                from ..modules.discounts import DiscountManager
+                sales = await DiscountManager.get_active_sales(c.bot_id)
+                lines = []
+                for s in sales:
+                    hours_rem = max(0, int((s.expires_at - dt.datetime.utcnow()).total_seconds() // 3600))
+                    lines.append(f"🔥 <b>{esc(s.title)}</b>: خصم {s.discount_value}% (متبقي {hours_rem} ساعة)")
+
+                text = (
+                    ui.head(t("🔥 العروض والخصومات المؤقتة (Flash Sales)", "🔥 Flash Sales")) +
+                    ("\n".join(lines) if lines else t("لا توجد عروض نشطة حالياً.", "No active sales.")) +
+                    "\n\n" + t("يمكنك تفعيل خصم لمدة 24 ساعة وإذاعته للزبائن بضغطة زر واحدة:",
+                                "Activate a 24-hour sale and broadcast to subscribers:")
+                )
+                rows = [
+                    [B(t("➕ تفعيل خصم 10% (24 ساعة)", "➕ 10% Off (24h)"), "t:adm:flash_set:10"),
+                     B(t("➕ تفعيل خصم 20% (24 ساعة)", "➕ 20% Off (24h)"), "t:adm:flash_set:20")],
+                    [B(t("➕ تفعيل خصم 30% (24 ساعة)", "➕ 30% Off (24h)"), "t:adm:flash_set:30"),
+                     B(t("✏️ نسبة مخصصة", "✏️ Custom %"), "t:adm:flash_input")],
+                    [B(t("📢 إذاعة العرض للزبائن", "📢 Broadcast Sale"), "t:adm:flash_bcast")] if sales else None,
+                    [B(t("🎛 غرفة التحكم", "🎛 Control Room"), "o:home")],
+                ]
+                await c.edit(text, kb([r for r in rows if r]))
+
+            elif sub == "flash_set":
+                pct = float(a[2])
+                from ..modules.discounts import DiscountManager
+                ok, _, msg = await DiscountManager.create_flash_sale(
+                    bot_id=c.bot_id,
+                    title=f"خصم {pct}% مؤقت",
+                    scope="all",
+                    target_id="",
+                    discount_type="percent",
+                    discount_value=pct,
+                    duration_hours=24.0,
+                )
+                await c.answer(msg, True)
+                await self.cb(c, ["adm", "flash"])
+
+            elif sub == "flash_input":
+                c.set_state("digital_adm_flash_pct")
+                await c.edit(
+                    ui.head(t("✏️ نسبة الخصم المخصصة", "✏️ Custom Discount")) +
+                    t("أرسل نسبة الخصم المئوية (مثال: <code>15</code> لـ 15% لمدة 24 ساعة):\n\n/cancel للإلغاء",
+                      "Send percentage (e.g. <code>15</code>):\n\n/cancel to abort"),
+                    kb([[B(t("❌ إلغاء", "❌ Cancel"), "t:adm:flash")]])
+                )
+
+            elif sub == "flash_bcast":
+                from ..modules.discounts import DiscountManager
+                sales = await DiscountManager.get_active_sales(c.bot_id)
+                if not sales:
+                    return
+                s_top = sales[0]
+                bcast_text = (
+                    f"🔥 <b>عرض خاص ومؤقت في متجرنا!</b> 🔥\n\n"
+                    f"خصم <b>{s_top.discount_value}%</b> على كافة خدمات شحن الألعاب والاشتراكات لمدة 24 ساعة فقط!\n\n"
+                    f"سارع بالاستفادة من العرض الآن عبر زر «🎮 شحن الألعاب»."
+                )
+                async def _do_bcast():
+                    async with db.Session() as s:
+                        users = (await s.execute(
+                            select(db.BUser.user_id).where(db.BUser.bot_id == c.bot_id)
+                        )).scalars().all()
+                    for uid in users:
+                        try:
+                            await c.bot.send_message(uid, bcast_text, parse_mode="HTML")
+                            await asyncio.sleep(0.04)
+                        except Exception:
+                            pass
+                c.x.application.create_task(_do_bcast())
+                await c.answer(t("تم إطلاق الإذاعة بنجاح! 🚀", "Broadcast launched! 🚀"), True)
+                await self.cb(c, ["adm", "flash"])
+
     # ───────────────────────── معالجة الرسائل والإدخال ─────────────────────────
 
     async def msg(self, c: Ctx) -> bool:  # noqa: C901
@@ -842,6 +976,95 @@ class Digital(Tpl):
             await self.cb(c, ["adm", "stock"])
             return True
 
+        # 8. ملف الإكسل
+        elif k == "digital_adm_bulk_file":
+            doc = c.msg.document
+            if not doc:
+                await c.send("⚠️ أرسل ملف Excel (.xlsx) أو CSV كملف (Document).")
+                return True
+            c.clear_state()
+            import io, time
+            tg_file = await c.bot.get_file(doc.file_id)
+            buf = io.BytesIO()
+            await tg_file.download_to_memory(buf)
+            file_bytes = buf.getvalue()
+
+            from ..modules.bulk_import import BulkImportManager
+            rows, errors = BulkImportManager.parse_excel_or_csv(file_bytes, doc.file_name or "file.xlsx")
+            if errors and not rows:
+                await c.send(f"⚠️ حدثت أخطاء في قراءة الملف:\n" + "\n".join(errors[:5]))
+                return True
+
+            cur_custom = await c.kv("digital:custom_catalog", []) or []
+            added = 0
+            for r in rows:
+                cur_custom.append({
+                    "id": f"cust_{int(time.time() * 1000) % 1000000}_{added}",
+                    "category": r["category"],
+                    "name_ar": f"{r['product_name']} - {r['option_name']}",
+                    "name_en": f"{r['product_name']} - {r['option_name']}",
+                    "price_usd": r["price_usd"],
+                    "cost_usd": r["cost_provider_usd"],
+                    "field_ar": r["input_label"] or "ID الحساب / اللاعب",
+                    "field_en": r["input_label"] or "Player / Account ID",
+                    "instant_stock": False,
+                })
+                added += 1
+            await c.kv_set("digital:custom_catalog", cur_custom)
+            err_note = f"\n⚠️ أخطاء تم تجاوزها: {len(errors)}" if errors else ""
+            await c.send(f"✅ تم استيراد <b>{added}</b> منتج بنجاح من الملف!{err_note}", kb([[B("⬅️ إدارة المتجر", "t:adm:bulk")]]))
+            return True
+
+        # 9. لصق نصي سريع
+        elif k == "digital_adm_bulk_txt":
+            import time
+            from ..modules.bulk_import import BulkImportManager
+            items = BulkImportManager.parse_quick_text(c.text.strip())
+            if not items:
+                await c.send("⚠️ لم أتمكن من استخراج عناصر صالحة. تأكد من استخدام الصيغة:\n<code>الاسم | السعر</code>")
+                return True
+            c.clear_state()
+            cur_custom = await c.kv("digital:custom_catalog", []) or []
+            added = 0
+            for it in items:
+                cur_custom.append({
+                    "id": f"cust_{int(time.time() * 1000) % 1000000}_{added}",
+                    "category": it["category"],
+                    "name_ar": f"{it['product_name']} - {it['option_name']}",
+                    "name_en": f"{it['product_name']} - {it['option_name']}",
+                    "price_usd": it["price_usd"],
+                    "cost_usd": it["cost_provider_usd"],
+                    "field_ar": "ID الحساب / اللاعب",
+                    "field_en": "Player / Account ID",
+                    "instant_stock": False,
+                })
+                added += 1
+            await c.kv_set("digital:custom_catalog", cur_custom)
+            await c.send(f"✅ تم إضافة <b>{added}</b> منتج بنجاح إلى متجرك!", kb([[B("⬅️ إدارة المتجر", "t:adm:bulk")]]))
+            return True
+
+        # 10. نسبة الخصم المخصصة
+        elif k == "digital_adm_flash_pct":
+            try:
+                pct = float(c.text.strip())
+                assert 0 < pct < 100
+            except Exception:
+                await c.send("⚠️ أرسل رقماً صحيحاً بين 1 و 99.")
+                return True
+            c.clear_state()
+            from ..modules.discounts import DiscountManager
+            ok, _, msg = await DiscountManager.create_flash_sale(
+                bot_id=c.bot_id,
+                title=f"خصم {pct}% مؤقت",
+                scope="all",
+                target_id="",
+                discount_type="percent",
+                discount_value=pct,
+                duration_hours=24.0,
+            )
+            await c.send(msg, kb([[B("⬅️ العروض والخصومات", "t:adm:flash")]]))
+            return True
+
         return False
 
     # ───────────────────────── مراجعة وتنفيذ الطلب ─────────────────────────
@@ -945,6 +1168,20 @@ class Digital(Tpl):
 
         await promo.award_order_commission(c.bot_id, c.uid, final_usd, ord_key)
 
+        if order_status == "queued":
+            from ..modules.order_dispatch import OrderDispatcher
+            bot_row = await c.bot_row()
+            c.x.application.create_task(
+                OrderDispatcher.dispatch_new_order(
+                    c.bot,
+                    s_order,
+                    bot_username=bot_row.username if bot_row else "",
+                    seller_name=c.brand,
+                    buyer_name=c.name,
+                    buyer_username=c.user.username or "",
+                )
+            )
+
         c.x.user_data.pop("digital_draft", None)
         bal_disp = await ledger.get_user_balance_display(c.bot_id, c.uid)
 
@@ -1025,12 +1262,15 @@ class Digital(Tpl):
             f"🧾 <b>{t('إيصالات شحن تنتظر الموافقة:', 'Pending Receipts:')}</b> <b>{pending_rcpts}</b>\n"
             f"📈 <b>{t('هامش الربح العام:', 'Profit Margin:')}</b> <code>{m_str}</code>\n"
             f"💱 <b>{t('عملة البوت:', 'Currency:')}</b> <code>{bot_cur}</code>\n"
-            f"💼 <b>{t('رصيدك في الصانع:', 'Maker Balance:')}</b> <code>{seller_bal}</code>"
+            f"💼 <b>{t('رصيدك في الصانع:', 'Maker Balance:')}</b> <code>{seller_bal}</code>\n\n"
+            f"⚠️ <i>{t('تنبيه للبائع: طلبات الألعاب والاشتراكات تُسلّم يدوياً وتستغرق من دقائق إلى عدة ساعات لضمان الجودة.', 'Seller Note: Digital services are fulfilled manually and take from minutes to hours.')}</i>"
         )
 
         rows = [
             [B(t("📈 هامش الربح والأسعار", "📈 Profit Margins"), "t:adm:margin"),
              B(t("📦 إدارة مخزون الأكواد", "📦 Manage Voucher Stock"), "t:adm:stock")],
+            [B(t("📥 إضافة سريعة / إكسل", "📥 Bulk Import / Excel"), "t:adm:bulk"),
+             B(t("🔥 عروض وخصومات مؤقتة", "🔥 Flash Sales"), "t:adm:flash")],
             [B(t(f"🧾 طلبات الشحن المعلقة ({pending_rcpts})", f"🧾 Pending Receipts ({pending_rcpts})"), "t:adm:rcpts",
                style="warning" if pending_rcpts > 0 else "default"),
              B(t("💳 طرق الدفع والشحن", "💳 Payment Methods"), "t:adm:pay")],

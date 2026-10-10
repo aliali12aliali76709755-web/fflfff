@@ -21,6 +21,9 @@ from . import child, config, crypto, db, errors, templates, ui
 from . import maker as mk
 from . import plat as platform
 from .modules import currency, ledger
+from .modules.order_dispatch import OrderDispatcher
+from .modules.markup import MarkupManager
+from .modules.discounts import DiscountManager
 from .i18n import norm
 from .ui import B, esc, kb
 
@@ -541,19 +544,29 @@ async def scr_services_stats(m: mk.M) -> None:
         total_orders = smm_cnt + tg_cnt + sms_cnt + dig_cnt
         total_vol = smm_vol + tg_vol + sms_vol + dig_vol
 
+        # التزام أرصدة البائعين المتبقية بالمنصة
+        sellers_bal = float((await s.execute(
+            select(func.sum(db.UserBalance.balance_usd)).where(db.UserBalance.bot_id == 0)
+        )).scalar() or 0.0)
+
         recent_orders = (await s.execute(
             select(db.ServiceOrder).order_by(db.ServiceOrder.created.desc()).limit(6)
         )).scalars().all()
+
+    chan_cfg = await db.kv_get(0, "sys:order_channel", {}) or {}
+    chan_status = f"@{chan_cfg['username']}" if chan_cfg.get("username") else (f"<code>{chan_cfg['id']}</code>" if chan_cfg.get("id") else "⚪ غير مربوطة")
 
     lines = []
     for o in recent_orders:
         lines.append(f"▫️ <b>#{o.order_id}</b> ({o.tpl_key}) | {esc(o.service_name[:18])} | <code>${o.price_user_usd:.2f}</code> | <b>{o.status}</b>")
 
     text = (
-        f"📊 <b>إحصائيات خدمات ومبيعات المنصة المركزية</b>\n{ui.LINE}\n" +
+        f"📊 <b>إحصائيات مبيعات وخدمات المنصة المركزية</b>\n{ui.LINE}\n" +
         ui.rows([
             ("إجمالي الطلبات المنفذة", f"{total_orders:,} طلب"),
             ("إجمالي حجم المبيعات", f"${total_vol:,.2f}"),
+            ("التزام أرصدة البائعين", f"${sellers_bal:,.2f}"),
+            ("قناة استقبال الطلبات", chan_status),
             ("🚀 زيادة التفاعل (SMM)", f"{smm_cnt} طلب (${smm_vol:,.2f})"),
             ("⭐ نجوم وتلغرام بريميوم", f"{tg_cnt} طلب (${tg_vol:,.2f})"),
             ("📱 أرقام التفعيل (SMS)", f"{sms_cnt} طلب (${sms_vol:,.2f})"),
@@ -562,6 +575,7 @@ async def scr_services_stats(m: mk.M) -> None:
         ("\n\n<b>آخر الطلبات في المنصة:</b>\n" + "\n".join(lines) if lines else "\n\n<i>لا توجد طلبات منفذة بعد.</i>")
     )
     rows = [
+        [B("📢 ضبط قناة الطلبات اليدوية", "m:adm:ord_chan"), B("📥 تصدير المبيعات CSV", "m:adm:ord_exp")],
         [B("🚀 طلبات التفاعل", "m:adm:ord_tpl:smm"), B("⭐ طلبات النجوم", "m:adm:ord_tpl:tgstars")],
         [B("📱 طلبات الأرقام", "m:adm:ord_tpl:sms"), B("🎮 طلبات الألعاب", "m:adm:ord_tpl:digital")],
         [B("⬅️ لوحة الإدارة", "m:adm:home")],
@@ -604,6 +618,92 @@ async def admin_cb(m: mk.M, a: list[str]) -> None:  # noqa: C901
             lines.append(f"▫️ <b>#{o.order_id}</b> | <code>${o.price_user_usd:.2f}</code> | <b>{o.status}</b>\n   {esc(o.service_name[:24])} (مستخدم: <code>{o.user_id}</code>)")
         text = f"📋 <b>طلبات القالب ({tpl_key})</b>\n{ui.LINE}\n\n" + ("\n".join(lines) if lines else "<i>لا توجد طلبات بعد.</i>")
         await m.show(text, kb([[B("⬅️ مبيعات المنصة", "m:adm:svc_stats")], [B("⬅️ لوحة الإدارة", "m:adm:home")]]))
+
+    elif act == "ord_chan":
+        chan_cfg = await db.kv_get(0, "sys:order_channel", {}) or {}
+        st_text = f"🟢 القناة الحالية: <b>{esc(chan_cfg.get('title', ''))}</b> (<code>{chan_cfg.get('id')}</code>)" if chan_cfg.get("id") else "⚪ لم يتم ربط قناة بعد."
+        text = (
+            f"📢 <b>قناة / مجموعة استقبال الطلبات اليدوية</b>\n{ui.LINE}\n\n"
+            f"{st_text}\n\n"
+            "عند ربط القناة، تصل إليها إشعارات الطلبات اليدوية (الألعاب، الاشتراكات) فوراً "
+            "مع أزرار التسليم، الرفض، والاسترجاع المزدوج.\n\n"
+            "<b>الخطوات:</b>\n"
+            "1. أضف بوت الصانع كـ <b>مشرف (Admin)</b> في القناة مع صلاحية إرسال الرسائل.\n"
+            "2. اضغط «✏️ تعيين / تغيير القناة» وأرسل يوزر القناة (@channel) أو الـ ID."
+        )
+        rows = [
+            [B("✏️ تعيين / تغيير القناة", "m:adm:ord_chanset")],
+            [B("🗑 إزالة القناة", "m:adm:ord_chandel")] if chan_cfg.get("id") else None,
+            [B("⬅️ مبيعات المنصة", "m:adm:svc_stats")],
+        ]
+        await m.show(text, kb([r for r in rows if r]))
+
+    elif act == "ord_chanset":
+        m.set_state("adm_ord_chan")
+        await m.show(
+            "📢 <b>إرسال معرّف القناة أو المجموعة</b>\n\n"
+            "أرسل يوزر القناة (مثال: <code>@my_orders</code>) أو رقم الـ ID (مثال: <code>-1001234567890</code>).\n"
+            "تأكد أولاً أن بوت الصانع مشرف فيها.\n\n/cancel للإلغاء",
+            cancel,
+        )
+
+    elif act == "ord_chandel":
+        await db.kv_set(0, "sys:order_channel", {})
+        await m.answer("تم حذف القناة.", True)
+        await admin_cb(m, ["ord_chan"])
+
+    elif act == "ord_exp":
+        async with db.Session() as s:
+            orders = (await s.execute(
+                select(db.ServiceOrder).order_by(db.ServiceOrder.created.desc())
+            )).scalars().all()
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["order_id", "tpl_key", "service_name", "target", "user_id", "bot_id", "price_user_usd", "status", "created"])
+        for o in orders:
+            w.writerow([o.order_id, o.tpl_key, o.service_name, o.target, o.user_id, o.bot_id, f"{o.price_user_usd:.2f}", o.status, str(o.created)])
+        await m.bot.send_document(
+            m.chat_id,
+            io.BytesIO(("﻿" + buf.getvalue()).encode("utf-8")),
+            filename="service_orders.csv",
+            caption=f"📥 تقرير مبيعات وخدمات المنصة: {len(orders)} طلب."
+        )
+        await m.answer()
+
+    elif act == "ord_dlv" and arg:
+        m.set_state("adm_ord_dlv", ord_id=arg)
+        await m.show(
+            f"📦 <b>تسليم الطلب #{arg}</b>\n\n"
+            "أرسل بيانات التسليم التي ستصل للزبون عبر بوت البائع (نص، أكواد تفعيل، أو صورة):\n\n/cancel للإلغاء",
+            cancel,
+        )
+
+    elif act == "ord_rej" and arg:
+        m.set_state("adm_ord_rej", ord_id=arg)
+        await m.show(
+            f"❌ <b>رفض الطلب #{arg}</b>\n\n"
+            "أرسل سبب الرفض الذي سيصل للمشتري:\n\n/cancel للإلغاء",
+            cancel,
+        )
+
+    elif act == "ord_rfnd" and arg:
+        ok, msg, res = await ledger.atomic_dual_refund(arg, reason="استرجاع من الإدارة")
+        await m.answer(msg, True)
+        if ok:
+            await m.show(
+                f"🔄 <b>تم الاسترجاع المزدوج بنجاح!</b>\n\n"
+                f"▫️ تم إرجاع <code>${res['buyer_refund_usd']:.2f}</code> لرصيد المشتري في البوت.\n"
+                f"▫️ تم إرجاع <code>${res['seller_refund_usd']:.2f}</code> لرصيد البائع في الصانع.",
+                kb([[B("⬅️ مبيعات المنصة", "m:adm:svc_stats")]])
+            )
+
+    elif act == "ord_prog" and arg:
+        ok, msg = await OrderDispatcher.update_status_in_progress(m.mgr, arg)
+        await m.answer(msg, True)
+
+    elif act == "ord_frz" and arg:
+        ok, msg = await OrderDispatcher.freeze_order(m.mgr, arg)
+        await m.answer(msg, True)
 
     # ── المستخدمون ──
     elif act == "u":
@@ -1270,6 +1370,46 @@ async def admin_input(m: mk.M, st: dict, text: str) -> None:  # noqa: C901
             f"💳 الرصيد الجديد: <code>${new_bal:.2f}</code>",
             kb([[B("⬅️ بطاقة المستخدم", f"m:adm:uc:{target_uid}")]])
         )
+    elif k == "adm_ord_chan":
+        ref = text.strip()
+        try:
+            target_chat = int(ref) if ref.lstrip("-").isdigit() else ref
+            chat = await m.bot.get_chat(target_chat)
+            me = await m.bot.get_chat_member(chat.id, m.bot.id)
+            assert me.status in ("administrator", "creator")
+        except Exception as e:
+            await m.send(f"⚠️ تعذّر الوصول للقناة أو أن البوت ليس مشرفاً فيها.\nالخطأ: {e}\nتأكد من رفعه مشرفاً أولاً ثم أعد الإرسال.")
+            return
+        chan_data = {"id": chat.id, "title": chat.title or str(ref), "username": chat.username or ""}
+        await db.kv_set(0, "sys:order_channel", chan_data)
+        m.clear_state()
+        try:
+            await m.bot.send_message(
+                chat.id,
+                "✅ <b>تم ربط هذه القناة بنجاح!</b>\nستصل هنا كافة إشعارات الطلبات اليدوية فور تقديمها مع أزرار التنفيذ السريعة.",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
+        await m.send(
+            f"✅ تم ربط القناة بنجاح: <b>{esc(chat.title or str(ref))}</b>",
+            kb([[B("⬅️ قناة استقبال الطلبات", "m:adm:ord_chan")]]),
+        )
+
+    elif k == "adm_ord_dlv":
+        ord_id = st["ord_id"]
+        m.clear_state()
+        content = ui.html_of(m.msg) or esc(text)
+        photo_id = m.msg.photo[-1].file_id if m.msg.photo else ""
+        ok, msg = await OrderDispatcher.deliver_order(m.mgr, ord_id, content, photo_id=photo_id)
+        await m.send(msg, kb([[B("⬅️ مبيعات المنصة", "m:adm:svc_stats")]]))
+
+    elif k == "adm_ord_rej":
+        ord_id = st["ord_id"]
+        m.clear_state()
+        ok, msg = await OrderDispatcher.reject_order(m.mgr, ord_id, text.strip())
+        await m.send(msg, kb([[B("⬅️ مبيعات المنصة", "m:adm:svc_stats")]]))
+
     else:
         m.clear_state()
         await admin_home(m)

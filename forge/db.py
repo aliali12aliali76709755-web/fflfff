@@ -184,8 +184,112 @@ class ServiceOrder(Base):
     provider_name: Mapped[str] = mapped_column(String(64), default="")
     provider_order_id: Mapped[str] = mapped_column(String(128), default="")
     details: Mapped[Any] = mapped_column(JSON, default=dict)
+    refunded_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    refund_reason: Mapped[str] = mapped_column(String(255), default="")
+    is_dual_refunded: Mapped[bool] = mapped_column(Boolean, default=False)
+    sla_alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
     updated: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class SupportTicket(Base):
+    """تذاكر الدعم الفني الداخلي للبوت."""
+    __tablename__ = "support_tickets"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_name: Mapped[str] = mapped_column(String(128), default="")
+    username: Mapped[str] = mapped_column(String(64), default="")
+    dept_key: Mapped[str] = mapped_column(String(32), default="tech")
+    dept_name: Mapped[str] = mapped_column(String(64), default="الدعم الفني")
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | closed
+    staff_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    staff_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+    closed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class TicketMessage(Base):
+    """رسائل التذاكر بين الزبون والمشرف."""
+    __tablename__ = "ticket_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[str] = mapped_column(String(32), index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    sender_type: Mapped[str] = mapped_column(String(16))  # user | staff
+    sender_id: Mapped[int] = mapped_column(BigInteger)
+    text: Mapped[str] = mapped_column(Text, default="")
+    photo_id: Mapped[str] = mapped_column(String(255), default="")
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class FlashSale(Base):
+    """العروض والخصومات المؤقتة للبائع."""
+    __tablename__ = "flash_sales"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sale_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    title: Mapped[str] = mapped_column(String(128))
+    scope: Mapped[str] = mapped_column(String(32), default="all")  # all | category | product | variant
+    target_id: Mapped[str] = mapped_column(String(64), default="")
+    discount_type: Mapped[str] = mapped_column(String(16), default="percent")  # percent | fixed
+    discount_value: Mapped[float] = mapped_column(Float, default=10.0)
+    starts_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
+class ProductCategory(Base):
+    """أقسام المنتجات (ألعاب، اشتراكات، بطاقات...)."""
+    __tablename__ = "product_categories"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    category_id: Mapped[str] = mapped_column(String(64), index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    name: Mapped[str] = mapped_column(String(128))
+    icon: Mapped[str] = mapped_column(String(16), default="📁")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ProductItem(Base):
+    """المنتج الأساسي (PUBG، Netflix، Google Play...)."""
+    __tablename__ = "product_items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    product_id: Mapped[str] = mapped_column(String(64), index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    category_id: Mapped[str] = mapped_column(String(64), index=True)
+    name: Mapped[str] = mapped_column(String(128))
+    description: Mapped[str] = mapped_column(Text, default="")
+    icon: Mapped[str] = mapped_column(String(16), default="🎮")
+    banner_url: Mapped[str] = mapped_column(String(255), default="")
+    input_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    input_label: Mapped[str] = mapped_column(String(128), default="ID اللاعب أو الحساب")
+    input_type: Mapped[str] = mapped_column(String(32), default="text")  # text | number | player_id | username | email
+    input_regex: Mapped[str] = mapped_column(String(255), default="")
+    terms_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    terms_text: Mapped[str] = mapped_column(Text, default="")
+    is_manual: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_out_of_stock: Mapped[bool] = mapped_column(Boolean, default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
+class ProductVariant(Base):
+    """خيارات المنتج وباقاته وأسعاره (60 UC، 325 UC، 1 شهر...)."""
+    __tablename__ = "product_variants"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    variant_id: Mapped[str] = mapped_column(String(64), index=True)
+    product_id: Mapped[str] = mapped_column(String(64), index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    name: Mapped[str] = mapped_column(String(128))
+    price_usd: Mapped[float] = mapped_column(Float, default=1.0)
+    cost_provider_usd: Mapped[float] = mapped_column(Float, default=0.5)
+    stock_type: Mapped[str] = mapped_column(String(16), default="manual")  # manual | vouchers | unlimited
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
 
 
 _pool_args = {"pool_pre_ping": True}
@@ -208,6 +312,18 @@ if config.DATABASE_URL.startswith("sqlite"):
 async def init() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Safe migration for new columns in service_orders
+        for col_def in [
+            "refunded_at TIMESTAMP",
+            "refund_reason VARCHAR(255) DEFAULT ''",
+            "is_dual_refunded BOOLEAN DEFAULT 0",
+            "sla_alert_sent BOOLEAN DEFAULT 0",
+        ]:
+            try:
+                from sqlalchemy import text
+                await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_def}"))
+            except Exception:
+                pass
 
 
 # ───────────────────────── KV ─────────────────────────

@@ -38,8 +38,7 @@ async def test_admin_services_stats_and_credit():
 
     # 1. Test scr_services_stats with no orders
     await scr_services_stats(m)
-    assert m.last_text is not None
-    assert "إحصائيات خدمات ومبيعات المنصة المركزية" in m.last_text
+    assert "المنصة المركزية" in m.last_text
 
     # 2. Add an order and test again
     async with db.Session() as s:

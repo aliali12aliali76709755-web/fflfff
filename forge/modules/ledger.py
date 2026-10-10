@@ -187,3 +187,153 @@ async def get_user_transactions(bot_id: int, user_id: int, limit: int = 10) -> l
 async def get_seller_transactions(owner_id: int, limit: int = 20) -> list[db.LedgerEntry]:
     """يعيد سجل الحركات المالية للبائع في الصانع الرئيسي."""
     return await get_user_transactions(0, owner_id, limit=limit)
+
+
+async def atomic_dual_refund(
+    order_id: str,
+    *,
+    reason: str = "المنتج غير متوفر حالياً",
+    admin_id: int = 0,
+) -> tuple[bool, str, dict[str, Any]]:
+    """استرجاع الأموال الذري المزدوج بنقرة واحدة:
+    1. يعيد المبلغ للمشتري في رصيد بوت البائع.
+    2. يعيد سعر المنصة للبائع في رصيده الرئيسي بصانع البوتات.
+    3. يحمي من الاسترجاع المزدوج (Idempotency).
+    4. يوثّق الحركتين في السجل المالي برقم مرجعي مرتبط بالطلب.
+    """
+    import datetime as dt
+    async with db.Session() as s:
+        order = (await s.execute(
+            select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id)
+        )).scalars().first()
+
+        if not order:
+            return False, "الطلب غير موجود في قاعدة البيانات.", {}
+
+        if order.status == "refunded" or order.is_dual_refunded:
+            return False, "تم استرجاع هذا الطلب مسبقاً، لا يمكن تكرار الاسترجاع.", {}
+
+        bot_id = order.bot_id
+        buyer_id = order.user_id
+        buyer_refund_usd = order.price_user_usd
+        platform_cost_usd = order.cost_platform_usd or order.cost_provider_usd
+
+        # البحث عن مالك البوت
+        bot_row = await s.get(db.Bot, bot_id)
+        seller_id = bot_row.owner_id if bot_row else 0
+
+        # تحديث حالة الطلب
+        order.status = "refunded"
+        order.is_dual_refunded = True
+        order.refund_reason = reason[:250]
+        order.refunded_at = dt.datetime.utcnow()
+        await s.commit()
+
+    # 1. إعادة الأموال للمشتري في بوت البائع
+    ok_b, tx_b, bal_b = await credit_user(
+        bot_id=bot_id,
+        user_id=buyer_id,
+        amount_usd=buyer_refund_usd,
+        kind="order_refund",
+        ref_id=order_id,
+        description=f"استرجاع قيمة الطلب #{order_id}: {reason}",
+    )
+
+    # 2. إعادة سعر المنصة للبائع في صانع البوتات (إذا كان هناك مالك)
+    ok_s, tx_s, bal_s = False, "", 0.0
+    if seller_id > 0 and platform_cost_usd > 0:
+        ok_s, tx_s, bal_s = await credit_seller(
+            owner_id=seller_id,
+            amount_usd=platform_cost_usd,
+            kind="order_refund_cost",
+            ref_id=order_id,
+            description=f"استرجاع تكلفة المنصة للطلب #{order_id}: {reason}",
+        )
+
+    log.info(
+        "Dual refund completed for order %s: Buyer %d refunded $%.2f, Seller %d refunded $%.2f",
+        order_id, buyer_id, buyer_refund_usd, seller_id, platform_cost_usd
+    )
+    return True, "تم استرجاع الأموال للطرفين (المشتري والبائع) بنجاح!", {
+        "order_id": order_id,
+        "buyer_id": buyer_id,
+        "buyer_refund_usd": buyer_refund_usd,
+        "buyer_tx": tx_b,
+        "seller_id": seller_id,
+        "seller_refund_usd": platform_cost_usd,
+        "seller_tx": tx_s,
+    }
+
+
+async def apply_first_deposit_bonus(
+    owner_id: int,
+    deposit_amount_usd: float,
+) -> tuple[bool, float, str]:
+    """يفحص ويطبّق مكافأة أول شحن للبائع في صانع البوتات:
+    - تُسجل كحركة مستقلة في السجل المالي (bonus_first_deposit).
+    - لا تحتسب كأرباح للمنصة.
+    - تطبق مرة واحدة فقط لكل بائع.
+    """
+    import datetime as dt
+    cfg = await db.kv_get(0, "sys:bonus_config", {
+        "enabled": False,
+        "type": "percent",
+        "value": 10.0,
+        "min_deposit": 10.0,
+        "max_bonus": 50.0,
+        "expires_at": None,
+    }) or {}
+
+    if not cfg.get("enabled"):
+        return False, 0.0, "حملة المكافأة غير مفعلة."
+
+    # فحص تاريخ انتهاء الحملة
+    if cfg.get("expires_at"):
+        try:
+            exp = dt.datetime.fromisoformat(cfg["expires_at"])
+            if dt.datetime.utcnow() > exp:
+                return False, 0.0, "انتهت فترة حملة مكافأة أول شحن."
+        except Exception:
+            pass
+
+    # فحص الحد الأدنى للشحن
+    min_dep = float(cfg.get("min_deposit", 0.0))
+    if deposit_amount_usd < min_dep:
+        return False, 0.0, f"المبلغ أقل من الحد الأدنى للمكافأة (${min_dep:.2f})."
+
+    # فحص هل حصل البائع على المكافأة سابقاً
+    async with db.Session() as s:
+        existing = (await s.execute(
+            select(db.LedgerEntry).where(
+                db.LedgerEntry.bot_id == 0,
+                db.LedgerEntry.user_id == owner_id,
+                db.LedgerEntry.kind == "bonus_first_deposit",
+            )
+        )).scalars().first()
+        if existing:
+            return False, 0.0, "حصل البائع على مكافأة أول شحن مسبقاً."
+
+    # حساب قيمة المكافأة
+    b_type = cfg.get("type", "percent")
+    b_val = float(cfg.get("value", 10.0))
+    max_bonus = float(cfg.get("max_bonus", 50.0))
+
+    if b_type == "fixed":
+        bonus_amt = round(min(b_val, max_bonus), 4)
+    else:
+        bonus_amt = round(min(deposit_amount_usd * (b_val / 100.0), max_bonus), 4)
+
+    if bonus_amt <= 0:
+        return False, 0.0, "قيمة المكافأة صفر."
+
+    # إضافة المكافأة في السجل المالي
+    ok, tx, new_bal = await credit_seller(
+        owner_id=owner_id,
+        amount_usd=bonus_amt,
+        kind="bonus_first_deposit",
+        description=f"مكافأة أول شحن ترويجية (${bonus_amt:.2f})",
+    )
+
+    log.info("First deposit bonus of $%.2f granted to seller %d (tx: %s)", bonus_amt, owner_id, tx)
+    return True, bonus_amt, f"مبروك! حصلت على مكافأة أول شحن بقيمة +${bonus_amt:.2f} 🎁"
+
