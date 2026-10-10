@@ -1385,11 +1385,17 @@ async def _error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def apply_menu(app: Application) -> None:
-    """زر القائمة بجانب خانة الكتابة في بوت الصانع يعرض الأوامر دوماً."""
-    from telegram import MenuButtonCommands
+    """زر القائمة بجانب خانة الكتابة في بوت الصانع يفتح «لوحتي» داخل تيليجرام (يتطلب رابط https)."""
+    from telegram import MenuButtonCommands, MenuButtonWebApp, WebAppInfo
     try:
-        await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
-        await db.kv_set(0, "sys:menu_web", False)
+        was = bool(await db.kv_get(0, "sys:menu_web", False))
+        if web.https():
+            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp("لوحتي", WebAppInfo(f"{config.PUBLIC_URL}/app")))
+            if not was:
+                await db.kv_set(0, "sys:menu_web", True)
+        elif was:
+            await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            await db.kv_set(0, "sys:menu_web", False)
     except Exception:  # noqa: BLE001
         log.debug("maker menu button not applied")
 

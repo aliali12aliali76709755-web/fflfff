@@ -17,3 +17,4 @@ pytesseract>=0.3.10
 imageio-ffmpeg>=0.5
 SpeechRecognition>=3.14
 aiohttp>=3.9
+shazamio>=0.5

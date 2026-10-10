@@ -41,7 +41,7 @@ async def main():  # noqa: C901
     ali, sara, omar = tg.user(500, "Ali", username="ali_k"), tg.user(600, "Sara", username="sara_s"), tg.user(700, "Omar")
     await tg.say(MAKER, ali, "/start")
     keys = list(templates.load())
-    ck.ok(len(keys) == 34, "34 قالباً محمّلة")
+    ck.ok(len(keys) == 37, "37 قالباً محمّلة")
     T, B = {}, {}
     print("— فحص عام لكل قالب —")
     for i, k in enumerate(keys):
@@ -55,7 +55,7 @@ async def main():  # noqa: C901
         await tg.say(T[k], sara, "مرحبا")
         ck.ok("غرفة التحكم" in t1 and len(t2) > 60 and len(tg.out(B[k])) > n, f"{templates.get(k).ar}: لوحة المالك + الدليل + واجهة المستخدم + رد على نص")
     ck.errors("الفحص العام")
-    ck.ok(len(mgr.apps) == 34, "34 بوتاً تعمل معاً")
+    ck.ok(len(mgr.apps) == 37, "37 بوتاً تعمل معاً")
 
     def last(k):
         return tg.text(B[k])

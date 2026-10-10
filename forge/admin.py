@@ -306,7 +306,8 @@ async def admin_home(m: mk.M) -> None:
         [B("🧩 الأنواع", "m:adm:t"), B("🔐 اشتراك الصانع", "m:adm:fs")],
         [B("⚙️ إعدادات المنصة", "m:adm:s"), B("📜 سجل الإدارة", "m:adm:log")],
         [B(f"🐞 البلاغات ({reports})", "m:adm:rep"), B(f"🧯 الأخطاء ({len(errors.RECENT)})", "m:adm:err") if fid == 0 else None],
-        [B("📥 تصدير قائمة البوتات", "m:adm:exp")],
+        [B("📥 تصدير قائمة البوتات", "m:adm:exp"), B("🖥 لوحة الويب", "m:adm:web") if fid == 0 else None],
+        [B("🌐 حالة الويب والتطبيقات المصغّرة", "m:adm:wb")] if fid == 0 else None,
         [B("🔄 تحديث", "m:adm:home"), m.home_btn()]]))
 
 

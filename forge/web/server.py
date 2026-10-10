@@ -154,7 +154,7 @@ async def load_site(req: web.Request, *, page: bool) -> Site | web.Response:
 
 # ───────────────────────── الصفحات ─────────────────────────
 async def landing(req: web.Request) -> web.Response:
-    return web.Response(text="BotForge is running OK", content_type="text/plain")
+    return await sites.landing(req, req.app[MGR])
 
 
 async def bot_page(req: web.Request) -> web.Response:

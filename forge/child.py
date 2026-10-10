@@ -692,7 +692,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                  kb([c.home_row()]))
 
 
-SLOW = {"downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "translate", "shortener", "wallets"}
+SLOW = {"downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "translate", "shortener", "wallets", "shazam"}
 
 
 async def _typing(bot, chat_id: int) -> None:

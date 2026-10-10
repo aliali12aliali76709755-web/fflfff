@@ -20,8 +20,8 @@ CATEGORIES = [
 CAT_OF = {
     "biz": ["store", "qrmenu", "booking", "vip", "tickets", "forms"],
     "aud": ["post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper"],
-    "media": ["downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr"],
-    "util": ["translate", "shortener", "tempmail", "proxy", "wallets", "decor"],
+    "media": ["downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam"],
+    "util": ["translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid"],
     "learn": ["quran", "english"],
     "fun": ["xo", "chess", "roulette"],
     "pro": ["maker"],
@@ -64,6 +64,9 @@ FEATS = {
     "booking": ["خدمات وأوقات عمل وأيام عطلة", "الوقت المحجوز يختفي تلقائياً", "صفحة حجز على الويب، والتأكيد بضغطة"],
     "vip": ["خطط بأسعار ومدد", "مراجعة إثبات الدفع", "دخول القناة وإخراج تلقائي عند الانتهاء"],
     "tempmail": ["بريد مؤقت بضغطة", "قراءة الرسائل داخل البوت", "استبدال العنوان متى شئت"],
+    "shazam": ["تعرّف على الأغنية من صوت أو فيديو", "اسم الأغنية والمغني وسنة الإصدار والغلاف", "مقطع صوتي للأغنية — مجاني بلا حدود"],
+    "whatsapp": ["رقم ← رابط محادثة واتساب", "يفتح المحادثة بدون حفظ الرقم", "رسالة جاهزة اختيارية"],
+    "getid": ["آيديك واسمك ويوزرك بضغطة", "رقمك عند مشاركته بنفسك", "آيدي أي رسالة معاد توجيهها"],
 }
 
 # جملة موجّهة لعضو البوت (لا لصانعه): تُستخدم وصفاً افتراضياً للبوت في تيليجرام وفي صفحته على الويب
@@ -102,6 +105,9 @@ PITCH = {
     "chess": ("العب الشطرنج مباشرة مع صديقك.", "Play live chess with a friend."),
     "roulette": ("أنشئ سحباً واختر الفائزين عشوائياً.", "Create a giveaway and pick winners at random."),
     "maker": ("اصنع بوت تيليجرام خاصاً بك مجاناً وبدون برمجة.", "Build your own Telegram bot for free, no code."),
+    "shazam": ("أرسل مقطعاً صوتياً أو فيديو وسأتعرف على الأغنية لك.", "Send audio or a video and I'll identify the song for you."),
+    "whatsapp": ("أرسل رقماً مع رمز الدولة وأحوّله إلى رابط محادثة واتساب.", "Send a number with its country code and I'll turn it into a WhatsApp chat link."),
+    "getid": ("اعرف آيديك واسمك ويوزرك بضغطة واحدة.", "Get your ID, name and username in one tap."),
 }
 
 
@@ -306,8 +312,8 @@ class Items:
 ORDER = [
     "store", "qrmenu", "booking", "vip", "tickets", "forms",
     "post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper",
-    "downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr",
-    "translate", "shortener", "tempmail", "proxy", "wallets", "decor",
+    "downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam",
+    "translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid",
     "quran", "english", "xo", "chess", "roulette", "maker",
 ]
 REG: dict[str, Tpl] = {}
