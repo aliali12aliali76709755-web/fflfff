@@ -42,8 +42,11 @@ def clean_url(u: str | None) -> str | None:
         return None
 
 
-def B(text: str, data: str | None = None, *, url: str | None = None, style: str | None = None, **kw):
+def B(text: str, data: str | None = None, *, url: str | None = None, web_app: str | None = None, style: str | None = None, **kw):
     """زر شفاف. style: primary | success | danger (ألوان الأزرار في Bot API الحديث)."""
+    if web_app:
+        from telegram import WebAppInfo
+        return InlineKeyboardButton(text, web_app=WebAppInfo(url=web_app), style=style, **kw)
     valid_u = clean_url(url) if url else None
     if valid_u:
         return InlineKeyboardButton(text, url=valid_u, style=style, **kw)

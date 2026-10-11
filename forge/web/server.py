@@ -267,14 +267,24 @@ async def errors_mw(req: web.Request, handler):
 
 
 def build(mgr) -> web.Application:
-    app = web.Application(middlewares=[errors_mw], client_max_size=256 * 1024)
+    from . import media_pipe, miniapp_api, miniapp_view
+
+    app = web.Application(middlewares=[errors_mw], client_max_size=16 * 1024 * 1024)
     app[MGR] = mgr
     u = r"{username:[A-Za-z][A-Za-z0-9_]{3,39}}"
     app.router.add_get("/", landing)
     app.router.add_get("/healthz", health)
     app.router.add_static("/static/", STATIC, append_version=False)
+    app.router.add_static("/media/", media_pipe.MEDIA_DIR, append_version=False)
     app.router.add_get("/img/{bot_id}/{sig}/{fid}", image)
     dash.routes(app)
+
+    # التطبيقات المصغرة ولوحة الأدمن (Telegram Mini Apps)
+    app.router.add_get("/app", miniapp_view.render_miniapp_view)
+    app.router.add_get(f"/app/{u}", miniapp_view.render_miniapp_view)
+    app.router.add_get("/admin_app", miniapp_view.render_miniapp_view)
+    miniapp_api.setup_routes(app)
+
     app.router.add_get(f"/{u}", bot_page)
     app.router.add_get(f"/{u}/", bot_page)
     app.router.add_get(f"/{u}/avatar", avatar)

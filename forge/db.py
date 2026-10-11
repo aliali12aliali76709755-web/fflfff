@@ -291,6 +291,54 @@ class ProductVariant(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class ProductReview(Base):
+    """تقييمات المنتجات الموثقة (لا تُنشأ إلا بعد اكتمال الطلب)."""
+    __tablename__ = "product_reviews"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    order_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    product_id: Mapped[str] = mapped_column(String(64), index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_name: Mapped[str] = mapped_column(String(128), default="مشترٍ")
+    rating: Mapped[int] = mapped_column(Integer, default=5)
+    comment: Mapped[str] = mapped_column(Text, default="")
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    seller_reply: Mapped[str] = mapped_column(Text, default="")
+    seller_replied_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class AuditLog(Base):
+    """سجل التدقيق لكافة التغييرات الإدارية والمالية والحساسة."""
+    __tablename__ = "audit_logs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, default=0, index=True)
+    actor_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    actor_role: Mapped[str] = mapped_column(String(32), default="buyer")  # admin | seller | buyer | system
+    action: Mapped[str] = mapped_column(String(64), index=True)
+    target_type: Mapped[str] = mapped_column(String(64), default="")
+    target_id: Mapped[str] = mapped_column(String(64), default="")
+    old_value: Mapped[Any] = mapped_column(JSON, default=dict)
+    new_value: Mapped[Any] = mapped_column(JSON, default=dict)
+    details: Mapped[str] = mapped_column(Text, default="")
+    ip: Mapped[str] = mapped_column(String(64), default="")
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class StoreDesignVersion(Base):
+    """سجل نسخ تصميم المتجر لاستعادة النسخ السابقة."""
+    __tablename__ = "store_design_versions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    version_num: Mapped[int] = mapped_column(Integer, default=1)
+    name: Mapped[str] = mapped_column(String(64), default="")
+    theme_config: Mapped[Any] = mapped_column(JSON, default=dict)
+    created_by: Mapped[int] = mapped_column(BigInteger, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
 
 _pool_args = {"pool_pre_ping": True}
 if not config.DATABASE_URL.startswith("sqlite"):
@@ -379,6 +427,11 @@ async def kv_replace_all(bot_id: int, data: dict[str, Any]) -> None:
             if not k.startswith("sys:"):
                 s.add(KV(bot_id=bot_id, key=k, value=v))
         await s.commit()
+ 
+ 
+async def get_bot(bot_id: int) -> Bot | None:
+    async with Session() as s:
+        return await s.get(Bot, bot_id)
 
 
 # ───────────────────────── Records ─────────────────────────

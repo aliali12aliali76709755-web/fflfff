@@ -371,7 +371,10 @@ async def home(m: M, *, new: bool = False) -> None:
             [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T("📊 لوحتي", "📊 My dashboard"), "m:stats")],
             [B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref"), B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
             [B(T("🆘 مساعدة", "🆘 Help"), "m:more"), B(T("🖥 لوحتي على الويب", "🖥 My web dashboard"), "m:web") if bots and web.enabled() else None],
-            [B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home", style="primary")] if m.is_admin else None,
+            [
+                B(T("🛡️ تطبيق الأدمن المصغر", "🛡️ Admin Mini App"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/admin_app", style="primary") if config.PUBLIC_URL else None,
+                B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home", style="primary"),
+            ] if m.is_admin else None,
         ]), new=new)
     except Exception as err:
         log.error("home show error: %s", err)

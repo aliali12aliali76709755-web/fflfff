@@ -153,3 +153,24 @@ class DiscountManager:
         badge = f"🔥 متبقي {hours}س {mins}د" if hours > 0 else f"🔥 متبقي {mins}د"
 
         return discounted_price, discount_amt, badge, remaining_sec
+
+    @classmethod
+    async def apply_discount(
+        cls,
+        bot_id: int,
+        tpl_key: str,
+        product_id: str,
+        original_price_usd: float,
+        owner_id: int = 0,
+        provider_cost_usd: float = 0.0,
+    ) -> float:
+        """طريقة سريعة ومباشرة لحساب السعر بعد الخصم مع مراعاة حماية المنصة."""
+        final_price, _, _, _ = await cls.calculate_discounted_price(
+            original_price_usd,
+            bot_id=bot_id,
+            owner_id=owner_id,
+            provider_cost_usd=provider_cost_usd,
+            tpl_key=tpl_key,
+            product_id=product_id,
+        )
+        return final_price

@@ -14,7 +14,7 @@ import uuid
 from typing import Any
 from sqlalchemy import func, select
 
-from .. import db, ui
+from .. import config, db, ui
 from ..ctx import Ctx
 from ..ui import B, esc, kb
 from . import Tpl
@@ -60,10 +60,14 @@ class Tgstars(Tpl):
             f"💰 <b>{t('رصيدك الحالي:', 'Your Balance:')}</b> <code>{bal_display}</code>\n"
             f"🆔 <b>{t('معرّف حسابك:', 'Your ID:')}</b> <code>{c.uid}</code>"
         )
+        app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{c.bot.username}" if config.PUBLIC_URL else ""
+        miniapp_row = [B(t("🛍 افتح المتجر المصغر", "🛍 Open Mini App"), web_app=app_url, style="primary")] if app_url else []
+
         web_url = await c.kv("store:webstore_url", "")
         web_row = [B(t("🌐 متجر الويب", "🌐 Web Store"), url=web_url)] if web_url else []
 
         rows = [
+            miniapp_row if miniapp_row else None,
             [B(t("⭐ شحن نجوم تيليجرام", "⭐ Telegram Stars"), "t:cat:stars", style="success"),
              B(t("💎 اشتراكات بريميوم", "💎 Telegram Premium"), "t:cat:premium")],
             [B(t("🎁 هدايا تيليجرام", "🎁 Telegram Gifts"), "t:cat:gifts"),
