@@ -58,6 +58,9 @@ class Digital(Tpl):
             f"💰 <b>{t('رصيدك الحالي:', 'Your Balance:')}</b> <code>{bal_display}</code>\n"
             f"🆔 <b>{t('معرّف حسابك:', 'Your ID:')}</b> <code>{c.uid}</code>"
         )
+        web_url = await c.kv("store:webstore_url", "")
+        web_row = [B(t("🌐 متجر الويب", "🌐 Web Store"), url=web_url)] if web_url else []
+
         rows = [
             [B(t("🎮 شحن الألعاب", "🎮 Game Top-Up"), "t:cat:games", style="success"),
              B(t("🎬 اشتراكات التطبيقات", "🎬 App Subscriptions"), "t:cat:apps")],
@@ -65,18 +68,42 @@ class Digital(Tpl):
              B(t("💳 شحن المحفظة", "💳 Top-up Wallet"), "t:wallet")],
             [B(t("📦 طلباتي السابقة", "📦 My Orders"), "t:orders"),
              B(t("🎁 كود خصم", "🎁 Promo Code"), "t:promo")],
+            [B(t("📞 الدعم الفني والتذاكر", "📞 Support & Tickets"), "t:support"),
+             B(t("❓ الأسئلة الشائعة", "❓ FAQ"), "t:faq")],
             [B(t("👥 كسب رصيد مجاني (الإحالة)", "👥 Earn Credit (Referral)"), "t:ref"),
              B(t("ℹ️ مساعدة وشروط", "ℹ️ Help & Terms"), "t:help")],
+            web_row if web_row else None,
             c.tail(),
         ]
-        await c.edit(text, kb(rows))
+        await c.edit(text, kb([r for r in rows if r]))
 
     async def cb(self, c: Ctx, a: list[str]) -> None:  # noqa: C901
         act = a[0]
         t = c.t
 
+        # ── الدعم الفني والأسئلة الشائعة ──
+        if act == "support":
+            from ..modules.store_front import StoreFront
+            await StoreFront.show_support_menu(c)
+            return
+
+        elif act == "faq":
+            from ..modules.store_front import StoreFront
+            await StoreFront.show_faq_list(c)
+            return
+
+        elif act == "faq_view":
+            from ..modules.store_front import StoreFront
+            await StoreFront.show_faq_item(c, int(a[1]) if len(a) > 1 and a[1].isdigit() else 0)
+            return
+
+        elif act == "tck_dept":
+            from ..modules.store_front import StoreFront
+            await StoreFront.prompt_open_ticket(c, a[1] if len(a) > 1 else "tech")
+            return
+
         # ── استعراض الأقسام ──
-        if act == "cat":
+        elif act == "cat":
             cat_name = a[1]
             all_services = await DigitalManager.get_services_catalog(c.bot_id)
             services = [s for s in all_services if s.get("category") == cat_name]
@@ -791,6 +818,10 @@ class Digital(Tpl):
         k = st.get("k")
         t = c.t
 
+        if k == "sf_ticket_input":
+            from ..modules.store_front import StoreFront
+            return await StoreFront.handle_ticket_submission(c, st)
+
         # 1. إدخال بيانات الخدمة (Player ID أو الإيميل)
         if k == "digital_input_field":
             user_data = c.text.strip()
@@ -1275,7 +1306,8 @@ class Digital(Tpl):
                style="warning" if pending_rcpts > 0 else "default"),
              B(t("💳 طرق الدفع والشحن", "💳 Payment Methods"), "t:adm:pay")],
             [B(t("📦 سجل الطلبات والتنفيذ", "📦 Orders & Fulfillment"), "t:adm:orders"),
-             B(t("💱 عملة البوت", "💱 Bot Currency"), "t:adm:cur")],
+             B(t("📢 قناة استقبال الطلبات", "📢 Orders Channel"), "t:adm:chan")],
+            [B(t("💱 عملة البوت", "💱 Bot Currency"), "t:adm:cur")],
         ]
         return info, rows
 

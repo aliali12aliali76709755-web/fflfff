@@ -312,18 +312,33 @@ if config.DATABASE_URL.startswith("sqlite"):
 async def init() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Safe migration for new columns in service_orders
-        for col_def in [
-            "refunded_at TIMESTAMP",
-            "refund_reason VARCHAR(255) DEFAULT ''",
-            "is_dual_refunded BOOLEAN DEFAULT 0",
-            "sla_alert_sent BOOLEAN DEFAULT 0",
-        ]:
-            try:
+
+    # Safe per-column migration outside the main transaction
+    is_pg = not config.DATABASE_URL.startswith("sqlite")
+    cols = [
+        ("cost_platform_usd", "FLOAT", "DEFAULT 0.0"),
+        ("currency", "VARCHAR(16)", "DEFAULT 'USD'"),
+        ("price_user_currency", "FLOAT", "DEFAULT 0.0"),
+        ("provider_name", "VARCHAR(64)", "DEFAULT ''"),
+        ("provider_order_id", "VARCHAR(128)", "DEFAULT ''"),
+        ("details", "JSON" if is_pg else "TEXT", "DEFAULT '{}'"),
+        ("refunded_at", "TIMESTAMP", "DEFAULT NULL"),
+        ("refund_reason", "VARCHAR(255)", "DEFAULT ''"),
+        ("is_dual_refunded", "BOOLEAN", "DEFAULT FALSE" if is_pg else "DEFAULT 0"),
+        ("sla_alert_sent", "BOOLEAN", "DEFAULT FALSE" if is_pg else "DEFAULT 0"),
+    ]
+
+    for col_name, col_type, col_default in cols:
+        try:
+            async with engine.connect() as conn:
                 from sqlalchemy import text
-                await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_def}"))
-            except Exception:
-                pass
+                if is_pg:
+                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
+                else:
+                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
+                await conn.commit()
+        except Exception:
+            pass
 
 
 # ───────────────────────── KV ─────────────────────────

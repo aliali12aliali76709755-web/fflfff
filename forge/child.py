@@ -659,16 +659,100 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     _, banned = await touch(c)
     if banned:
         return
-    st = c.st
-    if st and st["k"] == "rep_abuse":
-        await _save_report(c)
-        return
-    if st and st["k"].startswith("o_"):
-        if c.is_owner:
-            await owner_input(c, st)
+    if c.msg.reply_to_message:
+        from .modules.tickets import TicketManager
+        tck = await TicketManager.get_ticket_by_msg_id(c.chat.id, c.msg.reply_to_message.message_id)
+        if tck:
+            text_content = c.text or (c.msg.caption if c.msg else "") or ""
+            photo_id = c.msg.photo[-1].file_id if (c.msg and c.msg.photo) else ""
+            ok, res_msg = await TicketManager.reply_to_ticket(
+                c.bot,
+                tck.ticket_id,
+                c.uid,
+                text_content,
+                photo_id=photo_id,
+            )
+            await c.send(f"✅ {res_msg}")
             return
-        c.clear_state()
-        st = None
+
+    st = c.st
+    if st:
+        k = st.get("k", "")
+        if k == "rep_abuse":
+            await _save_report(c)
+            return
+        if k.startswith("o_"):
+            if c.is_owner:
+                await owner_input(c, st)
+                return
+            c.clear_state()
+            st = None
+        elif k == "sf_ticket_input":
+            from .modules.store_front import StoreFront
+            await StoreFront.handle_ticket_submission(c, st)
+            return
+        elif k == "staff_ticket_reply":
+            from .modules.tickets import TicketManager
+            tck_id = st.get("ticket_id")
+            text_content = c.text or (c.msg.caption if c.msg else "") or ""
+            photo_id = c.msg.photo[-1].file_id if (c.msg and c.msg.photo) else ""
+            c.clear_state()
+            ok, res_msg = await TicketManager.reply_to_ticket(
+                c.bot,
+                tck_id,
+                c.uid,
+                text_content,
+                photo_id=photo_id,
+            )
+            await c.send(res_msg)
+            return
+        elif k == "sf_user_ticket_reply":
+            from .modules.tickets import TicketManager
+            tck_id = st.get("ticket_id")
+            text_content = c.text or (c.msg.caption if c.msg else "") or ""
+            photo_id = c.msg.photo[-1].file_id if (c.msg and c.msg.photo) else ""
+            c.clear_state()
+            ok, res_msg = await TicketManager.append_user_message(
+                c.bot,
+                tck_id,
+                c.uid,
+                c.name,
+                c.user.username or "",
+                text_content,
+                photo_id=photo_id,
+            )
+            await c.send(res_msg)
+            return
+        elif k == "adm_set_order_channel":
+            if not c.is_owner:
+                c.clear_state()
+                return
+            target_chat = c.text.strip()
+            try:
+                chat = await c.bot.get_chat(target_chat)
+                member = await c.bot.get_chat_member(chat.id, c.bot.id)
+                if member.status not in ("administrator", "creator"):
+                    await c.send(c.t("⚠️ البوت ليس مشرفاً في هذه القناة! يرجى رفع البوت مشرفاً بصلاحية إرسال الرسائل أولاً ثم أرسل اليوزر.",
+                                     "⚠️ Bot is not an admin in this channel! Please promote the bot first then send username."))
+                    return
+                chan_data = {"id": chat.id, "title": chat.title or "", "username": chat.username or target_chat}
+                await c.kv_set("store:order_channel", chan_data)
+                c.clear_state()
+                try:
+                    await c.bot.send_message(
+                        chat.id,
+                        f"✅ <b>تم تفعيل استقبال طلبات متجر {esc(c.brand)} بنجاح!</b>\nستصل كافة الطلبات الجديدة إلى هذه القناة مباشرة.",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+                await c.send(c.t(f"✅ تم ربط القناة <b>{esc(chat.title or target_chat)}</b> بنجاح!\nستصل إشعارات الطلبات إليها فوراً.",
+                                 f"✅ Channel <b>{esc(chat.title or target_chat)}</b> linked!"))
+            except Exception as e:
+                await c.send(c.t(f"⚠️ تعذّر الوصول للقناة: {e}\nتأكد من كتابة اليوزر بدقة (مثال: @MyChannel) وأن البوت مضاف ومشرف فيها.",
+                                 f"⚠️ Error accessing channel: {e}"))
+            return
+
     text = c.text
     if text.startswith("/"):
         cmd = text.split()[0][1:].split("@")[0].lower()
@@ -727,11 +811,83 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 await _enter(c, context.user_data.pop("pending_start", ""))
             else:
                 await c.answer(c.t("لم يكتمل الاشتراك بعد.", "You haven't joined yet."), True)
+        elif data.startswith("sf:"):
+            from .modules.store_front import StoreFront
+            parts = data.split(":")[1:]
+            act = parts[0]
+            if act == "support":
+                await StoreFront.show_support_menu(c)
+            elif act == "faq":
+                await StoreFront.show_faq_list(c)
+            elif act == "faq_view":
+                await StoreFront.show_faq_item(c, int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0)
+            elif act == "tck_dept":
+                await StoreFront.prompt_open_ticket(c, parts[1] if len(parts) > 1 else "tech")
+            elif act == "reply_ticket":
+                tck_id = parts[1] if len(parts) > 1 else ""
+                c.set_state("sf_user_ticket_reply", ticket_id=tck_id)
+                await c.send(
+                    c.t(
+                        f"✍️ <b>أرسل رسالتك الإضافية لمتابعة التذكرة #{tck_id}:</b>\n\n/cancel للإلغاء",
+                        f"✍️ <b>Send your follow-up message for ticket #{tck_id}:</b>\n\n/cancel to abort"
+                    )
+                )
+        elif data.startswith("tck:"):
+            from .modules.tickets import TicketManager
+            parts = data.split(":")
+            sub = parts[1] if len(parts) > 1 else ""
+            tck_id = parts[2] if len(parts) > 2 else ""
+            if sub == "r":
+                c.set_state("staff_ticket_reply", ticket_id=tck_id)
+                await c.send(
+                    c.t(
+                        f"✍️ <b>أرسل نص ردك على التذكرة #{tck_id}:</b>\n\n(يمكنك إرسال نص أو صورة مع توضيح)\n/cancel للإلغاء",
+                        f"✍️ <b>Send your reply for ticket #{tck_id}:</b>\n\n/cancel to abort"
+                    )
+                )
+            elif sub == "c":
+                ok, msg = await TicketManager.close_ticket(c.bot, tck_id, c.uid)
+                await c.answer(msg, True)
+                try:
+                    await c.edit(f"🔒 <b>تم إغلاق التذكرة #{tck_id}</b>")
+                except Exception:
+                    pass
+        elif data == "t:adm:chan":
+            if not c.is_owner:
+                await c.answer(c.t("للمالك فقط", "Owner only"), True)
+                return
+            c.set_state("adm_set_order_channel")
+            chan_cfg = await c.kv("store:order_channel", {}) or {}
+            c_name = chan_cfg.get("title") or chan_cfg.get("username") or "غير محددة"
+            await c.edit(
+                ui.head(c.t("📢 قناة استقبال الطلبات", "📢 Orders Channel")) +
+                c.t(
+                    f"القناة الحالية: <b>{esc(c_name)}</b>\n\n"
+                    f"لتلقي إشعارات الطلبات الفورية في قناتك الخاصة:\n"
+                    f"1. أضف هذا البوت مشرفاً (Admin) في قناتك مع صلاحية إرسال الرسائل.\n"
+                    f"2. أرسل يوزر القناة هنا (مثال: <code>@OrdersChannel</code>) أو معرّف القناة.\n\n"
+                    f"/cancel للإلغاء",
+                    f"Current channel: <b>{esc(c_name)}</b>\n\nSend channel username (e.g. <code>@OrdersChannel</code>):\n\n/cancel to abort"
+                ),
+                kb([[B(c.t("❌ إلغاء", "❌ Cancel"), "o:home")]])
+            )
         elif data.startswith("t:"):
             a = data.split(":")[1:]
             if a[0] == "home":
                 c.clear_state()
                 await c.tpl.home(c)
+            elif a[0] == "support":
+                from .modules.store_front import StoreFront
+                await StoreFront.show_support_menu(c)
+            elif a[0] == "faq":
+                from .modules.store_front import StoreFront
+                await StoreFront.show_faq_list(c)
+            elif a[0] == "faq_view":
+                from .modules.store_front import StoreFront
+                await StoreFront.show_faq_item(c, int(a[1]) if len(a) > 1 and a[1].isdigit() else 0)
+            elif a[0] == "tck_dept":
+                from .modules.store_front import StoreFront
+                await StoreFront.prompt_open_ticket(c, a[1] if len(a) > 1 else "tech")
             else:
                 await c.tpl.cb(c, a)
         else:

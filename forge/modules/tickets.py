@@ -188,6 +188,7 @@ class TicketManager:
             f"<blockquote>{reply_text}</blockquote>\n\n"
             f"<i>💡 يمكنك إرسال رد إضافي هنا لمتابعة المحادثة مع الدعم.</i>"
         )
+        reply_kb = cls._kb([[("✍️ إضافة رد على التذكرة", f"sf:reply_ticket:{ticket.ticket_id}")]])
         try:
             if photo_id:
                 await bot_api.send_photo(
@@ -195,17 +196,90 @@ class TicketManager:
                     photo=photo_id,
                     caption=user_notification,
                     parse_mode=ParseMode.HTML,
+                    reply_markup=reply_kb,
                 )
             else:
                 await bot_api.send_message(
                     chat_id=ticket.user_id,
                     text=user_notification,
                     parse_mode=ParseMode.HTML,
+                    reply_markup=reply_kb,
                 )
             return True, "تم إرسال ردك للزبون بنجاح!"
         except TelegramError as e:
             log.warning("Failed to send staff reply to user %d: %s", ticket.user_id, e)
             return False, f"تعذّر إيصال الرد للمستخدم: {e}"
+
+    @classmethod
+    async def append_user_message(
+        cls,
+        bot_api: Bot,
+        ticket_id: str,
+        user_id: int,
+        user_name: str,
+        username: str,
+        text: str,
+        photo_id: str = "",
+    ) -> tuple[bool, str]:
+        """يضيف رسالة متابعة من الزبون إلى التذكرة ويرسلها للمشرف المخصص."""
+        async with db.Session() as s:
+            ticket = (await s.execute(
+                select(db.SupportTicket).where(db.SupportTicket.ticket_id == ticket_id)
+            )).scalars().first()
+            if not ticket:
+                return False, "التذكرة غير موجودة."
+
+            if ticket.status == "closed":
+                return False, "هذه التذكرة مغلقة حالياً. يرجى فتح تذكرة جديدة إذا كان لديك استفسار آخر."
+
+            msg = db.TicketMessage(
+                ticket_id=ticket_id,
+                bot_id=ticket.bot_id,
+                sender_type="user",
+                sender_id=user_id,
+                text=text,
+                photo_id=photo_id,
+                created=dt.datetime.utcnow(),
+            )
+            s.add(msg)
+            await s.commit()
+
+        staff_id = ticket.staff_id
+        if not staff_id:
+            async with db.Session() as s:
+                bot_row = await s.get(db.Bot, ticket.bot_id)
+            staff_id = bot_row.owner_id if bot_row else 0
+
+        if staff_id:
+            user_ref = f"@{username}" if username else f"<code>{user_id}</code>"
+            notice_text = (
+                f"📩 <b>رد إضافي من الزبون على التذكرة #{ticket.ticket_id}</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>الزبون:</b> {user_name} ({user_ref})\n"
+                f"🏢 <b>القسم:</b> {ticket.dept_name}\n\n"
+                f"💬 <b>نص الرد:</b>\n"
+                f"<blockquote>{text}</blockquote>\n\n"
+                f"<i>💡 اضغط الزر أدناه للرد، أو أرسل Reply مباشرة.</i>"
+            )
+            kb = cls._kb([
+                [("✍️ رد على التذكرة", f"tck:r:{ticket.ticket_id}"), ("🔒 إغلاق التذكرة", f"tck:c:{ticket.ticket_id}")]
+            ])
+            try:
+                if photo_id:
+                    sent = await bot_api.send_photo(staff_id, photo=photo_id, caption=notice_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+                else:
+                    sent = await bot_api.send_message(staff_id, text=notice_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+                async with db.Session() as s:
+                    row = (await s.execute(
+                        select(db.SupportTicket).where(db.SupportTicket.ticket_id == ticket_id)
+                    )).scalars().first()
+                    if row:
+                        row.staff_msg_id = sent.message_id
+                        await s.commit()
+            except Exception as e:
+                log.warning("Failed to notify staff of user reply on ticket %s: %s", ticket_id, e)
+
+        return True, "✅ تم إرسال ردك إلى فريق الدعم بنجاح وسيصلك ردهم قريباً."
 
     @classmethod
     async def close_ticket(

@@ -60,6 +60,9 @@ class Sms(Tpl):
             f"💰 <b>{t('رصيدك الحالي:', 'Your Balance:')}</b> <code>{bal_display}</code>\n"
             f"🆔 <b>{t('معرّف حسابك:', 'Your ID:')}</b> <code>{c.uid}</code>"
         )
+        web_url = await c.kv("store:webstore_url", "")
+        web_row = [B(t("🌐 متجر الويب", "🌐 Web Store"), url=web_url)] if web_url else []
+
         rows = [
             [B(t("📱 طلب رقم تفعيل جديد", "📱 Rent New Number"), "t:countries", style="success"),
              B(t("💳 شحن المحفظة", "💳 Top-up Wallet"), "t:wallet")],
@@ -67,10 +70,13 @@ class Sms(Tpl):
              B(t("📦 سجل أرقامي السابقة", "📦 Number History"), "t:orders")],
             [B(t("🎁 كود خصم", "🎁 Promo Code"), "t:promo"),
              B(t("👥 كسب رصيد مجاني (الإحالة)", "👥 Earn Credit (Referral)"), "t:ref")],
+            [B(t("📞 الدعم الفني والتذاكر", "📞 Support & Tickets"), "t:support"),
+             B(t("❓ الأسئلة الشائعة", "❓ FAQ"), "t:faq")],
             [B(t("ℹ️ مساعدة وشروط الاستخدام", "ℹ️ Help & Terms"), "t:help")],
+            web_row if web_row else None,
             c.tail(),
         ]
-        await c.edit(text, kb(rows))
+        await c.edit(text, kb([r for r in rows if r]))
 
     async def cb(self, c: Ctx, a: list[str]) -> None:  # noqa: C901
         act = a[0]
@@ -893,7 +899,8 @@ class Sms(Tpl):
                style="warning" if pending_rcpts > 0 else "default"),
              B(t("💳 طرق الدفع والشحن", "💳 Payment Methods"), "t:adm:pay")],
             [B(t("📦 سجل الأرقام", "📦 Numbers Log"), "t:adm:orders"),
-             B(t("💱 عملة البوت", "💱 Bot Currency"), "t:adm:cur")],
+             B(t("📢 قناة استقبال الطلبات", "📢 Orders Channel"), "t:adm:chan")],
+            [B(t("💱 عملة البوت", "💱 Bot Currency"), "t:adm:cur")],
         ]
         return info, rows
 

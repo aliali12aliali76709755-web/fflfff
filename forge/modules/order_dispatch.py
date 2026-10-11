@@ -50,9 +50,17 @@ class OrderDispatcher:
         buyer_name: str = "",
         buyer_username: str = "",
     ) -> None:
-        """يرسل بطاقة الطلب فور إنشائه إلى قناة استقبال الطلبات وإلى المالك."""
+        # 1. القناة المخصصة للبوت (التي حددها البائع باليوزر أو الآيدي)
+        bot_chan_cfg = await db.kv_get(order.bot_id, "store:order_channel", {}) or {}
+        bot_chan_id = bot_chan_cfg.get("id")
+
+        # 2. القناة العامة للنظام
         chan_cfg = await db.kv_get(0, "sys:order_channel", {}) or {}
         chan_id = chan_cfg.get("id")
+
+        async with db.Session() as s:
+            bot_row = await s.get(db.Bot, order.bot_id)
+        owner_id = bot_row.owner_id if bot_row else 0
 
         buyer_ref = f"@{buyer_username}" if buyer_username else f"<code>{order.user_id}</code>"
         seller_ref = f"@{bot_username}" if bot_username else f"بائع #{order.bot_id}"
@@ -71,8 +79,23 @@ class OrderDispatcher:
         )
         kb = cls.order_buttons(order.order_id)
 
-        # 1. إرسال إلى القناة المحددة
-        if chan_id:
+        sent_targets = set()
+
+        # إرسال لقناة البوت الخاصة إذا تم ضبطها
+        if bot_chan_id:
+            try:
+                await bot_api.send_message(
+                    chat_id=bot_chan_id,
+                    text=card,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=kb,
+                )
+                sent_targets.add(bot_chan_id)
+            except Exception as e:
+                log.warning("Failed to post order %s to bot channel %s: %s", order.order_id, bot_chan_id, e)
+
+        # إرسال للقناة العامة للنظام
+        if chan_id and chan_id not in sent_targets:
             try:
                 await bot_api.send_message(
                     chat_id=chan_id,
@@ -80,11 +103,25 @@ class OrderDispatcher:
                     parse_mode=ParseMode.HTML,
                     reply_markup=kb,
                 )
+                sent_targets.add(chan_id)
             except Exception as e:
                 log.warning("Failed to post order %s to channel %s: %s", order.order_id, chan_id, e)
 
-        # 2. إرسال إلى المالك إذا كان مختلفاً عن القناة
-        if config.ADMIN_ID and config.ADMIN_ID != chan_id:
+        # إرسال لحساب مالك البوت المباشر
+        if owner_id and owner_id not in sent_targets:
+            try:
+                await bot_api.send_message(
+                    chat_id=owner_id,
+                    text=card,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=kb,
+                )
+                sent_targets.add(owner_id)
+            except Exception:
+                pass
+
+        # إرسال للإدارة العامة للنظام
+        if config.ADMIN_ID and config.ADMIN_ID not in sent_targets:
             try:
                 await bot_api.send_message(
                     chat_id=config.ADMIN_ID,

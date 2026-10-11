@@ -60,6 +60,9 @@ class Tgstars(Tpl):
             f"💰 <b>{t('رصيدك الحالي:', 'Your Balance:')}</b> <code>{bal_display}</code>\n"
             f"🆔 <b>{t('معرّف حسابك:', 'Your ID:')}</b> <code>{c.uid}</code>"
         )
+        web_url = await c.kv("store:webstore_url", "")
+        web_row = [B(t("🌐 متجر الويب", "🌐 Web Store"), url=web_url)] if web_url else []
+
         rows = [
             [B(t("⭐ شحن نجوم تيليجرام", "⭐ Telegram Stars"), "t:cat:stars", style="success"),
              B(t("💎 اشتراكات بريميوم", "💎 Telegram Premium"), "t:cat:premium")],
@@ -69,9 +72,12 @@ class Tgstars(Tpl):
              B(t("🎁 كود خصم", "🎁 Promo Code"), "t:promo")],
             [B(t("👥 كسب رصيد مجاني (الإحالة)", "👥 Earn Credit (Referral)"), "t:ref"),
              B(t("ℹ️ مساعدة وشروط", "ℹ️ Help & Terms"), "t:help")],
+            [B(t("📞 الدعم الفني والتذاكر", "📞 Support & Tickets"), "t:support"),
+             B(t("❓ الأسئلة الشائعة", "❓ FAQ"), "t:faq")],
+            web_row if web_row else None,
             c.tail(),
         ]
-        await c.edit(text, kb(rows))
+        await c.edit(text, kb([r for r in rows if r]))
 
     async def cb(self, c: Ctx, a: list[str]) -> None:  # noqa: C901
         act = a[0]
@@ -1046,7 +1052,8 @@ class Tgstars(Tpl):
                style="warning" if pending_rcpts > 0 else "default"),
              B(t("📦 سجل الطلبات", "📦 Orders Log"), "t:adm:orders")],
             [B(t("🎟 أكواد الخصم", "🎟 Promo Codes"), "t:adm:promos"),
-             B(t("💱 عملة البوت", "💱 Bot Currency"), "t:adm:cur")],
+             B(t("📢 قناة استقبال الطلبات", "📢 Orders Channel"), "t:adm:chan")],
+            [B(t("💱 عملة البوت", "💱 Bot Currency"), "t:adm:cur")],
         ]
         return info, rows
 
