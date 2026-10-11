@@ -59,7 +59,10 @@ def _denied(lang: str = "ar") -> web.Response:
 
 # ───────────────────────── الدخول من داخل تيليجرام ─────────────────────────
 async def app_entry(req: web.Request) -> web.Response:
-    """يفتحها زر القائمة في بوت الصانع: تتحقق من هوية تيليجرام ثم تنتقل إلى «لوحتي»."""
+    """يفتحها زر القائمة في بوت الصانع، أو يتم التوجيه للتطبيق المصغر إن وجد معرّف البوت."""
+    if req.query.get("bot") or req.query.get("start_param"):
+        from . import miniapp_view
+        return await miniapp_view.render_miniapp_view(req)
     body = ('<main class="wrap"><div class="empty" style="padding-top:26vh" id="msg"><div class="big">📊</div><p>جارٍ فتح لوحتك…</p></div></main>'
             "<script>(function(){var tg=window.Telegram&&window.Telegram.WebApp,m=document.getElementById('msg');"
             "function fail(t){m.innerHTML='<div class=\"big\">🔐</div><p>'+t+'</p>';}"
