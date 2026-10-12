@@ -1992,9 +1992,9 @@ HTML_SHELL = """<!DOCTYPE html>
 
         const parsedBulkItems = computed(() => {
           if (!bulkCsvText.value.trim()) return [];
-          const lines = bulkCsvText.value.trim().split('\n');
+          const lines = bulkCsvText.value.trim().split(String.fromCharCode(10));
           const firstLine = lines[0];
-          const delim = firstLine.includes('\t') ? '\t' : (firstLine.includes(';') ? ';' : ',');
+          const delim = firstLine.includes(String.fromCharCode(9)) ? String.fromCharCode(9) : (firstLine.includes(';') ? ';' : ',');
           const items = [];
           for (let i = 0; i < lines.length; i++) {
             const row = lines[i].split(delim).map(c => c.trim().replace(/^["']|["']$/g, ''));
