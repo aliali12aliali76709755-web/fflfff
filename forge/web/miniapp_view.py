@@ -1,4 +1,4 @@
-"""عرض وتخديم صفحة التطبيق المصغر الموحدة (Mini App View Renderer)."""
+"""عرض وتخديم صفحة التطبيق المصغر الموحدة الشاملة (Unified Mini App View Renderer)."""
 from __future__ import annotations
 
 from aiohttp import web
@@ -9,675 +9,1837 @@ HTML_SHELL = """<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>متجر الخدمات الرقمية المعتمد</title>
-  <link rel="stylesheet" href="/static/miniapp.css">
+
+  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/static/vue.min.js"></script>
+
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 Production -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <!-- Google Fonts: Tajawal & Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Tajawal', 'Cairo', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            },
+            dark: {
+              900: '#0b0f19',
+              850: '#0f172a',
+              800: '#1e293b',
+              750: '#243046',
+              700: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      box-sizing: border-box;
+    }
+    input, textarea {
+      user-select: text;
+    }
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background-color: #0b0f19;
+      color: #f8fafc;
+      overflow-x: hidden;
+      padding-bottom: 84px;
+    }
+    .safe-top {
+      padding-top: max(env(safe-area-inset-top), 12px);
+    }
+    .safe-bottom {
+      padding-bottom: max(env(safe-area-inset-bottom), 16px);
+    }
+    .glass-panel {
+      background: rgba(30, 41, 59, 0.75);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .wallet-card-sheen {
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 50%, #0f172a 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 25px -5px rgba(30, 58, 138, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .wallet-card-sheen::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(
+        60deg,
+        rgba(255, 255, 255, 0) 30%,
+        rgba(255, 255, 255, 0.08) 50%,
+        rgba(255, 255, 255, 0) 70%
+      );
+      transform: rotate(25deg);
+      pointer-events: none;
+      animation: sheen 6s infinite linear;
+    }
+    @keyframes sheen {
+      0% { transform: translateX(-100%) rotate(25deg); }
+      100% { transform: translateX(100%) rotate(25deg); }
+    }
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    .skeleton-box {
+      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s infinite;
+    }
+    @keyframes skeleton-loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    [v-cloak] { display: none; }
+  </style>
 </head>
-<body>
-  <div id="app">
-    <!-- شاشة التحميل الأولية -->
-    <div v-if="loading" class="skeleton-wrap">
-      <div class="skeleton" style="height: 48px; margin-bottom: 1rem;"></div>
-      <div class="skeleton" style="height: 140px; margin-bottom: 1rem; border-radius: 1.25rem;"></div>
-      <div class="skeleton" style="height: 44px; margin-bottom: 1.5rem; border-radius: 9999px;"></div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-        <div class="skeleton" style="height: 160px; border-radius: 1rem;"></div>
-        <div class="skeleton" style="height: 160px; border-radius: 1rem;"></div>
-        <div class="skeleton" style="height: 160px; border-radius: 1rem;"></div>
-        <div class="skeleton" style="height: 160px; border-radius: 1rem;"></div>
+<body class="bg-dark-900 text-slate-100">
+
+  <div id="app" v-cloak>
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- 1. LOADING SKELETON STATE                                             -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div v-if="loading" class="p-4 space-y-4 max-w-md mx-auto safe-top">
+      <div class="flex items-center justify-between">
+        <div class="h-10 w-32 skeleton-box rounded-xl"></div>
+        <div class="h-10 w-24 skeleton-box rounded-xl"></div>
+      </div>
+      <div class="h-44 w-full skeleton-box rounded-2xl"></div>
+      <div class="h-12 w-full skeleton-box rounded-xl"></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="h-48 skeleton-box rounded-2xl"></div>
+        <div class="h-48 skeleton-box rounded-2xl"></div>
+        <div class="h-48 skeleton-box rounded-2xl"></div>
+        <div class="h-48 skeleton-box rounded-2xl"></div>
       </div>
     </div>
 
-    <!-- شاشة الخطأ -->
-    <div v-else-if="errorMsg" style="text-align: center; padding: 4rem 1.5rem;">
-      <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
-      <h2 style="font-weight: 800; margin-bottom: 0.5rem;">تعذر فتح المتجر</h2>
-      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">{{ errorMsg }}</p>
-      <button class="quick-charge-btn" @click="loadStore" style="margin: 0 auto;">🔄 إعادة المحاولة</button>
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- 2. MAINTENANCE MODE STATE                                            -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div v-else-if="store?.maintenanceMode && role !== 'admin' && role !== 'seller'" class="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+      <div class="w-20 h-20 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mb-4 text-3xl">
+        🛠️
+      </div>
+      <h2 class="text-2xl font-bold mb-2">المتجر في وضع الصيانة</h2>
+      <p class="text-slate-400 text-sm max-w-xs mb-6">
+        نقوم حالياً بإجراء تحديثات وتحسينات لخدمتكم بشكل أفضل، يرجى المحاولة بعد قليل.
+      </p>
+      <button @click="initApp" class="px-6 py-2.5 bg-brand-600 rounded-xl font-bold text-sm shadow-lg shadow-brand-600/30">
+        إعادة المحاولة 🔄
+      </button>
     </div>
 
-    <!-- واجهة التطبيق الرئيسية -->
-    <div v-else>
-      <!-- الشريط العلوي الثابت -->
-      <header class="top-header">
-        <div class="brand-section">
-          <img :src="themeData.logo_url || '/static/app.css'" class="brand-logo" onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed='+(botUsername||'bot')">
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- 3. MAIN APPLICATION VIEW                                              -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div v-else class="max-w-md mx-auto min-h-screen flex flex-col">
+
+      <!-- ── TOP HEADER (Fixed / Sticky) ─────────────────────────────────── -->
+      <header class="sticky top-0 z-40 glass-panel border-b border-slate-800/80 px-4 py-3 safe-top flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <img :src="store.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&q=80'" class="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10 shadow-sm" alt="logo" onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&q=80'">
           <div>
-            <div class="brand-title">{{ themeData.store_name || botData.name || 'متجر الخدمات' }}</div>
-            <span class="brand-badge" v-if="userData.role === 'admin'">المدير العام 🛡️</span>
-            <span class="brand-badge" v-else-if="userData.role === 'seller'">مالك المتجر 👑</span>
-            <span class="brand-badge" v-else>متجر موثق ⭐</span>
+            <h1 class="font-black text-sm text-slate-100 leading-tight">{{ store.storeName || 'متجر الخدمات الرقمية' }}</h1>
+            <span class="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              متصل الآن
+            </span>
           </div>
         </div>
-        <div class="header-actions">
-          <button class="quick-charge-btn" @click="showDepositModal = true">
-            <span>➕</span>
+
+        <div class="flex items-center gap-2">
+          <!-- Balance Pill -->
+          <div class="bg-dark-800/90 border border-slate-700/60 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 shadow-inner">
+            <span class="text-xs text-amber-400">💰</span>
+            <span class="text-xs font-black tracking-tight text-slate-100">${{ (user.balance || 0).toFixed(2) }}</span>
+          </div>
+          <!-- Quick Recharge Button -->
+          <button @click="showDepositModal = true" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1 transition active:scale-95">
+            <span>+</span>
             <span>شحن</span>
           </button>
         </div>
       </header>
 
-      <!-- ── 1. تبويب المتجر الرئيسي (Store) ── -->
-      <main v-if="activeTab === 'store'">
-        <!-- كرت المحفظة الذكية -->
-        <div class="wallet-card">
-          <div class="wallet-top">
-            <div class="chip-icon"></div>
-            <div class="wallet-notice">المحفظة الفورية</div>
-          </div>
-          <div class="wallet-balance-row">
-            <div class="wallet-label">الرصيد المتاح للطلب</div>
-            <div class="wallet-amount">{{ userData.balance_display || '$0.00' }}</div>
-          </div>
-          <div class="wallet-footer">
-            <div>{{ userData.name || 'مشتري معتمد' }}</div>
-            <div class="wallet-user-id">•••• {{ String(userData.uid || '0000').slice(-4) }}</div>
-          </div>
-        </div>
+      <!-- ── MAIN CONTENT TABS ───────────────────────────────────────────── -->
+      <main class="flex-1 p-4 space-y-4">
 
-        <!-- شريط البحث الذكي -->
-        <div class="search-bar-wrap">
-          <span class="search-icon">🔍</span>
-          <input type="search" class="search-input" v-model="searchQuery" placeholder="ابحث عن لعبة، اشتراك، أو باقة...">
-        </div>
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- TAB 1: STOREFRONT (🛍️ المتجر)                                    -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div v-if="currentTab === 'store'" class="space-y-4">
 
-        <!-- العروض المؤقتة النشطة -->
-        <div v-if="activeSales && activeSales.length > 0" class="active-sale-banner">
-          <div style="font-weight: 800; font-size: 0.9rem;">🔥 {{ activeSales[0].title }}</div>
-          <div style="font-size: 0.75rem; background: rgba(0,0,0,0.25); padding: 0.2rem 0.6rem; border-radius: 9999px;">خصم {{ activeSales[0].discount_value }}%</div>
-        </div>
-
-        <!-- أزرار الأقسام -->
-        <div class="cat-pills-wrap">
-          <button class="cat-pill" :class="{ active: selectedCategory === 'all' }" @click="selectedCategory = 'all'">الكل</button>
-          <button v-for="cat in categories" :key="cat.id" class="cat-pill" :class="{ active: selectedCategory === cat.id }" @click="selectedCategory = cat.id">
-            {{ cat.icon || '📦' }} {{ cat.name }}
-          </button>
-        </div>
-
-        <!-- شبكة المنتجات -->
-        <div class="products-grid">
-          <div v-for="p in filteredProducts" :key="p.id" class="product-card" @click="openProduct(p)">
-            <span class="product-badge badge-discount" v-if="p.has_discount">%{{ p.discount_percent }} خصم</span>
-            <span class="product-badge badge-instant" v-else-if="p.is_instant">⚡ فوري</span>
-            <img :src="p.image_url || 'https://api.dicebear.com/7.x/icons/svg?seed='+p.id" class="product-thumb" onerror="this.src='https://api.dicebear.com/7.x/icons/svg?seed='+p.id">
-            <div class="product-title">{{ p.name }}</div>
-            <div class="product-price-row">
-              <span class="price-current">${{ Number(p.price_usd).toFixed(2) }}</span>
-              <span class="price-old" v-if="p.has_discount">${{ Number(p.original_price_usd).toFixed(2) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="filteredProducts.length === 0" class="empty-state">
-          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
-          <div>لا توجد منتجات مطابقة لبحثك</div>
-        </div>
-
-        <!-- تذييل المتجر (الدعم والشروط) -->
-        <footer class="store-footer">
-          <div class="footer-links">
-            <a href="javascript:void(0)" @click="openSupportChat" class="footer-link">
-              <span>💬</span>
-              <span>الدعم الفني المباشر</span>
-            </a>
-            <span class="footer-sep">•</span>
-            <a href="javascript:void(0)" @click="showTermsModal = true" class="footer-link">
-              <span>📜</span>
-              <span>شروط وسياسات المتجر</span>
-            </a>
-          </div>
-          <div class="footer-copy">⚡ جميع المعاملات مشفرة ومحمية بالضمان الذهبي</div>
-        </footer>
-      </main>
-
-      <!-- ── 2. تبويب طلباتي (Orders) ── -->
-      <section v-else-if="activeTab === 'orders'" class="tab-content-wrap">
-        <div class="section-header">
-          <h2 class="section-title">📦 طلباتي ومتابعة الحالات</h2>
-          <button class="refresh-pill-btn" @click="loadOrders">🔄 تحديث</button>
-        </div>
-
-        <div v-if="ordersLoading" style="padding: 1rem 0;">
-          <div class="skeleton" style="height: 90px; margin-bottom: 0.75rem; border-radius: 1rem;"></div>
-          <div class="skeleton" style="height: 90px; margin-bottom: 0.75rem; border-radius: 1rem;"></div>
-        </div>
-
-        <div v-else-if="userOrders.length === 0" class="empty-state">
-          <div style="font-size: 3rem; margin-bottom: 0.5rem;">🛒</div>
-          <h3 style="font-weight: 800; margin-bottom: 0.25rem;">لا توجد لديك طلبات سابقة</h3>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">تصفح المتجر واطلب الآن بكل سهولة وسرعة!</p>
-          <button class="quick-charge-btn" @click="activeTab = 'store'" style="margin: 0 auto;">🛍️ الذهاب للمتجر</button>
-        </div>
-
-        <div v-else class="orders-list">
-          <div v-for="ord in userOrders" :key="ord.order_id" class="order-card">
-            <div class="order-card-header">
-              <div class="order-prod-name">{{ ord.product_name || 'طلب رقمي' }}</div>
-              <span class="order-status-pill" :class="'status-' + ord.status">
-                {{ formatOrderStatus(ord.status) }}
+          <!-- WALLET CARD (Credit/Debit Card Sheen Style) -->
+          <div class="wallet-card-sheen rounded-2xl p-4 text-white relative flex flex-col justify-between min-h-[160px] border border-blue-500/20">
+            <!-- Top Card Row -->
+            <div class="flex items-center justify-between z-10">
+              <div class="flex items-center gap-2">
+                <!-- Golden Smart Chip -->
+                <div class="w-9 h-7 rounded-md bg-gradient-to-tr from-amber-400 via-amber-200 to-amber-500 shadow-sm flex items-center justify-center p-0.5 ring-1 ring-amber-300/40">
+                  <div class="w-full h-full border border-amber-700/40 rounded flex flex-col justify-around py-0.5">
+                    <div class="h-px bg-amber-800/30 w-full"></div>
+                    <div class="h-px bg-amber-800/30 w-full"></div>
+                  </div>
+                </div>
+                <span class="text-xs font-semibold text-blue-200 tracking-wide">رصيد المتجر الإلكتروني</span>
+              </div>
+              <span class="text-[11px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                {{ store.currency || 'USD' }}
               </span>
             </div>
 
-            <div class="order-details-grid">
-              <div class="order-meta-item">
-                <span class="meta-label">رقم الطلب:</span>
-                <span class="meta-val">#{{ ord.order_id }}</span>
-              </div>
-              <div class="order-meta-item">
-                <span class="meta-label">التاريخ:</span>
-                <span class="meta-val">{{ ord.created || 'مؤخراً' }}</span>
-              </div>
-              <div class="order-meta-item" v-if="ord.target">
-                <span class="meta-label">البيانات:</span>
-                <span class="meta-val">{{ ord.target }}</span>
-              </div>
-              <div class="order-meta-item">
-                <span class="meta-label">المبلغ:</span>
-                <span class="meta-val" style="color: var(--success); font-weight: 800;">${{ Number(ord.price_usd).toFixed(2) }}</span>
+            <!-- Middle Card Row: Balance -->
+            <div class="my-2 z-10">
+              <div class="text-[11px] text-blue-300/80 mb-0.5">الرصيد المتاح للاستخدام:</div>
+              <div class="text-3xl font-black tracking-tight text-white flex items-baseline gap-1">
+                <span class="text-xl font-bold text-emerald-400">$</span>
+                <span>{{ (user.balance || 0).toFixed(2) }}</span>
               </div>
             </div>
 
-            <!-- كود القسيمة / التسليم الفوري إن وجد -->
-            <div v-if="ord.voucher" class="order-voucher-box">
-              <div class="voucher-title">⚡ كود التفعيل / البطاقة:</div>
-              <div class="voucher-val-row">
-                <code class="voucher-code-text">{{ ord.voucher }}</code>
-                <button class="copy-voucher-btn" @click="copyText(ord.voucher, 'تم نسخ كود التفعيل بنجاح! ✅')">📋 نسخ</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── 3. تبويب حسابي (Account) ── -->
-      <section v-else-if="activeTab === 'account'" class="tab-content-wrap">
-        <h2 class="section-title" style="margin-bottom: 1rem;">👤 الملف الشخصي والمحفظة</h2>
-
-        <!-- كرت هوية الحساب -->
-        <div class="profile-card">
-          <img :src="'https://api.dicebear.com/7.x/identicon/svg?seed=' + (userData.uid || 'user')" class="profile-avatar">
-          <div class="profile-info">
-            <div class="profile-name">{{ userData.name || 'مستخدم تيليجرام' }}</div>
-            <div class="profile-sub">
-              <span>@{{ userData.username || 'بدون معرف' }}</span>
-              <span class="profile-id-pill">ID: {{ userData.uid }}</span>
-            </div>
-          </div>
-          <div class="profile-role-badge">
-            {{ userData.role === 'admin' ? '🛡️ مدير' : (userData.role === 'seller' ? '👑 بائع' : '⭐ مشتري') }}
-          </div>
-        </div>
-
-        <!-- كرت المحفظة والشحن -->
-        <div class="account-wallet-card">
-          <div class="acc-wallet-head">
-            <div style="font-size: 0.85rem; color: var(--text-muted);">رصيد محفظتي المتاح</div>
-            <div class="acc-wallet-num">{{ userData.balance_display || '$0.00' }}</div>
-          </div>
-          <button class="quick-charge-btn" @click="showDepositModal = true" style="padding: 0.6rem 1.25rem;">
-            <span>➕</span>
-            <span>شحن المحفظة فورياً</span>
-          </button>
-        </div>
-
-        <!-- كرت نظام الإحالة والأرباح -->
-        <div class="referral-card">
-          <div class="ref-card-header">
-            <div class="ref-card-title">🎁 برنامج الإحالة والأرباح</div>
-            <span class="ref-badge">عمولة فورية</span>
-          </div>
-          <p class="ref-desc">شارك رابطك الحصري مع أصدقائك واكسب أرباحاً تُضاف لمحفظتك مع كل طلب يقومون به!</p>
-
-          <div class="ref-link-box">
-            <input type="text" readonly :value="accountData.referral_link || ('https://t.me/'+botUsername+'?start=sl_'+userData.uid)" class="ref-input">
-            <button class="ref-copy-btn" @click="copyText(accountData.referral_link || ('https://t.me/'+botUsername+'?start=sl_'+userData.uid), 'تم نسخ رابط الإحالة! 🎁')">
-              📋 نسخ الرابط
-            </button>
-          </div>
-
-          <div class="ref-stats-grid">
-            <div class="ref-stat-box">
-              <div class="ref-stat-num">{{ accountData.invited_count || 0 }}</div>
-              <div class="ref-stat-label">👥 الأصدقاء المسجلين</div>
-            </div>
-            <div class="ref-stat-box">
-              <div class="ref-stat-num" style="color: var(--success);">${{ Number(accountData.earned_usd || 0).toFixed(2) }}</div>
-              <div class="ref-stat-label">💰 الأرباح المكتسبة</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- بطاقات الخدمات والمعلومات -->
-        <div class="acc-actions-list">
-          <div class="acc-action-item" @click="openSupportChat">
-            <div class="action-item-left">
-              <span class="action-item-icon">💬</span>
+            <!-- Bottom Card Row: User Info & Masked ID -->
+            <div class="flex items-end justify-between z-10 pt-2 border-t border-white/10 text-xs">
               <div>
-                <div class="action-item-title">الدعم الفني للمتجر</div>
-                <div class="action-item-sub">تواصل مع خدمة العملاء لحل أي استفسار</div>
+                <div class="font-bold text-slate-100">{{ user.firstName || 'عميل المتجر' }}</div>
+                <div class="text-[10px] text-blue-200/70 font-mono">@{{ user.username || 'user' }}</div>
               </div>
-            </div>
-            <span class="action-arrow">❮</span>
-          </div>
-
-          <div class="acc-action-item" @click="showTermsModal = true">
-            <div class="action-item-left">
-              <span class="action-item-icon">📜</span>
-              <div>
-                <div class="action-item-title">شروط وسياسات المتجر</div>
-                <div class="action-item-sub">شروط التسليم وسياسة الضمان والاسترجاع</div>
-              </div>
-            </div>
-            <span class="action-arrow">❮</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── 4. تبويب لوحة البائع (Seller Panel) ── -->
-      <!-- يظهر حصراً لمالك البوت أو الأدمن -->
-      <section v-else-if="activeTab === 'seller' && (userData.role === 'seller' || userData.role === 'admin')" class="tab-content-wrap">
-        <div class="section-header">
-          <h2 class="section-title">👑 لوحة تحكم وإدارة المتجر</h2>
-        </div>
-
-        <!-- القائمة الفرعية لأقسام البائع -->
-        <div class="cat-pills-wrap" style="margin-bottom: 1rem;">
-          <button class="cat-pill" :class="{ active: sellerSubTab === 'analytics' }" @click="sellerSubTab = 'analytics'">📊 الإحصائيات والمخطط</button>
-          <button class="cat-pill" :class="{ active: sellerSubTab === 'products' }" @click="sellerSubTab = 'products'">📦 إدارة المنتجات</button>
-          <button class="cat-pill" :class="{ active: sellerSubTab === 'settings' }" @click="sellerSubTab = 'settings'">⚙️ الشروط والدعم</button>
-          <button class="cat-pill" :class="{ active: sellerSubTab === 'theme' }" @click="sellerSubTab = 'theme'">🎨 المظهر والتصميم</button>
-        </div>
-
-        <!-- ── أ. قسم المخطط التحليلي والإحصائيات ── -->
-        <div v-if="sellerSubTab === 'analytics'">
-          <!-- كروت الـ KPIs -->
-          <div class="kpi-grid">
-            <div class="kpi-card">
-              <div class="kpi-label">إجمالي الطلبات</div>
-              <div class="kpi-value">{{ sellerAnalytics.summary?.total_orders || 0 }}</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">مكتملة بنجاح</div>
-              <div class="kpi-value" style="color: var(--success);">{{ sellerAnalytics.summary?.completed_orders || 0 }}</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">قيد التنفيذ</div>
-              <div class="kpi-value" style="color: var(--warning);">{{ sellerAnalytics.summary?.pending_orders || 0 }}</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">ملغية / مسترجعة</div>
-              <div class="kpi-value" style="color: var(--danger);">{{ sellerAnalytics.summary?.canceled_orders || 0 }}</div>
-            </div>
-            <div class="kpi-card highlight-card">
-              <div class="kpi-label">إجمالي الإيرادات</div>
-              <div class="kpi-value">${{ Number(sellerAnalytics.summary?.total_revenue_usd || 0).toFixed(2) }}</div>
-            </div>
-            <div class="kpi-card highlight-card">
-              <div class="kpi-label">صافي الأرباح</div>
-              <div class="kpi-value" style="color: #38bdf8;">${{ Number(sellerAnalytics.summary?.net_profit_usd || 0).toFixed(2) }}</div>
-            </div>
-          </div>
-
-          <!-- المخطط التحليلي التفاعلي والمتحرك -->
-          <div class="chart-container-card">
-            <div class="chart-header">
-              <div class="chart-title">📈 حركة التفاعل والطلبات خلال 7 أيام</div>
-              <div class="chart-hint">المس العمود لعرض التفاصيل</div>
-            </div>
-
-            <!-- عرض تفاصيل اليوم المحدد -->
-            <div v-if="selectedChartDay" class="chart-tooltip-banner">
-              <strong>{{ selectedChartDay.day_name }} ({{ selectedChartDay.date }})</strong>:
-              <span>الطلبات: {{ selectedChartDay.orders }}</span> |
-              <span>المكتملة: {{ selectedChartDay.completed }}</span> |
-              <span style="color: var(--success);">المبيعات: ${{ selectedChartDay.revenue }}</span>
-            </div>
-
-            <div class="chart-bars-wrap">
-              <div v-for="day in (sellerAnalytics.chart_days || [])" :key="day.date" class="chart-col" @click="selectedChartDay = day">
-                <div class="chart-bar-outer">
-                  <div class="chart-bar-fill" :style="{ height: getBarHeightPercent(day.orders) + '%' }" :class="{ active: selectedChartDay && selectedChartDay.date === day.date }">
-                    <span class="bar-val-top" v-if="day.orders > 0">{{ day.orders }}</span>
-                  </div>
-                </div>
-                <div class="chart-day-label">{{ day.day_name }}</div>
+              <div class="font-mono text-xs tracking-widest text-slate-300">
+                •••• {{ String(user.telegramId || 9062).slice(-4) }}
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- ── ب. قسم إدارة المنتجات المخصصة ── -->
-        <div v-else-if="sellerSubTab === 'products'">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h3 style="font-weight: 800; font-size: 1rem;">المنتجات المخصصة بالمتجر</h3>
-            <button class="quick-charge-btn" @click="showAddProductModal = true">➕ إضافة منتج جديد</button>
-          </div>
-
-          <div v-if="sellerProducts.length === 0" class="empty-state">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📦</div>
-            <div>لم تقم بإضافة منتجات مخصصة بعد</div>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">أضف ألعابك وخدماتك وحساباتك الآن لتبدأ المبيعات!</p>
-          </div>
-
-          <div v-else class="seller-prods-list">
-            <div v-for="sp in sellerProducts" :key="sp.id" class="seller-prod-item">
-              <img :src="sp.image_url || 'https://api.dicebear.com/7.x/icons/svg?seed='+sp.id" class="seller-prod-thumb" onerror="this.src='https://api.dicebear.com/7.x/icons/svg?seed='+sp.id">
-              <div class="seller-prod-meta">
-                <div class="seller-prod-title">{{ sp.name }}</div>
-                <div class="seller-prod-sub">
-                  <span class="seller-prod-price">${{ Number(sp.price_usd).toFixed(2) }}</span>
-                  <span class="seller-prod-cat">{{ sp.category_name || 'عام' }}</span>
-                  <span v-if="sp.is_instant" class="seller-prod-tag">⚡ فوري</span>
-                </div>
+          <!-- BANNER CAROUSEL -->
+          <div v-if="themeSettings.banners && themeSettings.banners.length" class="relative rounded-2xl overflow-hidden shadow-lg border border-slate-800">
+            <div class="relative h-32 w-full overflow-hidden">
+              <img :src="themeSettings.banners[activeBannerIndex]?.imageUrl" class="w-full h-full object-cover transition-all duration-500" alt="banner">
+              <div class="absolute inset-0 bg-gradient-to-t from-dark-900/90 via-dark-900/30 to-transparent flex items-end p-3">
+                <h3 class="text-xs font-bold text-white line-clamp-1">
+                  {{ themeSettings.banners[activeBannerIndex]?.title }}
+                </h3>
               </div>
-              <button class="delete-prod-btn" @click="deleteProduct(sp.id)" title="حذف المنتج">🗑️</button>
+            </div>
+            <!-- Indicators -->
+            <div v-if="themeSettings.banners.length > 1" class="absolute bottom-2 left-3 flex gap-1">
+              <span v-for="(_, idx) in themeSettings.banners" :key="idx" 
+                    @click="activeBannerIndex = idx"
+                    :class="['w-1.5 h-1.5 rounded-full transition-all cursor-pointer', activeBannerIndex === idx ? 'bg-white w-4' : 'bg-white/40']">
+              </span>
             </div>
           </div>
-        </div>
 
-        <!-- ── ج. قسم الشروط والدعم الفني ── -->
-        <div v-else-if="sellerSubTab === 'settings'">
-          <div class="settings-form-card">
-            <h3 style="font-weight: 800; font-size: 1rem; margin-bottom: 0.75rem;">⚙️ إعدادات الدعم والشروط والسياسات</h3>
-
-            <div class="form-group">
-              <label class="form-label">📞 رابط أو يوزر الدعم الفني المباشر:</label>
-              <input type="text" class="search-input" v-model="sellerSettings.support_url" placeholder="مثال: https://t.me/YourSupportUser">
-              <small class="form-hint">يظهر للمشتري في أسفل المتجر وفي صفحة حسابه للتواصل السريع معك.</small>
+          <!-- SMART FUZZY SEARCH BAR -->
+          <div class="space-y-2">
+            <div class="relative">
+              <input v-model="searchQuery" 
+                     type="text" 
+                     placeholder="ابحث عن لعبة، اشتراك، خدمة، رقم تفعيل..." 
+                     class="w-full bg-dark-800/90 border border-slate-700/80 rounded-xl px-9 py-2.5 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-brand-500 transition shadow-inner">
+              <span class="absolute right-3 top-3 text-slate-400 text-xs">🔍</span>
+              <button v-if="searchQuery" @click="searchQuery = ''" class="absolute left-3 top-3 text-slate-400 text-xs">✕</button>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">📜 شروط وأحكام الخدمة والتسليم:</label>
-              <textarea class="search-input text-area-h" v-model="sellerSettings.terms_text" placeholder="اكتب شروط متجرك بدقة..."></textarea>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">🛡️ سياسة الاسترجاع والضمان:</label>
-              <textarea class="search-input text-area-h" v-model="sellerSettings.policy_text" placeholder="اكتب سياسة استرجاع الأموال والضمان..."></textarea>
-            </div>
-
-            <button class="quick-charge-btn" @click="saveSettings" :disabled="savingSettings" style="width: 100%; justify-content: center; padding: 0.75rem; margin-top: 0.5rem;">
-              {{ savingSettings ? '⏳ جاري الحفظ...' : '💾 حفظ الإعدادات والسياسات' }}
-            </button>
-          </div>
-        </div>
-
-        <!-- ── د. قسم المظهر والذكاء الاصطناعي ── -->
-        <div v-else-if="sellerSubTab === 'theme'">
-          <!-- المساعد الذكي لتصميم المتجر -->
-          <div class="settings-form-card" style="margin-bottom: 1.25rem;">
-            <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 0.5rem;">✨ المساعد الذكي لتخصيص المتجر</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">اكتب أسلوب التصميم وسيقوم المساعد بضبط الألوان والشكل بدقة:</p>
-            <input type="text" class="search-input" v-model="aiPromptInput" placeholder="مثال: اجعل المتجر بألوان ذهبية داكنة وزوايا ناعمة" style="margin-bottom: 0.5rem;">
-            <button class="quick-charge-btn" @click="requestAiCustomizer" :disabled="aiLoading" style="width: 100%; justify-content: center;">
-              {{ aiLoading ? '⏳ جاري التوليد...' : '🚀 توليد التصميم الذكي' }}
-            </button>
-          </div>
-
-          <!-- محرر الإعدادات المرئي -->
-          <div class="settings-form-card">
-            <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 0.75rem;">🎨 ألوان وخطوط المتجر</h3>
-            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <label style="font-size: 0.8rem;">اسم المتجر:
-                <input type="text" class="search-input" v-model="themeDraft.store_name" style="margin-top: 0.25rem;">
-              </label>
-              <label style="font-size: 0.8rem;">اللون الأساسي:
-                <input type="color" v-model="themeDraft.primary_color" style="width: 100%; height: 40px; border-radius: 0.5rem; border: none; cursor: pointer; margin-top: 0.25rem;">
-              </label>
-              <label style="font-size: 0.8rem;">نوع الخط:
-                <select v-model="themeDraft.font_family" class="search-input" style="margin-top: 0.25rem;">
-                  <option value="Cairo">Cairo (القاهرة)</option>
-                  <option value="Tajawal">Tajawal (تجوال)</option>
-                  <option value="Almarai">Almarai (المراعي)</option>
-                  <option value="IBM Plex Sans Arabic">IBM Plex Sans Arabic</option>
-                </select>
-              </label>
-              <button class="quick-charge-btn" @click="saveTheme" style="width: 100%; justify-content: center; margin-top: 0.5rem;">
-                💾 حفظ ونشر التصميم
+            <!-- Recent Searches Pills -->
+            <div v-if="recentSearches.length && !searchQuery" class="flex items-center gap-1.5 overflow-x-auto py-1 text-[11px]">
+              <span class="text-slate-400 text-[10px] whitespace-nowrap">مقترحات:</span>
+              <button v-for="term in recentSearches" :key="term" @click="searchQuery = term" class="bg-dark-800 border border-slate-700/60 px-2 py-0.5 rounded-lg text-slate-300 hover:text-white whitespace-nowrap">
+                {{ term }}
               </button>
             </div>
           </div>
-        </div>
-      </section>
 
-      <!-- ── 5. تبويب الأدمن المركزي (Admin Panel) ── -->
-      <!-- يظهر حصراً للأدمن العام للمنصة -->
-      <section v-else-if="activeTab === 'admin' && userData.role === 'admin'" class="tab-content-wrap">
-        <h2 class="section-title" style="margin-bottom: 1rem;">🛡️ لوحة إدارة المنصة المركزية</h2>
-
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">إجمالي البوتات</div>
-            <div class="kpi-value">{{ adminOverview.stats?.total_bots || 0 }}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">إجمالي المشتركين</div>
-            <div class="kpi-value">{{ adminOverview.stats?.total_users || 0 }}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">إجمالي الطلبات</div>
-            <div class="kpi-value">{{ adminOverview.stats?.total_orders || 0 }}</div>
-          </div>
-          <div class="kpi-card highlight-card">
-            <div class="kpi-label">حجم التداول الكلي</div>
-            <div class="kpi-value">${{ Number(adminOverview.stats?.total_volume_usd || 0).toFixed(2) }}</div>
-          </div>
-        </div>
-
-        <div style="margin-top: 1.5rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 style="font-weight: 800; font-size: 1rem;">أحدث طلبات المنصة</h3>
-            <button class="refresh-pill-btn" @click="loadAdminData">🔄 تحديث</button>
-          </div>
-
-          <div v-if="adminOrders.length === 0" class="empty-state">
-            <div>لا توجد طلبات مسجلة حالياً</div>
-          </div>
-
-          <div v-else class="orders-list">
-            <div v-for="ao in adminOrders" :key="ao.order_id" class="order-card">
-              <div class="order-card-header">
-                <div class="order-prod-name">{{ ao.service_name || 'طلب منصة' }}</div>
-                <span class="order-status-pill" :class="'status-' + ao.status">{{ formatOrderStatus(ao.status) }}</span>
-              </div>
-              <div class="order-details-grid">
-                <div class="order-meta-item"><span class="meta-label">الطلب:</span><span class="meta-val">#{{ ao.order_id }}</span></div>
-                <div class="order-meta-item"><span class="meta-label">المستخدم:</span><span class="meta-val">{{ ao.user_id }}</span></div>
-                <div class="order-meta-item"><span class="meta-label">المبلغ:</span><span class="meta-val">${{ Number(ao.price_usd).toFixed(2) }}</span></div>
-                <div class="order-meta-item"><span class="meta-label">التاريخ:</span><span class="meta-val">{{ ao.created }}</span></div>
-              </div>
-              <div v-if="ao.status !== 'refunded'" style="margin-top: 0.5rem; text-align: left;">
-                <button class="dual-refund-btn" @click="performDualRefund(ao.order_id)">↩️ استرجاع مزدوج ذري</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── نافذة تفاصيل وشراء المنتج (Bottom Sheet) ── -->
-      <div class="modal-overlay" v-if="selectedProduct" @click.self="closeProduct">
-        <div class="bottom-sheet">
-          <div class="sheet-drag-handle"></div>
-          <div style="text-align: center; margin-bottom: 1rem;">
-            <img :src="selectedProduct.image_url || 'https://api.dicebear.com/7.x/icons/svg?seed='+selectedProduct.id" style="width: 72px; height: 72px; border-radius: 1rem; object-fit: cover;" onerror="this.src='https://api.dicebear.com/7.x/icons/svg?seed='+selectedProduct.id">
-            <h3 style="font-size: 1.2rem; font-weight: 800; margin-top: 0.5rem;">{{ selectedProduct.name }}</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">{{ selectedProduct.description || 'خدمة رقمية سريعة ومضمونة' }}</p>
-          </div>
-
-          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(255,255,255,0.04); border-radius: 0.75rem; border: 1px solid var(--card-border);">
-            <span style="font-size: 0.85rem; color: var(--text-muted);">السعر الإجمالي:</span>
-            <span style="font-size: 1.3rem; font-weight: 900; color: var(--success);">${{ Number(selectedProduct.price_usd).toFixed(2) }}</span>
-          </div>
-
-          <!-- خانة البيانات المطلوبة -->
-          <div v-if="selectedProduct.input_label" style="margin-bottom: 1rem;">
-            <label style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 0.35rem;">{{ selectedProduct.input_label }}:</label>
-            <input type="text" class="search-input" v-model="orderTargetInput" placeholder="أدخل البيانات المطلوبة بدقة...">
-          </div>
-
-          <!-- شرط الموافقة على الشروط -->
-          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; margin-bottom: 1.25rem; cursor: pointer;">
-            <input type="checkbox" v-model="agreedToTerms" style="width: 18px; height: 18px; accent-color: var(--primary);">
-            <span>أوافق على <a href="javascript:void(0)" @click.stop="showTermsModal = true" style="color: var(--primary); text-decoration: underline;">شروط وسياسات المتجر</a> وسياسة الاسترجاع</span>
-          </label>
-
-          <!-- نتيجة الشراء الناجح -->
-          <div v-if="orderSuccessData" style="background: rgba(16,185,129,0.15); border: 1px solid var(--success); padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; text-align: center;">
-            <div style="font-weight: 800; color: var(--success); margin-bottom: 0.25rem;">🎉 تم تنفيذ الطلب بنجاح!</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">رقم الطلب: #{{ orderSuccessData.order_id }}</div>
-            <div v-if="orderSuccessData.voucher" class="order-voucher-box" style="margin-top: 0.5rem;">
-              <div class="voucher-title">⚡ كود التفعيل:</div>
-              <div class="voucher-val-row">
-                <code class="voucher-code-text">{{ orderSuccessData.voucher }}</code>
-                <button class="copy-voucher-btn" @click="copyText(orderSuccessData.voucher, 'تم نسخ الكود! ✅')">📋 نسخ</button>
-              </div>
-            </div>
-          </div>
-
-          <button class="quick-charge-btn" @click="submitOrder" :disabled="orderSubmitting || !agreedToTerms" style="width: 100%; justify-content: center; padding: 0.85rem; font-size: 1rem;">
-            {{ orderSubmitting ? '⏳ جاري التنفيذ...' : '🛒 تأكيد الطلب والشراء' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- ── نافذة شحن الرصيد ── -->
-      <div class="modal-overlay" v-if="showDepositModal" @click.self="showDepositModal = false">
-        <div class="bottom-sheet">
-          <div class="sheet-drag-handle"></div>
-          <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.5rem;">💳 شحن رصيد المحفظة</h3>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">اختر طريقة الشحن المفضلة لشحن محفظتك الفورية:</p>
-          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-            <button class="cat-pill" :class="{ active: depositMethod === 'stars' }" @click="depositMethod = 'stars'">⭐ نجوم تيليجرام</button>
-            <button class="cat-pill" :class="{ active: depositMethod === 'manual' }" @click="depositMethod = 'manual'">🏦 تحويل يدوي</button>
-          </div>
-          <div v-if="depositMethod === 'stars'">
-            <label style="font-size: 0.8rem; display: block; margin-bottom: 0.4rem;">عدد النجوم:</label>
-            <input type="number" class="search-input" v-model="depositStarsAmount" min="50" step="50" style="margin-bottom: 1rem;">
-            <button class="quick-charge-btn" @click="submitDeposit" style="width: 100%; justify-content: center; padding: 0.75rem;">
-              ⭐ دفع النجوم فورياً
+          <!-- CATEGORIES FILTER -->
+          <div class="flex gap-2 overflow-x-auto pb-1 text-xs">
+            <button @click="selectedCategory = 'all'" 
+                    :class="['px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition shadow-sm', 
+                            selectedCategory === 'all' ? 'bg-brand-600 text-white' : 'bg-dark-800 text-slate-300 border border-slate-700/60']">
+              🌟 جميع الأقسام
+            </button>
+            <button v-for="cat in categories" :key="cat.name || cat.id" 
+                    @click="selectedCategory = cat.id || cat.name" 
+                    :class="['px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition shadow-sm', 
+                            (selectedCategory === cat.id || selectedCategory === cat.name) ? 'bg-brand-600 text-white' : 'bg-dark-800 text-slate-300 border border-slate-700/60']">
+              {{ cat.icon || '' }} {{ cat.nameAr || cat.name }}
             </button>
           </div>
-          <div v-else>
-            <label style="font-size: 0.8rem; display: block; margin-bottom: 0.4rem;">رقم العملية / إثبات التحويل:</label>
-            <textarea class="search-input" v-model="depositProofText" placeholder="اكتب رقم الحوالة أو بيانات التحويل..." style="height: 80px; margin-bottom: 1rem;"></textarea>
-            <button class="quick-charge-btn" @click="submitDeposit" style="width: 100%; justify-content: center; padding: 0.75rem;">
-              📤 إرسال الإشعار للمراجعة
+
+          <!-- PRODUCTS GRID -->
+          <div v-if="filteredProducts.length" class="grid grid-cols-2 gap-3">
+            <div v-for="prod in filteredProducts" :key="prod.id" 
+                 @click="openProductModal(prod)"
+                 class="bg-dark-800/90 border border-slate-700/60 rounded-2xl p-2.5 flex flex-col justify-between hover:border-slate-600 transition active:scale-98 shadow-sm cursor-pointer relative overflow-hidden group">
+              
+              <!-- Badge: Discount -->
+              <span v-if="prod.discountPercent > 0" class="absolute top-2 right-2 z-10 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-md shadow">
+                خصم {{ prod.discountPercent }}% 🔥
+              </span>
+
+              <!-- Product Image -->
+              <div class="w-full h-28 rounded-xl bg-dark-900 overflow-hidden mb-2 relative">
+                <img :src="(prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&q=80'" 
+                     class="w-full h-full object-cover group-hover:scale-105 transition duration-300" 
+                     alt="product"
+                     onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&q=80'">
+              </div>
+
+              <!-- Product Info -->
+              <div class="flex-1 flex flex-col justify-between">
+                <div>
+                  <h4 class="font-bold text-xs text-slate-100 line-clamp-1 mb-1">{{ prod.nameAr || prod.name }}</h4>
+                  <p class="text-[10px] text-slate-400 line-clamp-1 mb-2">{{ prod.description }}</p>
+                </div>
+
+                <!-- Price & Order Action -->
+                <div class="flex items-center justify-between pt-1 border-t border-slate-700/40">
+                  <div>
+                    <div v-if="prod.discountPercent > 0" class="text-[9px] text-slate-400 line-through">
+                      ${{ getOriginalPrice(prod) }}
+                    </div>
+                    <div class="text-xs font-black text-emerald-400">
+                      ${{ getEffectivePrice(prod) }}
+                    </div>
+                  </div>
+                  <button class="bg-brand-600/30 text-brand-400 border border-brand-500/30 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs group-hover:bg-brand-600 group-hover:text-white transition">
+                    🛒
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else class="text-center py-12 bg-dark-800/40 rounded-2xl border border-dashed border-slate-800">
+            <span class="text-3xl mb-2 block">🔍</span>
+            <h4 class="font-bold text-sm text-slate-300">لا توجد منتجات مطابقة للبحث</h4>
+            <p class="text-xs text-slate-500 mt-1">جرب البحث بكلمات أخرى أو اختر قسماً آخر</p>
+          </div>
+
+        </div>
+
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- TAB 2: MY ORDERS (📦 طلباتي)                                      -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div v-if="currentTab === 'orders'" class="space-y-3">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-black text-sm text-slate-100">سجل طلباتي</h3>
+            <span class="text-xs text-slate-400">{{ myOrders.length }} طلبات</span>
+          </div>
+
+          <div v-if="myOrders.length" class="space-y-2.5">
+            <div v-for="order in myOrders" :key="order.id" class="bg-dark-800/90 border border-slate-700/60 rounded-xl p-3 space-y-2 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-100">{{ order.product_name }}</span>
+                <!-- Status Badge -->
+                <span :class="['text-[10px] font-bold px-2 py-0.5 rounded-full border', getStatusBadgeClass(order.status)]">
+                  {{ getStatusLabelAr(order.status) }}
+                </span>
+              </div>
+
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span>رقم الطلب: <span class="font-mono text-slate-300">{{ order.order_ref }}</span></span>
+                <span class="font-black text-emerald-400">${{ Number(order.total_price).toFixed(2) }}</span>
+              </div>
+
+              <!-- Delivery details if completed -->
+              <div v-if="order.delivery_data && order.status === 'completed'" class="bg-emerald-950/40 border border-emerald-500/30 rounded-lg p-2 text-xs text-emerald-200">
+                <div class="font-bold mb-1 flex items-center justify-between">
+                  <span>بيانات التسليم:</span>
+                  <button @click="copyToClipboard(order.delivery_data)" class="text-[10px] text-emerald-300 bg-emerald-800/40 px-1.5 py-0.5 rounded">نسخ 📋</button>
+                </div>
+                <div class="font-mono text-[11px] break-all">{{ order.delivery_data }}</div>
+              </div>
+
+              <!-- Rejection note if canceled / refunded -->
+              <div v-if="order.rejection_reason" class="bg-rose-950/40 border border-rose-500/30 rounded-lg p-2 text-xs text-rose-200">
+                <span class="font-bold">ملاحظة: </span>{{ order.rejection_reason }}
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="text-center py-12 bg-dark-800/40 rounded-2xl border border-dashed border-slate-800">
+            <span class="text-3xl mb-2 block">📦</span>
+            <h4 class="font-bold text-sm text-slate-300">لم تقم بإجراء أي طلبات حتى الآن</h4>
+            <button @click="currentTab = 'store'" class="mt-3 px-4 py-2 bg-brand-600 rounded-xl text-xs font-bold shadow">
+              تصفح المنتجات الآن
             </button>
           </div>
         </div>
-      </div>
 
-      <!-- ── نافذة إضافة منتج جديد للبائع ── -->
-      <div class="modal-overlay" v-if="showAddProductModal" @click.self="showAddProductModal = false">
-        <div class="bottom-sheet">
-          <div class="sheet-drag-handle"></div>
-          <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 1rem;">➕ إضافة منتج جديد للمتجر</h3>
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- TAB 3: MY ACCOUNT (👤 حسابي) - المشتري والإحالة والدعم والضمان     -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div v-if="currentTab === 'account'" class="space-y-4">
 
-          <div class="form-group">
-            <label class="form-label">اسم المنتج:</label>
-            <input type="text" class="search-input" v-model="newProductForm.name" placeholder="مثال: شحن 60 شدة ببجي">
+          <!-- User Profile Card -->
+          <div class="bg-gradient-to-br from-dark-800 via-dark-850 to-dark-800 border border-slate-700/80 rounded-2xl p-4 shadow-lg flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-xl font-black text-white shadow-md shadow-brand-600/30 ring-2 ring-white/10">
+                {{ (user.firstName || 'U')[0] }}
+              </div>
+              <div>
+                <h3 class="font-black text-sm text-white">{{ user.firstName || 'عميل المتجر' }}</h3>
+                <div class="text-[11px] text-slate-400 font-mono">@{{ user.username || 'user' }}</div>
+                <div class="text-[10px] text-slate-500 font-mono">ID: {{ user.telegramId || '0' }}</div>
+              </div>
+            </div>
+
+            <span :class="['text-[10px] font-bold px-2.5 py-1 rounded-full border',
+                           role === 'admin' ? 'bg-rose-950/60 text-rose-300 border-rose-500/40' :
+                           role === 'seller' ? 'bg-amber-950/60 text-amber-300 border-amber-500/40' :
+                           'bg-blue-950/60 text-blue-300 border-blue-500/40']">
+              {{ role === 'admin' ? 'مدير المنصة 🛡️' : (role === 'seller' ? 'مالك المتجر 👑' : 'مشتري معتمد ⭐') }}
+            </span>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">الفئة:</label>
-            <select class="search-input" v-model="newProductForm.category_id">
-              <option value="games">🎮 ألعاب وشحن</option>
-              <option value="subscriptions">🎬 اشتراكات وبرامج</option>
-              <option value="cards">💳 بطاقات وقسائم</option>
-              <option value="numbers">📱 أرقام وتفعيل</option>
-              <option value="custom">⭐ منتجات حصرية</option>
-            </select>
+          <!-- Quick Balance & Top-up Card -->
+          <div class="bg-dark-800/90 border border-slate-700/60 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+              <span class="text-xs text-slate-400">رصيدك المتاح الحالي:</span>
+              <div class="text-2xl font-black text-emerald-400">${{ (user.balance || 0).toFixed(2) }}</div>
+            </div>
+            <button @click="showDepositModal = true" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition active:scale-95">
+              <span>➕</span>
+              <span>شحن المحفظة</span>
+            </button>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">السعر بالدولار ($):</label>
-            <input type="number" step="0.1" class="search-input" v-model="newProductForm.price_usd" placeholder="1.00">
-          </div>
+          <!-- Referral System Box -->
+          <div class="bg-gradient-to-br from-indigo-950/70 via-dark-850 to-purple-950/60 border border-indigo-500/30 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">🎁</span>
+              <div>
+                <h4 class="font-black text-xs text-white">نظام الإحالة والمكافآت المالية</h4>
+                <p class="text-[10px] text-indigo-200">احصل على نسبة 5% رصيد فوري في محفظتك عن كل طلب يقوم به أصدقاؤك!</p>
+              </div>
+            </div>
 
-          <div class="form-group">
-            <label class="form-label">وصف المنتج:</label>
-            <textarea class="search-input" style="height: 60px;" v-model="newProductForm.description" placeholder="اكتب وصفاً جذاباً ومختصراً..."></textarea>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">البيانات المطلوبة من المشتري:</label>
-            <input type="text" class="search-input" v-model="newProductForm.input_label" placeholder="مثال: آيدي الحساب (ID) أو رقم الهاتف">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">رابط صورة المنتج:</label>
-            <input type="text" class="search-input" v-model="newProductForm.image_url" placeholder="https://example.com/image.png (اختياري)">
-          </div>
-
-          <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; cursor: pointer; margin-bottom: 0.5rem;">
-              <input type="checkbox" v-model="newProductForm.is_instant" style="width: 16px; height: 16px;">
-              <span>تسليم فوري (أكواد وقسائم جاهزة)</span>
-            </label>
-            <div v-if="newProductForm.is_instant">
-              <textarea class="search-input" style="height: 70px;" v-model="newProductForm.raw_codes" placeholder="أدخل الأكواد الجاهزة (كود في كل سطر)..."></textarea>
+            <div class="bg-dark-900/90 border border-slate-700/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+              <span class="text-xs font-mono text-slate-300 truncate max-w-[200px]">
+                {{ getReferralLink() }}
+              </span>
+              <button @click="copyToClipboard(getReferralLink())" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow whitespace-nowrap active:scale-95 transition">
+                نسخ الرابط 📋
+              </button>
             </div>
           </div>
 
-          <button class="quick-charge-btn" @click="submitAddProduct" :disabled="savingProduct" style="width: 100%; justify-content: center; padding: 0.8rem; margin-top: 0.5rem;">
-            {{ savingProduct ? '⏳ جاري الحفظ...' : '✅ نشر المنتج في المتجر' }}
-          </button>
-        </div>
-      </div>
+          <!-- Technical Support VIP Card -->
+          <div class="bg-gradient-to-br from-emerald-950/60 via-dark-850 to-teal-950/50 border border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">💬</span>
+                <div>
+                  <h4 class="font-black text-xs text-white">مركز خدمة العملاء والدعم الفني</h4>
+                  <p class="text-[10px] text-slate-300">متواجدون على مدار الساعة لخدمتكم فورياً</p>
+                </div>
+              </div>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                24/7 متاح الآن
+              </span>
+            </div>
 
-      <!-- ── نافذة شروط وسياسات المتجر ── -->
-      <div class="modal-overlay" v-if="showTermsModal" @click.self="showTermsModal = false">
-        <div class="bottom-sheet">
-          <div class="sheet-drag-handle"></div>
-          <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 1rem;">📜 شروط وسياسات المتجر</h3>
+            <p class="text-[11px] text-slate-300 leading-relaxed">
+              إذا كان لديك أي استفسار أو واجهت أي مشكلة في طلبك، فريق الدعم الفني جاهز لمساعدتك والرد خلال دقائق معدودة.
+            </p>
 
-          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 1rem; padding: 1rem; margin-bottom: 1rem;">
-            <div style="font-weight: 800; font-size: 0.9rem; color: var(--primary); margin-bottom: 0.35rem;">شروط تقديم الخدمة:</div>
-            <p style="font-size: 0.82rem; color: var(--text); line-height: 1.6; white-space: pre-wrap;">{{ sellerSettings.terms_text || 'جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.' }}</p>
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <a :href="store.supportUrl || ('https://t.me/' + (store.botUsername || 'bot'))" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2 px-3 rounded-xl shadow text-center flex items-center justify-center gap-1 transition">
+                <span>تواصل مع الدعم</span>
+                <span>↗️</span>
+              </a>
+              <button @click="copyToClipboard(store.supportUrl || ('@' + (store.botUsername || 'bot')))" class="bg-dark-800 hover:bg-dark-750 border border-emerald-500/30 text-emerald-300 font-bold text-xs py-2 px-3 rounded-xl transition text-center">
+                نسخ معرف الدعم 📋
+              </button>
+            </div>
           </div>
 
-          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 1rem; padding: 1rem; margin-bottom: 1rem;">
-            <div style="font-weight: 800; font-size: 0.9rem; color: var(--success); margin-bottom: 0.35rem;">🛡️ سياسة الاسترجاع والضمان:</div>
-            <p style="font-size: 0.82rem; color: var(--text); line-height: 1.6; white-space: pre-wrap;">{{ sellerSettings.policy_text || 'في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت.' }}</p>
+          <!-- Store Terms & Golden Guarantee Card -->
+          <div class="bg-dark-800/90 border border-amber-500/30 rounded-2xl p-4 space-y-3 shadow-sm">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">🛡️</span>
+                <div>
+                  <h4 class="font-black text-xs text-amber-300">الضمان الذهبي وسياسة الاستخدام</h4>
+                  <p class="text-[10px] text-slate-400">حماية كاملة وحقوق مضمونة 100%</p>
+                </div>
+              </div>
+              <span class="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                ضمان ذهبي ⭐
+              </span>
+            </div>
+
+            <!-- Guarantee Policy -->
+            <div class="bg-dark-900/80 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-200 leading-relaxed">
+              <div class="font-bold mb-1 text-amber-300 flex items-center gap-1">
+                <span>✅</span> سياسة الاسترجاع الفوري:
+              </div>
+              <p class="text-[11px] text-slate-300">
+                {{ store.policyText || 'في حال تعذر تنفيذ أي طلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت دون أي خصومات.' }}
+              </p>
+            </div>
+
+            <!-- Terms -->
+            <div class="text-[11px] text-slate-400 space-y-1">
+              <div class="font-bold text-slate-300">شروط تقديم الخدمة:</div>
+              <p class="leading-relaxed">
+                {{ store.termsText || 'جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.' }}
+              </p>
+            </div>
           </div>
 
-          <button class="quick-charge-btn" @click="showTermsModal = false" style="width: 100%; justify-content: center; padding: 0.75rem;">
-            فهمت وموافق 👍
-          </button>
         </div>
-      </div>
 
-      <!-- ── شريط التنقل السفلي الثابت (Bottom Nav) ── -->
-      <!-- يظهر للمشتري فقط: المتجر، طلباتي، حسابي -->
-      <!-- يظهر للبائع: + لوحة البائع -->
-      <!-- يظهر للأدمن: + الأدمن -->
-      <nav class="bottom-nav">
-        <div class="nav-tab" :class="{ active: activeTab === 'store' }" @click="activeTab = 'store'">
-          <span class="nav-tab-icon">🏪</span>
-          <span>المتجر</span>
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- TAB 4: SELLER IN-APP DASHBOARD (⚙️ إدارتي - للمالك فقط)           -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div v-if="currentTab === 'seller' && (role === 'seller' || role === 'admin')" class="space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <h3 class="font-black text-sm text-slate-100 flex items-center gap-1.5">
+              <span>⚙️</span> لوحة إدارة المتجر (خاصة بالمالك)
+            </h3>
+            <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-bold">بائع معتمد ⭐</span>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="bg-dark-800/90 border border-slate-700/60 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">إجمالي الطلبات</span>
+              <div class="text-xl font-black text-slate-100">{{ sellerStats.totalOrders || 0 }}</div>
+            </div>
+            <div class="bg-dark-800/90 border border-slate-700/60 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">المبيعات الكلية</span>
+              <div class="text-xl font-black text-emerald-400">${{ (sellerStats.totalSales || 0).toFixed(2) }}</div>
+            </div>
+            <div class="bg-dark-800/90 border border-slate-700/60 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">صافي الأرباح</span>
+              <div class="text-xl font-black text-teal-400">${{ (sellerStats.totalProfit || 0).toFixed(2) }}</div>
+            </div>
+            <div class="bg-dark-800/90 border border-slate-700/60 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">طلبات بانتظار التسليم</span>
+              <div class="text-xl font-black text-amber-400">{{ sellerStats.pendingOrders || 0 }}</div>
+            </div>
+          </div>
+
+          <!-- AI Assistant Banner for Seller -->
+          <div class="bg-gradient-to-r from-purple-900/60 to-indigo-900/60 border border-purple-500/40 rounded-2xl p-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">🤖</span>
+              <div>
+                <h4 class="text-xs font-black text-white">المساعد الذكي لتصميم المتجر</h4>
+                <p class="text-[10px] text-purple-200">توليد ألوان وهوية بصرية وبانرات جذابة بنقرة واحدة</p>
+              </div>
+            </div>
+            <button @click="applyAiSuggestions" :disabled="aiLoading" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1">
+              <span v-if="aiLoading">...⏳</span>
+              <span v-else>💡 اقتراح</span>
+            </button>
+          </div>
+
+          <!-- Seller Action Buttons Grid -->
+          <div class="grid grid-cols-3 gap-2">
+            <button @click="openCustomizer" class="bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-200 hover:text-white font-bold text-[11px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+              <span class="text-base">🎨</span>
+              <span>محرر المظهر</span>
+            </button>
+            <button @click="openMasterCatalog" class="bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-200 hover:text-white font-bold text-[11px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+              <span class="text-base">📥</span>
+              <span>استيراد كتالوج</span>
+            </button>
+            <button @click="openNewProductModal" class="bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-200 hover:text-white font-bold text-[11px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+              <span class="text-base">➕</span>
+              <span>إضافة منتج</span>
+            </button>
+          </div>
+
+          <!-- Seller Settings Form (Support & Terms) -->
+          <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3">
+            <h4 class="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+              <span>⚙️</span> تعديل روابط الدعم الفني وشروط المتجر
+            </h4>
+
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-300">رابط أو معرف الدعم الفني للعملاء:</label>
+              <input v-model="sellerSettingsForm.support_url" type="text" placeholder="https://t.me/support_user أو @support_channel" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-300">شروط المتجر وسياسة الاستخدام:</label>
+              <textarea v-model="sellerSettingsForm.terms_text" rows="2" placeholder="اكتب شروط تقديم الخدمة..." class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"></textarea>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-300">سياسة الاسترجاع والضمان الذهبي:</label>
+              <textarea v-model="sellerSettingsForm.policy_text" rows="2" placeholder="اكتب سياسة استرجاع الأموال والضمان..." class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"></textarea>
+            </div>
+
+            <button @click="saveSellerSettingsForm" :disabled="savingSettings" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2.5 rounded-xl shadow transition">
+              <span v-if="savingSettings">جاري الحفظ... ⏳</span>
+              <span v-else>حفظ إعدادات المتجر والدعم 💾</span>
+            </button>
+          </div>
+
+          <!-- Seller Products Management Section -->
+          <div class="space-y-2 pt-1">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+                <span>📦</span> إدارة منتجات المتجر
+              </h4>
+              <span class="text-[10px] text-slate-400">{{ sellerProducts.length }} منتج</span>
+            </div>
+
+            <div v-if="sellerProducts.length" class="space-y-2">
+              <div v-for="prod in sellerProducts" :key="prod.id" class="bg-dark-800 border border-slate-700/80 p-3 rounded-xl flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-lg bg-dark-750 flex items-center justify-center overflow-hidden border border-slate-700">
+                    <img v-if="(prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url" :src="(prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url" class="w-full h-full object-cover">
+                    <span v-else class="text-base">🛍️</span>
+                  </div>
+                  <div>
+                    <div class="font-bold text-white">{{ prod.nameAr || prod.name }}</div>
+                    <div class="text-[10px] text-slate-400">
+                      التكلفة: ${{ prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0 }} | البيع: ${{ prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0 }}
+                      <span class="text-emerald-400 font-bold mr-1">
+                        (ربح: +${{ (((prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0) - (prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0))).toFixed(2) }})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button @click="toggleProductActive(prod.id)" :class="['px-2 py-1 rounded-lg text-[10px] font-bold transition', prod.active !== false ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700']">
+                    {{ prod.active !== false ? 'نشط ✅' : 'معطل ⏸️' }}
+                  </button>
+                  <button @click="deleteSellerProduct(prod.id)" class="text-rose-400 hover:text-rose-300 p-1">
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-6 text-xs text-slate-500 bg-dark-800/40 rounded-xl">
+              لا توجد منتجات مسجلة، اضغط على "استيراد كتالوج" أو "إضافة منتج" للبدء فوراً!
+            </div>
+          </div>
         </div>
-        <div class="nav-tab" :class="{ active: activeTab === 'orders' }" @click="activeTab = 'orders'">
-          <span class="nav-tab-icon">📦</span>
-          <span>طلباتي</span>
+
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- TAB 5: SUPER ADMIN DASHBOARD (👑 الأدمن - للأدمن فقط)             -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div v-if="currentTab === 'admin' && role === 'admin'" class="space-y-4">
+          <div class="flex items-center justify-between border-b border-rose-900/40 pb-2">
+            <h3 class="font-black text-sm text-rose-300 flex items-center gap-1.5">
+              <span>👑</span> لوحة الأدمن الأعلى للمنصة
+            </h3>
+            <span class="text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-bold">Admin Only</span>
+          </div>
+
+          <!-- Admin Overview Stats Grid -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">إجمالي المتاجر</span>
+              <div class="text-xl font-black text-rose-300">{{ adminOverview.totalStores || 1 }}</div>
+            </div>
+            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">حجم تعاملات المنصة</span>
+              <div class="text-xl font-black text-emerald-400">${{ (adminOverview.totalPlatformVolume || 0).toFixed(2) }}</div>
+            </div>
+            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">إجمالي طلبات المنصة</span>
+              <div class="text-xl font-black text-white">{{ adminOverview.totalOrders || 0 }}</div>
+            </div>
+            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
+              <span class="text-[10px] text-slate-400">طلبات معلقة للتنفيذ</span>
+              <div class="text-xl font-black text-amber-400">{{ adminOverview.pendingManualOrders || 0 }}</div>
+            </div>
+          </div>
+
+          <!-- Admin Manual Orders Queue -->
+          <div class="space-y-3">
+            <h4 class="font-bold text-xs text-slate-300">الطلبات اليدوية والخدمات المعلقة</h4>
+            <div v-if="adminOrders.length" class="space-y-2">
+              <div v-for="ord in adminOrders" :key="ord.id" class="bg-dark-800 border border-slate-700 p-3 rounded-xl space-y-2 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-white">{{ ord.service_name || ord.product_name }}</span>
+                  <span class="font-mono text-emerald-400">${{ ord.total_price || ord.price_usd }}</span>
+                </div>
+                <div class="text-[11px] text-slate-400">
+                  العميل: {{ ord.user_id || ord.user_telegram_id }} | المرجع: {{ ord.order_ref || ord.order_id }}
+                </div>
+                <!-- Target input -->
+                <div v-if="ord.target" class="bg-dark-900 p-2 rounded text-[11px] font-mono text-slate-300">
+                  بيانات العميل: {{ ord.target }}
+                </div>
+                <!-- Actions -->
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-700/60">
+                  <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'deliver')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-1.5 rounded-lg text-white font-bold text-[11px]">
+                    تسليم ✅
+                  </button>
+                  <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'refund_both')" class="flex-1 bg-purple-600 hover:bg-purple-500 py-1.5 rounded-lg text-white font-bold text-[11px]">
+                    استرجاع 🔄
+                  </button>
+                  <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'reject')" class="flex-1 bg-rose-600 hover:bg-rose-500 py-1.5 rounded-lg text-white font-bold text-[11px]">
+                    رفض ❌
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-6 text-xs text-slate-500 bg-dark-800/30 rounded-xl">
+              لا توجد طلبات يدوية معلقة حالياً
+            </div>
+          </div>
         </div>
-        <div class="nav-tab" :class="{ active: activeTab === 'account' }" @click="activeTab = 'account'">
-          <span class="nav-tab-icon">👤</span>
-          <span>حسابي</span>
-        </div>
-        <div class="nav-tab" v-if="userData.role === 'seller' || userData.role === 'admin'" :class="{ active: activeTab === 'seller' }" @click="activeTab = 'seller'">
-          <span class="nav-tab-icon">👑</span>
-          <span>لوحة البائع</span>
-        </div>
-        <div class="nav-tab" v-if="userData.role === 'admin'" :class="{ active: activeTab === 'admin' }" @click="activeTab = 'admin'">
-          <span class="nav-tab-icon">🛡️</span>
-          <span>الأدمن</span>
+
+      </main>
+
+      <!-- ── BOTTOM NAVIGATION DOCK ──────────────────────────────────────── -->
+      <!-- Role isolation: Buyers only see Store, Orders, Account -->
+      <nav class="fixed bottom-0 left-0 right-0 z-40 glass-panel border-t border-slate-800 safe-bottom">
+        <div class="max-w-md mx-auto flex items-center justify-around py-2">
+          <!-- Store Tab -->
+          <button @click="currentTab = 'store'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'store' ? 'text-brand-400' : 'text-slate-400']">
+            <span class="text-base">🛍️</span>
+            <span>المتجر</span>
+          </button>
+          <!-- Orders Tab -->
+          <button @click="currentTab = 'orders'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'orders' ? 'text-brand-400' : 'text-slate-400']">
+            <span class="text-base">📦</span>
+            <span>طلباتي</span>
+          </button>
+          <!-- My Account Tab -->
+          <button @click="currentTab = 'account'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'account' ? 'text-brand-400' : 'text-slate-400']">
+            <span class="text-base">👤</span>
+            <span>حسابي</span>
+          </button>
+          <!-- Seller Tab (Owner/Admin only) -->
+          <button v-if="role === 'seller' || role === 'admin'" @click="currentTab = 'seller'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'seller' ? 'text-brand-400' : 'text-slate-400']">
+            <span class="text-base">⚙️</span>
+            <span>إدارتي</span>
+          </button>
+          <!-- Admin Tab (Admin only) -->
+          <button v-if="role === 'admin'" @click="currentTab = 'admin'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'admin' ? 'text-rose-400' : 'text-slate-400']">
+            <span class="text-base">👑</span>
+            <span>الأدمن</span>
+          </button>
         </div>
       </nav>
+
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+      <!-- 4. MODALS & SUB-SCREENS                                              -->
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+
+      <!-- A. PRODUCT DETAILS & CHECKOUT MODAL -->
+      <div v-if="activeProduct" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-dark-850 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-700/80 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+          
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 class="font-black text-sm text-white">{{ activeProduct.nameAr || activeProduct.name }}</h3>
+            <button @click="activeProduct = null" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <!-- Product Image -->
+          <div class="w-full h-40 rounded-2xl bg-dark-900 overflow-hidden">
+            <img :src="(activeProduct.mediaUrls && activeProduct.mediaUrls[0]) || activeProduct.image_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80'" class="w-full h-full object-cover" alt="product">
+          </div>
+
+          <p class="text-xs text-slate-300 leading-relaxed">{{ activeProduct.description }}</p>
+
+          <!-- Pricing Options -->
+          <div v-if="activeProduct.priceOptions && activeProduct.priceOptions.length" class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-300">اختر الباقة أو الفئة:</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button v-for="opt in activeProduct.priceOptions" :key="opt.id"
+                      @click="selectedPriceOption = opt"
+                      :class="['p-2.5 rounded-xl border text-xs font-bold transition flex flex-col justify-between items-start',
+                              selectedPriceOption?.id === opt.id ? 'border-brand-500 bg-brand-900/30 text-white ring-1 ring-brand-500' : 'border-slate-700 bg-dark-800 text-slate-300']">
+                <span>{{ opt.label }}</span>
+                <span class="text-emerald-400 font-mono mt-1">${{ opt.userPrice || opt.price }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quantity Slider for SMM -->
+          <div v-if="activeProduct.templateType === 'smm_boost'" class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-300 font-bold">الكمية المطلوبة:</span>
+              <span class="text-emerald-400 font-mono font-black">{{ smmQuantity }}</span>
+            </div>
+            <input type="range" min="100" max="10000" step="100" v-model="smmQuantity" class="w-full accent-brand-500">
+            <div class="text-[11px] text-slate-400">رابط الحساب أو المنشور:</div>
+            <input type="url" v-model="smmUrl" placeholder="https://..." class="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+          </div>
+
+          <!-- Custom Requirements Fields -->
+          <div v-if="activeProduct.requirements && activeProduct.requirements.length" class="space-y-2">
+            <div v-for="reqField in activeProduct.requirements" :key="reqField.name" class="space-y-1">
+              <label class="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>{{ reqField.label || reqField.name }} <span v-if="reqField.required" class="text-rose-500">*</span></span>
+              </label>
+              <input v-model="userFormInputs[reqField.name]" 
+                     :type="reqField.type || 'text'" 
+                     :placeholder="reqField.placeholder || ''"
+                     class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+            </div>
+          </div>
+
+          <!-- Terms Agreement Checkbox -->
+          <div class="flex items-center gap-2 pt-2">
+            <input type="checkbox" id="termsCheck" v-model="termsAgreed" class="accent-brand-500 w-4 h-4 rounded">
+            <label for="termsCheck" class="text-[11px] text-slate-300">
+              قرأت الشروط وسياسة الضمان الذهبي وأوافق عليها بالكامل
+            </label>
+          </div>
+
+          <!-- Submit Order Button -->
+          <button @click="submitOrder" 
+                  :disabled="isSubmitting || !termsAgreed"
+                  class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black py-3 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-sm">
+            <span v-if="isSubmitting">جاري التنفيذ... ⏳</span>
+            <span v-else>تأكيد ودفع ${{ getCalculatedTotal() }} 💳</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- B. DEPOSIT / TOP-UP MODAL -->
+      <div v-if="showDepositModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-dark-850 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-700/80 p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 class="font-black text-sm text-white">شحن رصيد المحفظة</h3>
+            <button @click="showDepositModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <p class="text-xs text-slate-400">اختر طريقة الشحن لتزويد محفظتك بالرصيد فورياً:</p>
+
+          <div class="space-y-2">
+            <button @click="payWithStars" class="w-full bg-dark-800 hover:bg-dark-750 border border-amber-500/30 p-3 rounded-xl flex items-center justify-between text-xs font-bold text-white transition">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">⭐️</span>
+                <div class="text-right">
+                  <div>نجوم تيليجرام (Telegram Stars)</div>
+                  <div class="text-[10px] text-slate-400">دفع فوري وآمن داخل التطبيق</div>
+                </div>
+              </div>
+              <span class="text-amber-400">شحن نجوم ↗️</span>
+            </button>
+
+            <button @click="payWithExternalGateway" class="w-full bg-dark-800 hover:bg-dark-750 border border-slate-700 p-3 rounded-xl flex items-center justify-between text-xs font-bold text-white transition">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">💳</span>
+                <div class="text-right">
+                  <div>بطاقات الدفع ومدى والعملات الرقمية</div>
+                  <div class="text-[10px] text-slate-400">فيزا، ماستركارد، Apple Pay، كريبتو</div>
+                </div>
+              </div>
+              <span class="text-emerald-400">بوابة الدفع ↗️</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- C. VISUAL THEME CUSTOMIZER MODAL -->
+      <div v-if="showThemeCustomizer" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-lg rounded-3xl border border-slate-700/80 p-5 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <span>🎨</span> مخصص المظهر والهوية البصرية
+            </h3>
+            <button @click="showThemeCustomizer = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <!-- Color Customization -->
+          <div class="space-y-3">
+            <label class="block text-xs font-bold text-slate-200">الألوان الأساسية للهوية:</label>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-dark-800 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                <span class="text-[11px] text-slate-400">اللون الرئيسي (Primary)</span>
+                <div class="flex items-center gap-2">
+                  <input type="color" v-model="customizerTheme.primaryColor" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer">
+                  <input type="text" v-model="customizerTheme.primaryColor" class="w-full bg-dark-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono">
+                </div>
+              </div>
+              <div class="bg-dark-800 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                <span class="text-[11px] text-slate-400">اللون الثانوي (Secondary)</span>
+                <div class="flex items-center gap-2">
+                  <input type="color" v-model="customizerTheme.secondaryColor" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer">
+                  <input type="text" v-model="customizerTheme.secondaryColor" class="w-full bg-dark-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono">
+                </div>
+              </div>
+            </div>
+
+            <!-- Ready Palette Presets -->
+            <div class="flex items-center gap-2 text-[11px] text-slate-400 pt-1">
+              <span>قوالب جاهزة:</span>
+              <button @click="setPresetPalette('#3b82f6', '#10b981')" class="px-2 py-0.5 rounded bg-blue-600/30 text-blue-300 border border-blue-500/40 text-[10px]">نيترو أزرق</button>
+              <button @click="setPresetPalette('#8b5cf6', '#ec4899')" class="px-2 py-0.5 rounded bg-purple-600/30 text-purple-300 border border-purple-500/40 text-[10px]">ألعاب بنفسجي</button>
+              <button @click="setPresetPalette('#f59e0b', '#3b82f6')" class="px-2 py-0.5 rounded bg-amber-600/30 text-amber-300 border border-amber-500/40 text-[10px]">نجوم ذهبي</button>
+              <button @click="setPresetPalette('#10b981', '#06b6d4')" class="px-2 py-0.5 rounded bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[10px]">تفاعل زمردي</button>
+            </div>
+          </div>
+
+          <!-- Typography -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="block text-xs font-bold text-slate-200">نوع الخط العربي:</label>
+              <select v-model="customizerTheme.fontFamily" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                <option value="Tajawal">تجوال (Tajawal)</option>
+                <option value="Cairo">كايرو (Cairo)</option>
+                <option value="Almarai">المراعي (Almarai)</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label class="block text-xs font-bold text-slate-200">نمط البطاقات:</label>
+              <select v-model="customizerTheme.cardStyle" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                <option value="modern">حديث (Modern)</option>
+                <option value="glassmorphism">زجاجي (Glassmorphism)</option>
+                <option value="minimal">بسيط (Minimal)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Version History & Rollback -->
+          <div v-if="themeHistoryList.length" class="space-y-1.5 border-t border-slate-700/60 pt-3">
+            <label class="block text-xs font-bold text-slate-300">سجل النسخ السابقة (Rollback):</label>
+            <div class="flex items-center gap-2">
+              <select v-model="selectedRollbackVersion" class="flex-1 bg-dark-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+                <option v-for="h in themeHistoryList" :key="h.version" :value="h.version">
+                  النسخة #{{ h.version }} ({{ h.created || new Date(h.publishedAt).toLocaleDateString('ar-SA') }})
+                </option>
+              </select>
+              <button @click="rollbackToVersion" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition">
+                استعادة 🔄
+              </button>
+            </div>
+          </div>
+
+          <!-- Save Button -->
+          <button @click="saveCustomizerTheme" :disabled="savingTheme" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-3 rounded-xl transition shadow">
+            <span v-if="savingTheme">جاري الحفظ والنشر... ⏳</span>
+            <span v-else>حفظ ونشر التعديلات على المتجر 🚀</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- D. MASTER CATALOG IMPORT MODAL -->
+      <div v-if="showMasterModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-lg rounded-3xl border border-slate-700/80 p-5 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <span>📥</span> استيراد المنتجات من الكتالوج العام
+            </h3>
+            <button @click="showMasterModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <!-- Margin selector -->
+          <div class="bg-dark-800 p-3 rounded-xl border border-slate-700 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-300 font-bold">نسبة هامش الربح المضافة:</span>
+              <span class="text-emerald-400 font-mono font-black">+{{ importMarginPercent }}%</span>
+            </div>
+            <input type="range" min="5" max="50" step="5" v-model="importMarginPercent" class="w-full accent-emerald-500">
+            <div class="text-[10px] text-slate-400">يتم احتساب سعر بيع المنتجات تلقائياً بناءً على سعر التكلفة مضافاً إليه نسبة الربح.</div>
+          </div>
+
+          <!-- Select All & List -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs text-slate-400">
+              <span>اختر المنتجات المراد استيرادها:</span>
+              <button @click="toggleSelectAllMaster" class="text-emerald-400 font-bold hover:underline">
+                {{ selectedMasterIds.length === masterCatalogItems.length ? 'إلغاء التحديد' : 'تحديد الكل' }}
+              </button>
+            </div>
+
+            <div class="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+              <label v-for="item in masterCatalogItems" :key="item.id" class="flex items-center justify-between p-2.5 rounded-xl bg-dark-800 hover:bg-dark-750 border border-slate-700 cursor-pointer">
+                <div class="flex items-center gap-2.5">
+                  <input type="checkbox" :value="item.id" v-model="selectedMasterIds" class="accent-emerald-500 rounded">
+                  <div>
+                    <div class="font-bold text-xs text-white">{{ item.name_ar || item.name }}</div>
+                    <div class="text-[10px] text-slate-400">التكلفة: ${{ item.price_options?.[0]?.costPrice || 0 }} | مقترح: ${{ ((item.price_options?.[0]?.costPrice || 0) * (1 + importMarginPercent/100)).toFixed(2) }}</div>
+                  </div>
+                </div>
+                <span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">{{ item.template_type }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button @click="submitImportMaster" :disabled="!selectedMasterIds.length || importingMaster" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow">
+            <span v-if="importingMaster">جاري الاستيراد... ⏳</span>
+            <span v-else>استيراد {{ selectedMasterIds.length }} منتج محدد إلى متجري ✨</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- E. ADD / EDIT PRODUCT MODAL -->
+      <div v-if="showProductModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-lg rounded-3xl border border-slate-700/80 p-5 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <span>➕</span> إضافة / تعديل منتج بالمتجر
+            </h3>
+            <button @click="showProductModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">اسم المنتج بالعربية:</label>
+              <input type="text" v-model="editingProduct.nameAr" placeholder="مثال: شحن بطاقة نتفليكس 100$" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">اسم المنتج بالإنجليزية:</label>
+              <input type="text" v-model="editingProduct.name" placeholder="Netflix Gift Card $100" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">الفئة (Category):</label>
+                <select v-model="editingProduct.category" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                  <option value="gaming">ألعاب (Gaming)</option>
+                  <option value="subscriptions">اشتراكات (Subscriptions)</option>
+                  <option value="telegram">تيليجرام (Telegram)</option>
+                  <option value="numbers">أرقام تفعيل (Numbers)</option>
+                  <option value="smm">تفاعل ودعم (SMM)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">نوع القالب:</label>
+                <select v-model="editingProduct.templateType" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                  <option value="manual_subs">اشتراكات وشحن ألعاب</option>
+                  <option value="stars_premium_gifts">نجوم وبريميوم وهدايا</option>
+                  <option value="virtual_numbers">أرقام تفعيل</option>
+                  <option value="smm_boost">زيادة تفاعل ودعم</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">سعر التكلفة ($):</label>
+                <input type="number" step="0.01" v-model.number="editingProduct.costPrice" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">سعر البيع للعميل ($):</label>
+                <input type="number" step="0.01" v-model.number="editingProduct.userPrice" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+              </div>
+            </div>
+
+            <!-- Floor Price Security Alert -->
+            <div v-if="editingProduct.userPrice < editingProduct.costPrice" class="p-2.5 rounded-xl bg-rose-950/70 border border-rose-500/50 text-[11px] text-rose-300">
+              ⚠️ تنبيه أمني: سعر البيع لا يمكن أن يكون أقل من سعر التكلفة لحماية أرباحك.
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">رابط صورة المنتج (URL):</label>
+              <input type="text" v-model="editingProduct.imageUrl" placeholder="https://..." class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">وصف المنتج:</label>
+              <textarea v-model="editingProduct.description" rows="2" placeholder="أدخل تفاصيل ومميزات المنتج..." class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"></textarea>
+            </div>
+          </div>
+
+          <button @click="saveSellerProduct" :disabled="savingProduct || editingProduct.userPrice < editingProduct.costPrice" class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow">
+            <span v-if="savingProduct">جاري الحفظ... ⏳</span>
+            <span v-else>حفظ وإضافة المنتج للمتجر ✅</span>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <script src="/static/miniapp.js"></script>
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- 5. VUE APPLICATION LOGIC                                              -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const loading = ref(true);
+        const currentTab = ref('store');
+        const role = ref('buyer');
+        const store = ref({});
+        const user = ref({ balance: 0 });
+        const categories = ref([]);
+        const products = ref([]);
+        const myOrders = ref([]);
+        const sellerStats = ref({});
+        const adminOrders = ref([]);
+        const adminOverview = ref({});
+        const themeSettings = ref({});
+
+        const selectedCategory = ref('all');
+        const searchQuery = ref('');
+        const recentSearches = ref(['ببجي', 'نتفلكس', 'تيليجرام', 'أرقام', 'انستغرام']);
+        const activeBannerIndex = ref(0);
+
+        // Modals & checkout state
+        const activeProduct = ref(null);
+        const selectedPriceOption = ref(null);
+        const userFormInputs = ref({});
+        const smmQuantity = ref(1000);
+        const smmUrl = ref('');
+        const termsAgreed = ref(false);
+        const isSubmitting = ref(false);
+        const showDepositModal = ref(false);
+        const showThemeCustomizer = ref(false);
+
+        // Seller Settings & Customizer state
+        const sellerProducts = ref([]);
+        const masterCatalogItems = ref([]);
+        const showMasterModal = ref(false);
+        const showProductModal = ref(false);
+        const savingSettings = ref(false);
+        const sellerSettingsForm = ref({
+          support_url: '',
+          terms_text: '',
+          policy_text: ''
+        });
+
+        const editingProduct = ref({
+          name: '',
+          nameAr: '',
+          category: 'subscriptions',
+          templateType: 'manual_subs',
+          costPrice: 1.0,
+          userPrice: 1.5,
+          imageUrl: '',
+          description: ''
+        });
+
+        const customizerTheme = ref({
+          primaryColor: '#3b82f6',
+          secondaryColor: '#10b981',
+          fontFamily: 'Tajawal',
+          cardStyle: 'modern'
+        });
+        const themeHistoryList = ref([]);
+        const selectedRollbackVersion = ref(null);
+        const aiLoading = ref(false);
+        const savingTheme = ref(false);
+        const importingMaster = ref(false);
+        const savingProduct = ref(false);
+        const selectedMasterIds = ref([]);
+        const importMarginPercent = ref(15);
+
+        // Telegram WebApp Instance
+        const tg = window.Telegram?.WebApp;
+
+        // Initialize App
+        const initApp = async () => {
+          try {
+            if (tg) {
+              tg.ready();
+              tg.expand();
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            let storeId = urlParams.get('store_id') || urlParams.get('start_param') || '';
+            if (!storeId && pathParts.length > 1 && (pathParts[0] === 'store' || pathParts[0] === 'app')) {
+              storeId = pathParts[1];
+            }
+            if (!storeId) {
+              storeId = 'default';
+            }
+
+            // 1. Fetch store info
+            const storeRes = await fetch(`/api/miniapp/store-info?store_id=${storeId}`);
+            const storeJson = await storeRes.json();
+            if (storeJson.success && storeJson.data) {
+              store.value = storeJson.data;
+              themeSettings.value = storeJson.data.themeSettings || {};
+              sellerSettingsForm.value.support_url = storeJson.data.supportUrl || '';
+              sellerSettingsForm.value.terms_text = storeJson.data.termsText || '';
+              sellerSettingsForm.value.policy_text = storeJson.data.policyText || '';
+            }
+
+            // 2. Authenticate user via Telegram initData
+            const initData = tg?.initData || '';
+            const authRes = await fetch('/api/miniapp/auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ initData, storeId })
+            });
+            const authJson = await authRes.json();
+            if (authJson.success && authJson.data) {
+              user.value = authJson.data.user || {};
+              role.value = authJson.data.role || 'buyer';
+            }
+
+            // Tab routing from URL or pathname
+            const tabParam = urlParams.get('tab');
+            if (window.location.pathname.includes('/admin_app') && role.value === 'admin') {
+              currentTab.value = 'admin';
+            } else if (tabParam && ['store', 'orders', 'account', 'seller', 'admin'].includes(tabParam)) {
+              if (tabParam === 'admin' && role.value !== 'admin') {
+                currentTab.value = 'store';
+              } else if (tabParam === 'seller' && role.value !== 'seller' && role.value !== 'admin') {
+                currentTab.value = 'store';
+              } else {
+                currentTab.value = tabParam;
+              }
+            }
+
+            // 3. Load catalog
+            const catRes = await fetch(`/api/miniapp/catalog?store_id=${storeId}`);
+            const catJson = await catRes.json();
+            if (catJson.success && catJson.data) {
+              categories.value = catJson.data.categories || [];
+              products.value = catJson.data.products || [];
+
+              const catParam = urlParams.get('cat') || urlParams.get('category');
+              if (catParam) selectedCategory.value = catParam;
+            }
+
+            // 4. Load initial orders & stats
+            await loadOrders();
+            if (role.value === 'seller' || role.value === 'admin') {
+              await loadSellerStats();
+              await loadSellerProducts();
+              await loadThemeVersions();
+            }
+            if (role.value === 'admin') {
+              await loadAdminOverview();
+              await loadAdminOrders();
+            }
+
+          } catch (err) {
+            console.error('Init error:', err);
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const loadOrders = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/orders/my', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.success && json.data) myOrders.value = json.data;
+          } catch {}
+        };
+
+        const loadSellerStats = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/stats', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.success && json.data) sellerStats.value = json.data;
+          } catch {}
+        };
+
+        const loadAdminOverview = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/overview', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.success && json.data) adminOverview.value = json.data;
+          } catch {}
+        };
+
+        const loadAdminOrders = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/orders', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.success && json.data) adminOrders.value = json.data;
+          } catch {}
+        };
+
+        // Fuzzy search & normalization ignoring Tashkeel & Hamza
+        const normalizeArabic = (text) => {
+          if (!text) return '';
+          return text
+            .replace(/[\u064B-\u065F]/g, '')
+            .replace(/[أإآ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي')
+            .toLowerCase();
+        };
+
+        const filteredProducts = computed(() => {
+          return products.value.filter(p => {
+            if (selectedCategory.value !== 'all' && p.category !== selectedCategory.value && p.category_id !== selectedCategory.value) {
+              return false;
+            }
+            if (searchQuery.value) {
+              const queryNorm = normalizeArabic(searchQuery.value);
+              const nameNorm = normalizeArabic(p.nameAr || p.name);
+              const descNorm = normalizeArabic(p.description || '');
+              return nameNorm.includes(queryNorm) || descNorm.includes(queryNorm);
+            }
+            return true;
+          });
+        });
+
+        const getEffectivePrice = (prod) => {
+          const opt = prod.priceOptions?.[0];
+          const base = opt ? Number(opt.userPrice || opt.price || 1) : Number(prod.price_usd || 1);
+          if (prod.discountPercent > 0) {
+            return (base * (100 - prod.discountPercent) / 100).toFixed(2);
+          }
+          return base.toFixed(2);
+        };
+
+        const getOriginalPrice = (prod) => {
+          const opt = prod.priceOptions?.[0];
+          return (opt ? Number(opt.userPrice || opt.price || 1) : Number(prod.price_usd || 1)).toFixed(2);
+        };
+
+        const openProductModal = (prod) => {
+          activeProduct.value = prod;
+          selectedPriceOption.value = prod.priceOptions?.[0] || null;
+          userFormInputs.value = {};
+          termsAgreed.value = false;
+        };
+
+        const getCalculatedTotal = () => {
+          if (!activeProduct.value) return '0.00';
+          if (activeProduct.value.templateType === 'smm_boost') {
+            const base = selectedPriceOption.value?.userPrice || activeProduct.value.price_usd || 1.0;
+            return ((base * smmQuantity.value) / 1000).toFixed(2);
+          }
+          const base = selectedPriceOption.value?.userPrice || activeProduct.value.price_usd || 1.0;
+          if (activeProduct.value.discountPercent > 0) {
+            return (base * (100 - activeProduct.value.discountPercent) / 100).toFixed(2);
+          }
+          return Number(base).toFixed(2);
+        };
+
+        const submitOrder = async () => {
+          if (!termsAgreed.value) return;
+          isSubmitting.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const payload = {
+              productId: activeProduct.value.id,
+              priceOptionId: selectedPriceOption.value?.id,
+              quantity: activeProduct.value.templateType === 'smm_boost' ? smmQuantity.value : 1,
+              targetUrl: smmUrl.value,
+              userInputs: userFormInputs.value,
+              idempotencyKey: `IDEMP-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+            };
+
+            const res = await fetch('/api/miniapp/order/create', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify(payload)
+            });
+
+            const json = await res.json();
+            if (json.success || json.ok) {
+              if (json.data && json.data.remainingBalance !== undefined) {
+                user.value.balance = Number(json.data.remainingBalance);
+              } else if (json.new_balance_usd !== undefined) {
+                user.value.balance = Number(json.new_balance_usd);
+              }
+              activeProduct.value = null;
+              currentTab.value = 'orders';
+              await loadOrders();
+              alert(json.message || 'تم تأكيد طلبك بنجاح!');
+            } else {
+              alert(json.error || json.message || 'فشل إتمام الطلب');
+            }
+          } catch (err) {
+            alert('حدث خطأ أثناء معالجة الطلب');
+          } finally {
+            isSubmitting.value = false;
+          }
+        };
+
+        const getStatusLabelAr = (status) => {
+          const map = {
+            pending: 'بانتظار التنفيذ ⏳',
+            queued: 'بانتظار التنفيذ ⏳',
+            processing: 'قيد التنفيذ ⚙️',
+            completed: 'مكتمل بنجاح ✅',
+            refunded: 'مُسترجع للرصيد 🔄',
+            rejected: 'مرفوض ❌',
+            canceled: 'ملغي ❌'
+          };
+          return map[status] || status;
+        };
+
+        const getStatusBadgeClass = (status) => {
+          if (status === 'completed') return 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40';
+          if (status === 'processing') return 'bg-blue-950/60 text-blue-300 border-blue-500/40';
+          if (status === 'pending' || status === 'queued') return 'bg-amber-950/60 text-amber-300 border-amber-500/40';
+          if (status === 'refunded') return 'bg-purple-950/60 text-purple-300 border-purple-500/40';
+          return 'bg-rose-950/60 text-rose-300 border-rose-500/40';
+        };
+
+        const getReferralLink = () => {
+          return `https://t.me/${store.value?.botUsername || 'bot'}?start=sl_${user.value.telegramId || 1}`;
+        };
+
+        const copyToClipboard = (text) => {
+          if (!text) return;
+          navigator.clipboard.writeText(text);
+          if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+          alert('تم النسخ إلى الحافظة بنجاح! 📋');
+        };
+
+        const payWithStars = () => {
+          alert('لشحن نجوم تيليجرام Telegram Stars، أرسل أمر /deposit داخل محادثة البوت الرئيسية وسيتم تزويدك بالفاتورة فوراً.');
+        };
+
+        const payWithExternalGateway = () => {
+          const link = store.value?.supportUrl || `https://t.me/${store.value?.botUsername || 'bot'}`;
+          if (tg?.openLink) {
+            tg.openLink(link);
+          } else {
+            window.open(link, '_blank');
+          }
+        };
+
+        const handleAdminOrderAction = async (orderRef, action) => {
+          const note = prompt(action === 'deliver' ? 'أدخل بيانات التسليم والكود للعميل:' : 'أدخل سبب الإجراء:');
+          if (note === null) return;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/orders/action', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({
+                orderRef,
+                action,
+                deliveryData: action === 'deliver' ? note : undefined,
+                rejectionReason: action !== 'deliver' ? note : undefined
+              })
+            });
+            const json = await res.json();
+            alert(json.message || 'تم الإجراء بنجاح');
+            await loadAdminOrders();
+            await loadAdminOverview();
+          } catch (e) {
+            alert('حدث خطأ أثناء تنفيذ الإجراء');
+          }
+        };
+
+        const loadSellerProducts = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/products', {
+              headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.success && json.data) sellerProducts.value = json.data;
+          } catch {}
+        };
+
+        const loadThemeVersions = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/theme/versions', {
+              headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.success && json.data) {
+              themeHistoryList.value = json.data;
+              if (themeHistoryList.value.length) {
+                selectedRollbackVersion.value = themeHistoryList.value[0].version;
+              }
+            }
+          } catch {}
+        };
+
+        const saveSellerSettingsForm = async () => {
+          savingSettings.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify(sellerSettingsForm.value)
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              store.value.supportUrl = sellerSettingsForm.value.support_url;
+              store.value.termsText = sellerSettingsForm.value.terms_text;
+              store.value.policyText = sellerSettingsForm.value.policy_text;
+              alert(json.message || 'تم حفظ الإعدادات والشروط بنجاح ✅');
+            } else {
+              alert(json.error || 'فشل حفظ الإعدادات');
+            }
+          } catch {
+            alert('حدث خطأ أثناء حفظ الإعدادات');
+          } finally {
+            savingSettings.value = false;
+          }
+        };
+
+        const openCustomizer = () => {
+          if (store.value?.themeSettings) {
+            customizerTheme.value = { ...store.value.themeSettings };
+          }
+          showThemeCustomizer.value = true;
+        };
+
+        const setPresetPalette = (p, s) => {
+          customizerTheme.value.primaryColor = p;
+          customizerTheme.value.secondaryColor = s;
+        };
+
+        const applyAiSuggestions = async () => {
+          aiLoading.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/ai-suggest', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify({ category: store.value?.templateType === 'smm' ? 'smm' : (store.value?.templateType === 'sms' ? 'numbers' : 'gaming') })
+            });
+            const json = await res.json();
+            if (json.success && json.data) {
+              if (json.data.palette) {
+                customizerTheme.value.primaryColor = json.data.palette.primaryColor;
+                customizerTheme.value.secondaryColor = json.data.palette.secondaryColor;
+              }
+              if (json.data.cardStyle) customizerTheme.value.cardStyle = json.data.cardStyle;
+              if (json.data.fontFamily) customizerTheme.value.fontFamily = json.data.fontFamily;
+              alert('✨ تم تطبيق اقتراح الذكاء الاصطناعي بنجاح!');
+            } else {
+              alert(json.error || 'تعذر جلب اقتراح الذكاء الاصطناعي');
+            }
+          } catch {
+            alert('حدث خطأ أثناء التواصل مع المساعد الذكي');
+          } finally {
+            aiLoading.value = false;
+          }
+        };
+
+        const saveCustomizerTheme = async () => {
+          savingTheme.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/theme', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify({ themeSettings: customizerTheme.value })
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              alert(json.message || 'تم حفظ ونشر المظهر بنجاح!');
+              showThemeCustomizer.value = false;
+              window.location.reload();
+            } else {
+              alert(json.error || 'فشل حفظ المظهر');
+            }
+          } catch {
+            alert('حدث خطأ أثناء حفظ المظهر');
+          } finally {
+            savingTheme.value = false;
+          }
+        };
+
+        const rollbackToVersion = async () => {
+          if (!selectedRollbackVersion.value) return;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/theme/rollback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify({ version: selectedRollbackVersion.value })
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              alert(json.message || 'تمت استعادة النسخة بنجاح!');
+              window.location.reload();
+            } else {
+              alert(json.error || 'فشل استعادة النسخة');
+            }
+          } catch {
+            alert('حدث خطأ أثناء الاستعادة');
+          }
+        };
+
+        const openMasterCatalog = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/master-catalog', {
+              headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.success && json.data) {
+              masterCatalogItems.value = json.data;
+              selectedMasterIds.value = json.data.map(i => i.id);
+              showMasterModal.value = true;
+            }
+          } catch {
+            alert('حدث خطأ أثناء جلب الكتالوج العام');
+          }
+        };
+
+        const toggleSelectAllMaster = () => {
+          if (selectedMasterIds.value.length === masterCatalogItems.value.length) {
+            selectedMasterIds.value = [];
+          } else {
+            selectedMasterIds.value = masterCatalogItems.value.map(i => i.id);
+          }
+        };
+
+        const submitImportMaster = async () => {
+          importingMaster.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/import-master', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify({ masterIds: selectedMasterIds.value, marginPercent: importMarginPercent.value })
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              alert(json.message || 'تم استيراد المنتجات بنجاح!');
+              showMasterModal.value = false;
+              await loadSellerProducts();
+            } else {
+              alert(json.error || 'فشل الاستيراد');
+            }
+          } catch {
+            alert('حدث خطأ أثناء الاستيراد');
+          } finally {
+            importingMaster.value = false;
+          }
+        };
+
+        const openNewProductModal = () => {
+          editingProduct.value = {
+            name: '',
+            nameAr: '',
+            category: 'subscriptions',
+            templateType: store.value?.templateType || 'manual_subs',
+            costPrice: 1.0,
+            userPrice: 1.5,
+            imageUrl: '',
+            description: ''
+          };
+          showProductModal.value = true;
+        };
+
+        const saveSellerProduct = async () => {
+          if (!editingProduct.value.nameAr && !editingProduct.value.name) {
+            alert('الرجاء كتابة اسم المنتج');
+            return;
+          }
+          if (editingProduct.value.userPrice < editingProduct.value.costPrice) {
+            alert('سعر البيع لا يمكن أن يكون أقل من التكلفة!');
+            return;
+          }
+          savingProduct.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const payload = {
+              name: editingProduct.value.name || editingProduct.value.nameAr,
+              nameAr: editingProduct.value.nameAr || editingProduct.value.name,
+              category: editingProduct.value.category,
+              templateType: editingProduct.value.templateType,
+              description: editingProduct.value.description,
+              imageUrl: editingProduct.value.imageUrl,
+              costPrice: Number(editingProduct.value.costPrice),
+              userPrice: Number(editingProduct.value.userPrice),
+              priceOptions: [{
+                id: 'opt_1',
+                label: editingProduct.value.nameAr || editingProduct.value.name,
+                costPrice: Number(editingProduct.value.costPrice),
+                userPrice: Number(editingProduct.value.userPrice)
+              }]
+            };
+            const res = await fetch('/api/miniapp/seller/products/upsert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              alert(json.message || 'تم حفظ المنتج بنجاح!');
+              showProductModal.value = false;
+              await loadSellerProducts();
+            } else {
+              alert(json.error || 'فشل حفظ المنتج');
+            }
+          } catch {
+            alert('حدث خطأ أثناء حفظ المنتج');
+          } finally {
+            savingProduct.value = false;
+          }
+        };
+
+        const toggleProductActive = async (id) => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/products/toggle', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify({ id })
+            });
+            const json = await res.json();
+            if (json.success || json.ok) await loadSellerProducts();
+          } catch {}
+        };
+
+        const deleteSellerProduct = async (id) => {
+          if (!confirm('هل أنت متأكد من حذف هذا المنتج نهائياً من متجرك؟')) return;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch(`/api/miniapp/seller/products/${id}`, {
+              method: 'DELETE',
+              headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.success || json.ok) await loadSellerProducts();
+          } catch {}
+        };
+
+        onMounted(() => {
+          initApp();
+        });
+
+        return {
+          loading,
+          currentTab,
+          role,
+          store,
+          user,
+          categories,
+          products,
+          myOrders,
+          sellerStats,
+          adminOrders,
+          adminOverview,
+          themeSettings,
+          selectedCategory,
+          searchQuery,
+          recentSearches,
+          activeBannerIndex,
+          filteredProducts,
+          activeProduct,
+          selectedPriceOption,
+          userFormInputs,
+          smmQuantity,
+          smmUrl,
+          termsAgreed,
+          isSubmitting,
+          showDepositModal,
+          showThemeCustomizer,
+          getEffectivePrice,
+          getOriginalPrice,
+          openProductModal,
+          getCalculatedTotal,
+          submitOrder,
+          getStatusLabelAr,
+          getStatusBadgeClass,
+          getReferralLink,
+          copyToClipboard,
+          payWithStars,
+          payWithExternalGateway,
+          handleAdminOrderAction,
+          sellerProducts,
+          masterCatalogItems,
+          showMasterModal,
+          showProductModal,
+          editingProduct,
+          customizerTheme,
+          themeHistoryList,
+          selectedRollbackVersion,
+          aiLoading,
+          savingTheme,
+          importingMaster,
+          savingProduct,
+          selectedMasterIds,
+          importMarginPercent,
+          loadSellerProducts,
+          openCustomizer,
+          setPresetPalette,
+          applyAiSuggestions,
+          saveCustomizerTheme,
+          rollbackToVersion,
+          openMasterCatalog,
+          toggleSelectAllMaster,
+          submitImportMaster,
+          openNewProductModal,
+          saveSellerProduct,
+          toggleProductActive,
+          deleteSellerProduct,
+          sellerSettingsForm,
+          savingSettings,
+          saveSellerSettingsForm,
+          initApp
+        };
+      }
+    }).mount('#app');
+  </script>
 </body>
 </html>
 """

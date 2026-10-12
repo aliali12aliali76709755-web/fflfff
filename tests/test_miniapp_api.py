@@ -490,10 +490,15 @@ async def test_buyer_account_and_seller_features():
     bot_token = "child_secret_token_seller_9988"
     bot_user = "test_seller_bot"
 
+    test_bot_id = int(time.time() * 1000) % 800000 + 500000
     # إنشاء البوت في قاعدة البيانات
     async with db.Session() as s:
+        existing = await s.get(db.Bot, test_bot_id)
+        if existing:
+            await s.delete(existing)
+            await s.commit()
         b = db.Bot(
-            id=556677,
+            id=test_bot_id,
             owner_id=seller_id,
             username=bot_user,
             name="بوت المتجر الشامل",

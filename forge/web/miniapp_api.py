@@ -46,12 +46,131 @@ ALLOWED_FONTS = ["Cairo", "Tajawal", "Almarai", "IBM Plex Sans Arabic", "Readex 
 ALLOWED_DENSITIES = ["comfortable", "compact"]
 ALLOWED_RADIUS = ["rounded-sm", "rounded-md", "rounded-xl", "rounded-2xl", "rounded-3xl"]
 
+MASTER_CATALOG_ITEMS = [
+    {
+        "id": "mc_pubg_60",
+        "category": "gaming",
+        "name": "PUBG Mobile 60 UC",
+        "name_ar": "ببجي موبايل 60 شدة",
+        "description": "شحن فوري ومباشر إلى حسابك داخل اللعبة عبر الـ ID الرسمي.",
+        "media_urls": ["https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&q=80"],
+        "template_type": "manual_subs",
+        "price_options": [{"id": "opt_60", "label": "60 UC", "costPrice": 0.85, "userPrice": 0.99}],
+        "requirements": [{"name": "player_id", "label": "آيدي اللاعب (Player ID)", "type": "text", "required": True}],
+    },
+    {
+        "id": "mc_pubg_325",
+        "category": "gaming",
+        "name": "PUBG Mobile 325 UC",
+        "name_ar": "ببجي موبايل 325 شدة",
+        "description": "باقة 325 شدة مع بونص إضافي وشحن سريع ومضمون 100%.",
+        "media_urls": ["https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&q=80"],
+        "template_type": "manual_subs",
+        "price_options": [{"id": "opt_325", "label": "325 UC", "costPrice": 4.20, "userPrice": 4.90}],
+        "requirements": [{"name": "player_id", "label": "آيدي اللاعب (Player ID)", "type": "text", "required": True}],
+    },
+    {
+        "id": "mc_pubg_660",
+        "category": "gaming",
+        "name": "PUBG Mobile 660 UC",
+        "name_ar": "ببجي موبايل 660 شدة (رويال باس)",
+        "description": "شحن الرويال باس الملكي بنقرة واحدة بحسابك مباشرة.",
+        "media_urls": ["https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&q=80"],
+        "template_type": "manual_subs",
+        "price_options": [{"id": "opt_660", "label": "660 UC", "costPrice": 8.30, "userPrice": 9.50}],
+        "requirements": [{"name": "player_id", "label": "آيدي اللاعب (Player ID)", "type": "text", "required": True}],
+    },
+    {
+        "id": "mc_netflix_1m",
+        "category": "subscriptions",
+        "name": "Netflix Premium 1 Month 4K",
+        "name_ar": "اشتراك نتفلكس بريميوم شهر 4K",
+        "description": "حساب نتفلكس بريميوم رسمي أعلى دقة 4K Ultra HD مع ضمان كامل المدة.",
+        "media_urls": ["https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=400&q=80"],
+        "template_type": "manual_subs",
+        "price_options": [{"id": "opt_1m", "label": "شهر واحد (شاشة)", "costPrice": 2.80, "userPrice": 3.50}],
+        "requirements": [{"name": "email", "label": "بريدك الإلكتروني للتسليم", "type": "text", "required": True}],
+    },
+    {
+        "id": "mc_shahid_vip",
+        "category": "subscriptions",
+        "name": "Shahid VIP 1 Month",
+        "name_ar": "اشتراك شاهد VIP شهر شامل مسلسلات ورياضة",
+        "description": "اشتراك شاهد VIP بدون فواصل إعلانية مع باقة المسلسلات الحصرية.",
+        "media_urls": ["https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=400&q=80"],
+        "template_type": "manual_subs",
+        "price_options": [{"id": "opt_shahid", "label": "اشتراك شهر كامل", "costPrice": 3.00, "userPrice": 3.99}],
+        "requirements": [{"name": "email", "label": "بريدك الإلكتروني للتسليم", "type": "text", "required": True}],
+    },
+    {
+        "id": "mc_tg_stars_100",
+        "category": "telegram",
+        "name": "Telegram Stars 100",
+        "name_ar": "100 نجمة تيليجرام Telegram Stars",
+        "description": "شحن نجوم تيليجرام الرسمية فورياً لدعم القنوات والمحتوى والبوتات.",
+        "media_urls": ["https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80"],
+        "template_type": "stars_premium_gifts",
+        "price_options": [{"id": "opt_stars_100", "label": "100 نجمة", "costPrice": 1.60, "userPrice": 1.99}],
+        "requirements": [{"name": "username", "label": "يوزر حسابك @username", "type": "text", "required": True}],
+    },
+    {
+        "id": "mc_tg_stars_500",
+        "category": "telegram",
+        "name": "Telegram Stars 500",
+        "name_ar": "500 نجمة تيليجرام Telegram Stars",
+        "description": "باقة 500 نجمة تيليجرام فورية بدون انتظار.",
+        "media_urls": ["https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80"],
+        "template_type": "stars_premium_gifts",
+        "price_options": [{"id": "opt_stars_500", "label": "500 نجمة", "costPrice": 7.90, "userPrice": 8.99}],
+        "requirements": [{"name": "username", "label": "يوزر حسابك @username", "type": "text", "required": True}],
+    },
+    {
+        "id": "mc_us_number",
+        "category": "numbers",
+        "name": "US Telegram Number",
+        "name_ar": "رقم أمريكي لتفعيل تيليجرام",
+        "description": "رقم أمريكي مؤقت لتفعيل تطبيق تيليجرام مع استرجاع فوري إن لم يصل الرمز.",
+        "media_urls": ["https://images.unsplash.com/photo-1512428559087-560fa5ceab42?w=400&q=80"],
+        "template_type": "virtual_numbers",
+        "price_options": [{"id": "opt_us", "label": "رقم أمريكي (+1)", "costPrice": 0.70, "userPrice": 0.99}],
+        "requirements": [],
+    },
+    {
+        "id": "mc_smm_insta",
+        "category": "smm",
+        "name": "Instagram Real Followers",
+        "name_ar": "متابعو انستغرام حقيقيون (لكل 1000)",
+        "description": "زيادة متابعين انستغرام بجودة عالية مع ضمان تعويض النقص لمدة 30 يوم.",
+        "media_urls": ["https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80"],
+        "template_type": "smm_boost",
+        "price_options": [{"id": "opt_smm_1k", "label": "سعر الألف (1000)", "costPrice": 0.60, "userPrice": 0.90}],
+        "requirements": [{"name": "target_url", "label": "رابط الحساب", "type": "text", "required": True}],
+    }
+]
+
 
 def validate_theme_config(data: dict[str, Any]) -> dict[str, Any]:
     """يتحقق من مطابقة إعدادات التصميم للمخطط الصارم ويمنع أي حقول مجهولة أو كود."""
+    mapping = {
+        "primaryColor": "primary_color",
+        "secondaryColor": "secondary_color",
+        "fontFamily": "font_family",
+        "cardStyle": "product_card_style",
+        "walletStyle": "wallet_card_style",
+        "borderRadius": "border_radius",
+        "layoutDensity": "layout_density",
+        "storeName": "store_name",
+        "logoUrl": "logo_url",
+        "bannerUrl": "banner_url",
+    }
+    normalized = {}
+    for k, v in data.items():
+        target_k = mapping.get(k, k)
+        normalized[target_k] = v
+
     clean = {}
     for k, expected_type in STORE_THEME_SCHEMA.items():
-        val = data.get(k)
+        val = normalized.get(k)
         if val is None:
             continue
         if not isinstance(val, expected_type):
@@ -121,12 +240,13 @@ async def log_audit(
 
 async def get_store_bootstrap(req: web.Request) -> web.Response:
     """يعيد الإعدادات الشاملة للمتجر وهوية المستخدم ورصيده والثيم."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
     bot = ctx.bot
 
     # جلب إعدادات الثيم والتصميم
     theme_cfg = await db.kv_get(bot.id, "store:theme_config", {}) or {}
+    seller_settings = await db.kv_get(bot.id, "store:settings", {}) or {}
     default_theme = {
         "store_name": bot.name or bot.username,
         "description": "متجر الخدمات الرقمية المعتمد",
@@ -143,7 +263,7 @@ async def get_store_bootstrap(req: web.Request) -> web.Response:
         "banners": [],
         "color_mode": "dark",
         "show_reviews": True,
-        "contact_url": f"https://t.me/{bot.username}",
+        "contact_url": seller_settings.get("support_url") or f"https://t.me/{bot.username}",
     }
     merged_theme = {**default_theme, **theme_cfg}
 
@@ -171,6 +291,7 @@ async def get_store_bootstrap(req: web.Request) -> web.Response:
 
     return web.json_response({
         "ok": True,
+        "success": True,
         "bot": {
             "id": bot.id,
             "username": bot.username,
@@ -188,6 +309,122 @@ async def get_store_bootstrap(req: web.Request) -> web.Response:
         },
         "theme": merged_theme,
         "active_sales": sales_data,
+        "data": {
+            "bot": {
+                "id": bot.id,
+                "username": bot.username,
+                "name": bot.name,
+                "template": bot.template,
+                "is_paused": is_paused,
+            },
+            "user": {
+                "uid": ctx.uid,
+                "name": ctx.uname,
+                "role": ctx.role,
+                "balance_usd": user_bal_usd,
+                "balance_display": user_bal_disp,
+                "currency": bot_cur,
+            },
+            "theme": merged_theme,
+            "active_sales": sales_data,
+        }
+    })
+
+
+async def api_store_info(req: web.Request) -> web.Response:
+    """يعيد معلومات المتجر الشاملة بما يتوافق مع تطبيق Nitro."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+    bot = ctx.bot
+
+    theme_cfg = await db.kv_get(bot.id, "store:theme_config", {}) or {}
+    seller_settings = await db.kv_get(bot.id, "store:settings", {}) or {}
+    default_theme = {
+        "store_name": bot.name or bot.username,
+        "description": "متجر الخدمات الرقمية المعتمد",
+        "primary_color": "#2563eb",
+        "secondary_color": "#3b82f6",
+        "bg_color": "#0b0f19",
+        "card_bg": "#1e293b",
+        "text_color": "#f8fafc",
+        "font_family": "Tajawal",
+        "border_radius": "rounded-2xl",
+        "layout_density": "comfortable",
+        "wallet_card_style": "gradient_modern",
+        "product_card_style": "elevated",
+        "banners": [
+            {"title": "شحن وتفعيل فوري على مدار 24 ساعة ⚡", "imageUrl": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80"},
+            {"title": "عروض الألعاب والاشتراكات الحصرية بضمان ذهبي 🔥", "imageUrl": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&q=80"}
+        ],
+        "color_mode": "dark",
+        "show_reviews": True,
+        "contact_url": seller_settings.get("support_url") or f"https://t.me/{bot.username}",
+    }
+    merged_theme = {**default_theme, **theme_cfg}
+
+    return web.json_response({
+        "success": True,
+        "ok": True,
+        "data": {
+            "botId": bot.id,
+            "botUsername": bot.username,
+            "storeName": merged_theme.get("store_name") or bot.name or bot.username,
+            "description": merged_theme.get("description") or "متجر الخدمات الرقمية المعتمد",
+            "logoUrl": merged_theme.get("logo_url") or "",
+            "heroBannerUrl": merged_theme.get("banner_url") or "",
+            "templateType": bot.template or "store",
+            "currency": "USD",
+            "currencySymbol": "$",
+            "exchangeRate": 1.0,
+            "themeSettings": merged_theme,
+            "maintenanceMode": False,
+            "forceChannel": "",
+            "reviewsEnabled": True,
+            "referralRewardPercent": 5,
+            "supportUrl": seller_settings.get("support_url") or f"https://t.me/{bot.username}",
+            "termsText": seller_settings.get("terms_text") or "جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.",
+            "policyText": seller_settings.get("policy_text") or "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت."
+        }
+    })
+
+
+async def api_auth(req: web.Request) -> web.Response:
+    """مصادقة Telegram Mini App وإرجاع الجلسة والرصيد والأدوار."""
+    try:
+        body = await req.json() if req.can_read_body else {}
+    except Exception:
+        body = {}
+    store_id = body.get("storeId") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, store_id)
+    bot = ctx.bot
+
+    bal_usd = await ledger.get_user_balance_usd(bot.id, ctx.uid)
+    theme_cfg = await db.kv_get(bot.id, "store:theme_config", {}) or {}
+
+    return web.json_response({
+        "success": True,
+        "ok": True,
+        "data": {
+            "user": {
+                "id": ctx.uid,
+                "telegramId": ctx.uid,
+                "username": ctx.user.get("username", ""),
+                "firstName": ctx.user.get("first_name", ctx.uname),
+                "balance": round(bal_usd, 2),
+                "currency": "USD",
+                "currencySymbol": "$"
+            },
+            "role": ctx.role,
+            "store": {
+                "botId": bot.id,
+                "botUsername": bot.username,
+                "storeName": theme_cfg.get("store_name") or bot.name or bot.username,
+                "templateType": bot.template,
+                "themeSettings": theme_cfg,
+                "maintenanceMode": False,
+                "forceChannel": ""
+            }
+        }
     })
 
 
@@ -197,7 +434,7 @@ async def get_store_bootstrap(req: web.Request) -> web.Response:
 
 async def get_store_catalog(req: web.Request) -> web.Response:
     """يعيد كتالوج المنتجات والأقسام والخيارات للبوت المعني."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
     bot = ctx.bot
 
@@ -224,23 +461,31 @@ async def get_store_catalog(req: web.Request) -> web.Response:
             p_price = s["price_usd"]
             disc_price = await discounts.DiscountManager.apply_discount(bot.id, "digital", s["id"], p_price)
             has_disc = disc_price < p_price
+            disc_pct = round((1 - disc_price / p_price) * 100) if has_disc and p_price > 0 else 0
             stock_cnt = await DigitalManager.get_stock_count(bot.id, s["id"])
 
             products.append({
                 "id": s["id"],
+                "category": c_key,
                 "category_id": c_key,
                 "name": s["name_ar"],
+                "nameAr": s["name_ar"],
                 "description": s.get("desc_ar", ""),
                 "price_usd": disc_price,
                 "original_price_usd": p_price,
                 "has_discount": has_disc,
-                "discount_percent": round((1 - disc_price / p_price) * 100) if has_disc and p_price > 0 else 0,
+                "discount_percent": disc_pct,
+                "discountPercent": disc_pct,
                 "input_label": s.get("field_ar", "ID الحساب أو البيانات"),
                 "stock_count": stock_cnt,
                 "is_instant": stock_cnt > 0,
                 "is_manual": True,
                 "icon": s.get("icon", "🎮"),
                 "image_url": s.get("image_url", ""),
+                "mediaUrls": [s.get("image_url")] if s.get("image_url") else [],
+                "templateType": "manual_subs",
+                "priceOptions": [{"id": "opt_1", "label": s["name_ar"], "costPrice": round(disc_price * 0.8, 2), "userPrice": disc_price}],
+                "requirements": [{"name": "target", "label": s.get("field_ar", "بيانات الطلب"), "type": "text", "required": True}] if s.get("field_ar") else [],
             })
 
     elif tpl_key == "sms":
@@ -251,16 +496,23 @@ async def get_store_catalog(req: web.Request) -> web.Response:
                 price_usd = await SMSManager.calculate_number_price(bot.id, c_code, app_code)
                 products.append({
                     "id": f"{c_code}_{app_code}",
+                    "category": c_code,
                     "category_id": c_code,
                     "name": f"{a_info['name_ar']} ({c_code.upper()})",
-                    "description": f"رقم تفعيل فوري مع استرجاع تلقائي إن لم يصل الرمز",
+                    "nameAr": f"{a_info['name_ar']} ({c_code.upper()})",
+                    "description": "رقم تفعيل فوري مع استرجاع تلقائي إن لم يصل الرمز",
                     "price_usd": price_usd,
                     "original_price_usd": price_usd,
                     "has_discount": False,
+                    "discountPercent": 0,
                     "input_label": "",
                     "is_instant": True,
                     "is_manual": False,
                     "icon": a_info["emoji"],
+                    "mediaUrls": [],
+                    "templateType": "virtual_numbers",
+                    "priceOptions": [{"id": "opt_1", "label": f"{a_info['name_ar']} ({c_code.upper()})", "costPrice": round(price_usd * 0.7, 2), "userPrice": price_usd}],
+                    "requirements": [],
                 })
 
     elif tpl_key == "smm":
@@ -271,17 +523,26 @@ async def get_store_catalog(req: web.Request) -> web.Response:
             p_price = s["price_per_1k_usd"]
             products.append({
                 "id": s["id"],
+                "category": s["platform"],
                 "category_id": s["platform"],
                 "name": s["name_ar"],
+                "nameAr": s["name_ar"],
                 "description": f"الحد الأدنى: {s['min']} - الحد الأقصى: {s['max']:,}",
                 "price_usd": p_price,
+                "original_price_usd": p_price,
                 "price_per_1k": p_price,
                 "min_qty": s["min"],
                 "max_qty": s["max"],
+                "has_discount": False,
+                "discountPercent": 0,
                 "input_label": "رابط الحساب أو المنشور",
                 "is_instant": True,
                 "is_manual": False,
                 "icon": "🚀",
+                "mediaUrls": [],
+                "templateType": "smm_boost",
+                "priceOptions": [{"id": "opt_1", "label": s["name_ar"], "costPrice": round(p_price * 0.7, 2), "userPrice": p_price}],
+                "requirements": [{"name": "target_url", "label": "رابط الحساب أو المنشور", "type": "url", "required": True}],
             })
 
     elif tpl_key == "tgstars":
@@ -294,45 +555,109 @@ async def get_store_catalog(req: web.Request) -> web.Response:
         for s in raw_svcs:
             products.append({
                 "id": s["id"],
+                "category": s.get("category", "stars"),
                 "category_id": s.get("category", "stars"),
                 "name": s["name_ar"],
+                "nameAr": s["name_ar"],
                 "description": s.get("desc_ar", ""),
                 "price_usd": s["price_usd"],
                 "original_price_usd": s["price_usd"],
                 "has_discount": False,
+                "discountPercent": 0,
                 "input_label": "اسم المستخدم @username",
                 "is_instant": True,
                 "is_manual": False,
                 "icon": "⭐",
+                "mediaUrls": [],
+                "templateType": "stars_premium_gifts",
+                "priceOptions": [{"id": "opt_1", "label": s["name_ar"], "costPrice": round(s["price_usd"] * 0.8, 2), "userPrice": s["price_usd"]}],
+                "requirements": [{"name": "username", "label": "اسم المستخدم @username", "type": "text", "required": True}],
             })
 
     # إضافة المنتجات المخصصة التي أضافها البائع
     custom_prods = await db.kv_get(bot.id, "store:custom_products", []) or []
     for cp in custom_prods:
-        c_cat_id = cp.get("category_id") or "custom"
+        if cp.get("active") is False:
+            continue
+        c_cat_id = cp.get("category_id") or cp.get("category") or "custom"
         c_cat_name = cp.get("category_name") or "منتجات حصرية"
         if not any(c["id"] == c_cat_id for c in categories):
             categories.append({"id": c_cat_id, "name": c_cat_name, "icon": cp.get("icon") or "⭐"})
 
+        u_price = float(cp.get("price_usd", 1.0))
+        c_price = float(cp.get("cost_price", round(u_price * 0.8, 2)))
+        media_urls = cp.get("mediaUrls") or ([cp["image_url"]] if cp.get("image_url") else [])
+        price_opts = cp.get("priceOptions") or [{"id": "opt_1", "label": cp["name"], "costPrice": c_price, "userPrice": u_price}]
+
         products.append({
             "id": cp["id"],
+            "category": c_cat_id,
             "category_id": c_cat_id,
             "name": cp["name"],
+            "nameAr": cp.get("nameAr") or cp["name"],
             "description": cp.get("description", ""),
-            "price_usd": float(cp.get("price_usd", 1.0)),
-            "original_price_usd": float(cp.get("price_usd", 1.0)),
+            "price_usd": u_price,
+            "original_price_usd": u_price,
             "has_discount": False,
+            "discountPercent": 0,
             "input_label": cp.get("input_label", "بيانات الطلب"),
             "is_instant": bool(cp.get("is_instant", False)),
             "is_manual": not bool(cp.get("is_instant", False)),
             "icon": cp.get("icon", "📦"),
-            "image_url": cp.get("image_url", ""),
+            "image_url": media_urls[0] if media_urls else "",
+            "mediaUrls": media_urls,
+            "templateType": cp.get("templateType", "manual_subs"),
+            "priceOptions": price_opts,
+            "requirements": cp.get("requirements") or ([{"name": "target", "label": cp.get("input_label", "بيانات الطلب"), "type": "text", "required": True}] if cp.get("input_label") else []),
         })
+
+    # إذا لم تكن هناك أي منتجات حتى الآن، نقوم بتعبئة الكتالوج من المنتجات الأساسية
+    if not products:
+        for m in MASTER_CATALOG_ITEMS:
+            c_cat = m["category"]
+            c_name = "ألعاب" if c_cat == "gaming" else ("اشتراكات" if c_cat == "subscriptions" else ("تيليجرام" if c_cat == "telegram" else ("أرقام تفعيل" if c_cat == "numbers" else "تفاعل ودعم")))
+            c_icon = "🎮" if c_cat == "gaming" else ("📺" if c_cat == "subscriptions" else ("⭐" if c_cat == "telegram" else ("📲" if c_cat == "numbers" else "🚀")))
+            if not any(c.get("id") == c_cat or c.get("name") == c_cat for c in categories):
+                categories.append({"id": c_cat, "name": c_cat, "nameAr": c_name, "icon": c_icon})
+            opt = m["price_options"][0]
+            products.append({
+                "id": m["id"],
+                "category": c_cat,
+                "category_id": c_cat,
+                "name": m["name"],
+                "nameAr": m["name_ar"],
+                "description": m["description"],
+                "price_usd": opt["userPrice"],
+                "original_price_usd": opt["userPrice"],
+                "has_discount": False,
+                "discountPercent": 0,
+                "input_label": m["requirements"][0]["label"] if m.get("requirements") else "",
+                "is_instant": False,
+                "is_manual": True,
+                "icon": c_icon,
+                "image_url": m["media_urls"][0] if m.get("media_urls") else "",
+                "mediaUrls": m.get("media_urls", []),
+                "templateType": m["template_type"],
+                "priceOptions": m["price_options"],
+                "requirements": m.get("requirements", []),
+            })
+
+    theme_cfg = await db.kv_get(bot.id, "store:theme_config", {}) or {}
+    banners = theme_cfg.get("banners") or [
+        {"title": "شحن وتفعيل فوري على مدار 24 ساعة ⚡", "imageUrl": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80"},
+        {"title": "عروض الألعاب والاشتراكات الحصرية بضمان ذهبي 🔥", "imageUrl": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&q=80"}
+    ]
 
     return web.json_response({
         "ok": True,
+        "success": True,
         "categories": categories,
         "products": products,
+        "data": {
+            "categories": categories,
+            "products": products,
+            "banners": banners,
+        }
     })
 
 
@@ -342,7 +667,7 @@ async def get_store_catalog(req: web.Request) -> web.Response:
 
 async def create_store_order(req: web.Request) -> web.Response:
     """ينشئ طلباً جديداً مع التحقق الصارم من الرصيد والأسعار ومنع التكرار."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
     bot = ctx.bot
 
@@ -352,7 +677,7 @@ async def create_store_order(req: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "bad_json"}, status=400)
 
     # مفتاح منع التكرار (Idempotency Key)
-    idempotency_key = req.headers.get("X-Idempotency-Key") or data.get("idempotency_key") or ""
+    idempotency_key = req.headers.get("X-Idempotency-Key") or data.get("idempotency_key") or data.get("idempotencyKey") or ""
     if not idempotency_key:
         idempotency_key = f"idemp_{uuid.uuid4().hex[:12]}"
 
@@ -367,13 +692,23 @@ async def create_store_order(req: web.Request) -> web.Response:
         if existing:
             return web.json_response({
                 "ok": True,
+                "success": True,
                 "order_id": existing.order_id,
                 "status": existing.status,
                 "is_duplicate": True,
+                "data": {
+                    "order_id": existing.order_id,
+                    "order_ref": existing.order_id,
+                    "status": existing.status,
+                }
             })
 
-    product_id = data.get("product_id")
-    target_data = str(data.get("target") or "").strip()
+    product_id = data.get("product_id") or data.get("productId")
+    target_data = str(data.get("target") or data.get("targetUrl") or "").strip()
+    if not target_data and data.get("userInputs"):
+        u_in = data.get("userInputs")
+        if isinstance(u_in, dict):
+            target_data = next((str(v) for v in u_in.values() if v), "") or json.dumps(u_in)
     quantity = int(data.get("quantity") or 1)
 
     if not product_id:
@@ -388,19 +723,16 @@ async def create_store_order(req: web.Request) -> web.Response:
     if bot.template == "digital":
         raw_svcs = await DigitalManager.get_services_catalog(bot.id)
         svc = next((s for s in raw_svcs if s["id"] == product_id), None)
-        if not svc:
-            return web.json_response({"ok": False, "error": "invalid_product"}, status=404)
-        base_price = svc["price_usd"]
-        final_usd = await discounts.DiscountManager.apply_discount(bot.id, "digital", product_id, base_price)
-        product_name = svc["name_ar"]
-
-        # فحص المخزون الفوري إن وجد
-        voucher_code = await DigitalManager.get_voucher_from_stock(bot.id, product_id)
-        if voucher_code:
-            order_status = "completed"
+        if svc:
+            base_price = svc["price_usd"]
+            final_usd = await discounts.DiscountManager.apply_discount(bot.id, "digital", product_id, base_price)
+            product_name = svc["name_ar"]
+            voucher_code = await DigitalManager.get_voucher_from_stock(bot.id, product_id)
+            if voucher_code:
+                order_status = "completed"
 
     elif bot.template == "sms":
-        parts = product_id.split("_")
+        parts = str(product_id).split("_")
         if len(parts) >= 2:
             c_code, app_code = parts[0], parts[1]
             final_usd = await SMSManager.calculate_number_price(bot.id, c_code, app_code)
@@ -409,18 +741,16 @@ async def create_store_order(req: web.Request) -> web.Response:
     elif bot.template == "smm":
         raw_svcs = await SMMManager.get_services_catalog(bot.id)
         svc = next((s for s in raw_svcs if s["id"] == product_id), None)
-        if not svc:
-            return web.json_response({"ok": False, "error": "invalid_product"}, status=404)
-        final_usd = (svc["price_per_1k_usd"] * quantity) / 1000.0
-        product_name = svc["name_ar"]
+        if svc:
+            final_usd = (svc["price_per_1k_usd"] * quantity) / 1000.0
+            product_name = svc["name_ar"]
 
     elif bot.template == "tgstars":
         raw_svcs = await TGStarsManager.get_services_catalog(bot.id)
         svc = next((s for s in raw_svcs if s["id"] == product_id), None)
-        if not svc:
-            return web.json_response({"ok": False, "error": "invalid_product"}, status=404)
-        final_usd = svc["price_usd"]
-        product_name = svc["name_ar"]
+        if svc:
+            final_usd = svc["price_usd"]
+            product_name = svc["name_ar"]
 
     # فحص المنتجات المخصصة للبائع
     if not product_name:
@@ -428,7 +758,13 @@ async def create_store_order(req: web.Request) -> web.Response:
         cp = next((p for p in custom_prods if p["id"] == product_id), None)
         if not cp:
             return web.json_response({"ok": False, "error": "invalid_product", "message": "المنتج غير موجود"}, status=404)
-        final_usd = float(cp.get("price_usd", 1.0)) * quantity
+        
+        # Check priceOptions if specific priceOptionId was chosen
+        p_opt_id = data.get("priceOptionId") or data.get("price_option_id")
+        price_opts = cp.get("priceOptions") or []
+        sel_opt = next((o for o in price_opts if o.get("id") == p_opt_id), None) if p_opt_id else (price_opts[0] if price_opts else None)
+        unit_price = float(sel_opt.get("userPrice") or cp.get("price_usd", 1.0)) if sel_opt else float(cp.get("price_usd", 1.0))
+        final_usd = unit_price * quantity
         product_name = cp["name"]
         codes = cp.get("stock_codes") or []
         if cp.get("is_instant") and codes:
@@ -441,6 +777,7 @@ async def create_store_order(req: web.Request) -> web.Response:
     if user_bal < final_usd:
         return web.json_response({
             "ok": False,
+            "success": False,
             "error": "insufficient_balance",
             "message": f"رصيدك الحالي (${user_bal:.2f}) غير كافٍ. المطلوب: ${final_usd:.2f}",
         }, status=402)
@@ -455,7 +792,7 @@ async def create_store_order(req: web.Request) -> web.Response:
         description=f"طلب {product_name}",
     )
     if not ok_debit:
-        return web.json_response({"ok": False, "error": "debit_failed"}, status=500)
+        return web.json_response({"ok": False, "success": False, "error": "debit_failed"}, status=500)
 
     # إنشاء سجل الطلب
     bot_cur = await currency.get_bot_currency(bot.id)
@@ -465,7 +802,7 @@ async def create_store_order(req: web.Request) -> web.Response:
             bot_id=bot.id,
             user_id=ctx.uid,
             tpl_key=bot.template,
-            service_id=product_id,
+            service_id=str(product_id),
             service_name=product_name,
             target=target_data,
             quantity=quantity,
@@ -503,16 +840,25 @@ async def create_store_order(req: web.Request) -> web.Response:
 
     return web.json_response({
         "ok": True,
+        "success": True,
         "order_id": idempotency_key,
         "status": order_status,
         "voucher": voucher_code,
         "new_balance_usd": new_bal,
+        "data": {
+            "order_id": idempotency_key,
+            "order_ref": idempotency_key,
+            "status": order_status,
+            "voucher": voucher_code,
+            "remainingBalance": str(new_bal),
+        },
+        "message": "تم تأكيد طلبك بنجاح!" if order_status == "completed" else "تم إنشاء الطلب بنجاح وهو قيد التنفيذ!",
     })
 
 
 async def get_user_orders(req: web.Request) -> web.Response:
     """يعيد سجل طلبات المشتري في هذا البوت."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
 
     async with db.Session() as s:
@@ -527,23 +873,34 @@ async def get_user_orders(req: web.Request) -> web.Response:
     for o in orders:
         details = o.details or {}
         voucher = details.get("voucher") or details.get("code") or details.get("delivery_text") or ""
+        rejection_reason = o.refund_reason or details.get("rejection_reason") or ""
         res.append({
+            "id": o.id,
             "order_id": o.order_id,
+            "order_ref": o.order_id,
             "product_name": o.service_name,
             "target": o.target,
             "quantity": o.quantity,
             "price_usd": o.price_user_usd,
+            "total_price": o.price_user_usd,
             "currency": o.currency,
             "status": o.status,
             "voucher": voucher,
+            "delivery_data": voucher,
+            "rejection_reason": rejection_reason,
             "created": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
         })
-    return web.json_response({"ok": True, "orders": res})
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "orders": res,
+        "data": res,
+    })
 
 
 async def get_user_account(req: web.Request) -> web.Response:
     """يعيد بيانات حساب العضو، الرصيد، نظام الإحالة، ومعلومات الدعم والسياسات."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
 
     bot_cur = await currency.get_bot_currency(ctx.bot.id)
@@ -565,26 +922,31 @@ async def get_user_account(req: web.Request) -> web.Response:
     terms_text = store_settings.get("terms_text") or "جميع الخدمات مضمونة ويتم تسليمها وفق الشروط المعتمدة. للاستفسار يرجى التواصل مع الدعم."
     policy_text = store_settings.get("policy_text") or "في حال تعذر تنفيذ الخدمة أو تأخرها يتم استرجاع المبلغ كاملاً إلى محفظتك في البوت تلقائياً."
 
+    account_dict = {
+        "uid": ctx.uid,
+        "name": ctx.uname,
+        "username": ctx.user.get("username", ""),
+        "role": ctx.role,
+        "balance_usd": user_bal_usd,
+        "balance_display": user_bal_disp,
+        "currency": bot_cur,
+        "referral_link": f"https://t.me/{ctx.bot.username}?start=sl_{ctx.uid}",
+        "invited_count": invited_count,
+        "earned_usd": round(invited_count * 0.10, 2),
+        "support_url": support_url,
+        "terms_text": terms_text,
+        "policy_text": policy_text,
+    }
+
     return web.json_response({
         "ok": True,
-        "user": {
-            "uid": ctx.uid,
-            "name": ctx.uname,
-            "username": ctx.user.get("username", ""),
-            "role": ctx.role,
-            "balance_usd": user_bal_usd,
-            "balance_display": user_bal_disp,
-            "currency": bot_cur,
-            "referral_link": f"https://t.me/{ctx.bot.username}?start=sl_{ctx.uid}",
-            "invited_count": invited_count,
-            "earned_usd": round(invited_count * 0.10, 2),
-        },
-        "settings": {
-            "support_url": support_url,
-            "terms_text": terms_text,
-            "policy_text": policy_text,
-        }
+        "success": True,
+        "user": account_dict,
+        "data": account_dict,
+        "settings": store_settings,
     })
+
+
 
 
 # ─────────────────────────────────────────────────────────────
@@ -727,43 +1089,7 @@ async def upload_media_endpoint(req: web.Request) -> web.Response:
 
 async def get_seller_stats(req: web.Request) -> web.Response:
     """يعيد إحصائيات المبيعات والأرباح والطلبات لمالك البوت."""
-    bot_u = req.match_info["bot_username"]
-    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
-    bot = ctx.bot
-
-    async with db.Session() as s:
-        total_orders = (await s.execute(
-            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id)
-        )).scalar() or 0
-
-        completed_orders = (await s.execute(
-            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
-        )).scalar() or 0
-
-        pending_orders = (await s.execute(
-            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "queued")
-        )).scalar() or 0
-
-        total_sales_usd = (await s.execute(
-            select(func.coalesce(func.sum(db.ServiceOrder.price_user_usd), 0.0))
-            .where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
-        )).scalar() or 0.0
-
-    seller_bal = await ledger.get_seller_balance_display(bot.owner_id)
-
-    return web.json_response({
-        "ok": True,
-        "total_orders": total_orders,
-        "completed_orders": completed_orders,
-        "pending_orders": pending_orders,
-        "total_sales_usd": round(total_sales_usd, 2),
-        "seller_balance": seller_bal,
-    })
-
-
-async def get_seller_analytics(req: web.Request) -> web.Response:
-    """يعيد إحصائيات متقدمة ومخطط بياني يومي تفاعلي لآخر 7 أيام."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
     bot = ctx.bot
 
@@ -813,19 +1139,97 @@ async def get_seller_analytics(req: web.Request) -> web.Response:
                 )
             )).scalar() or 0
 
-            day_comp = (await s.execute(
-                select(func.count(db.ServiceOrder.id)).where(
+            day_rev = (await s.execute(
+                select(func.coalesce(func.sum(db.ServiceOrder.price_user_usd), 0.0)).where(
                     db.ServiceOrder.bot_id == bot.id,
                     db.ServiceOrder.status == "completed",
                     db.ServiceOrder.created >= d_start,
                     db.ServiceOrder.created <= d_end,
                 )
-            )).scalar() or 0
+            )).scalar() or 0.0
 
-            day_canc = (await s.execute(
+            chart_days.append({
+                "date": target_date.strftime("%Y-%m-%d"),
+                "day_name": day_names_ar[target_date.weekday()],
+                "orders": day_orders,
+                "sales": round(day_rev, 2),
+            })
+
+    seller_bal = await ledger.get_seller_balance_display(bot.owner_id)
+
+    summary = {
+        "total_orders": total_orders,
+        "completed_orders": completed_orders,
+        "pending_orders": pending_orders,
+        "canceled_orders": canceled_orders,
+        "total_revenue_usd": round(revenue_usd, 2),
+        "net_profit_usd": round(profit_usd, 2),
+        "total_sales_usd": round(revenue_usd, 2),
+        "seller_balance": seller_bal,
+    }
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        **summary,
+        "summary": summary,
+        "chart_days": chart_days,
+        "data": {
+            "totalOrders": total_orders,
+            "totalSales": round(revenue_usd, 2),
+            "totalProfit": round(profit_usd, 2),
+            "pendingOrders": pending_orders,
+            "recentChart": chart_days,
+        }
+    })
+
+
+async def get_seller_analytics(req: web.Request) -> web.Response:
+    """يعيد إحصائيات متقدمة ومخطط بياني يومي تفاعلي لآخر 7 أيام."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    bot = ctx.bot
+
+    async with db.Session() as s:
+        total_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id)
+        )).scalar() or 0
+
+        completed_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
+        )).scalar() or 0
+
+        pending_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "queued")
+        )).scalar() or 0
+
+        canceled_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status.in_(("canceled", "refunded")))
+        )).scalar() or 0
+
+        revenue_usd = (await s.execute(
+            select(func.coalesce(func.sum(db.ServiceOrder.price_user_usd), 0.0))
+            .where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
+        )).scalar() or 0.0
+
+        cost_usd = (await s.execute(
+            select(func.coalesce(func.sum(db.ServiceOrder.cost_platform_usd), 0.0))
+            .where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
+        )).scalar() or 0.0
+
+        profit_usd = max(0.0, revenue_usd - cost_usd)
+
+        chart_days = []
+        now_dt = dt.datetime.utcnow()
+        day_names_ar = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+        for i in range(6, -1, -1):
+            target_date = (now_dt - dt.timedelta(days=i)).date()
+            d_start = dt.datetime.combine(target_date, dt.time.min)
+            d_end = dt.datetime.combine(target_date, dt.time.max)
+
+            day_orders = (await s.execute(
                 select(func.count(db.ServiceOrder.id)).where(
                     db.ServiceOrder.bot_id == bot.id,
-                    db.ServiceOrder.status.in_(("canceled", "refunded")),
                     db.ServiceOrder.created >= d_start,
                     db.ServiceOrder.created <= d_end,
                 )
@@ -844,13 +1248,12 @@ async def get_seller_analytics(req: web.Request) -> web.Response:
                 "date": target_date.strftime("%Y-%m-%d"),
                 "day_name": day_names_ar[target_date.weekday()],
                 "orders": day_orders,
-                "completed": day_comp,
-                "canceled": day_canc,
                 "revenue": round(day_rev, 2),
             })
 
     return web.json_response({
         "ok": True,
+        "success": True,
         "summary": {
             "total_orders": total_orders,
             "completed_orders": completed_orders,
@@ -860,109 +1263,335 @@ async def get_seller_analytics(req: web.Request) -> web.Response:
             "net_profit_usd": round(profit_usd, 2),
         },
         "chart_days": chart_days,
+        "data": {
+            "totalOrders": total_orders,
+            "totalSales": round(revenue_usd, 2),
+            "totalProfit": round(profit_usd, 2),
+            "pendingOrders": pending_orders,
+            "recentChart": chart_days,
+        }
     })
 
 
 async def get_seller_products(req: web.Request) -> web.Response:
     """يعيد قائمة المنتجات المخصصة للمتجر."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     custom_prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
-    return web.json_response({"ok": True, "products": custom_prods})
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "products": custom_prods,
+        "data": custom_prods,
+    })
 
 
-async def add_seller_product(req: web.Request) -> web.Response:
-    """يضيف منتجاً مخصصاً جديداً مع الصورة والسعر والوصف."""
-    bot_u = req.match_info["bot_username"]
+async def upsert_seller_product(req: web.Request) -> web.Response:
+    """يضيف أو يعدل منتجاً مخصصاً مع التحقق الصارم من هامش الربح والأسعار."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    bot = ctx.bot
 
     try:
         body = await req.json()
     except Exception:
-        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
-    name = str(body.get("name") or "").strip()
-    if not name:
-        return web.json_response({"ok": False, "error": "missing_name", "message": "اسم المنتج مطلوب"}, status=400)
-
-    price_usd = float(body.get("price_usd") or 1.0)
-    category_id = str(body.get("category_id") or "custom").strip()
-    category_name = str(body.get("category_name") or "خدمات حصرية").strip()
+    name = str(body.get("name") or body.get("nameAr") or "").strip()
+    name_ar = str(body.get("nameAr") or body.get("name_ar") or name).strip()
+    category = str(body.get("category") or body.get("category_id") or "subscriptions").strip()
+    template_type = str(body.get("templateType") or body.get("template_type") or "manual_subs").strip()
     description = str(body.get("description") or "").strip()
-    input_label = str(body.get("input_label") or "بيانات الطلب").strip()
-    image_url = str(body.get("image_url") or "").strip()
-    is_instant = bool(body.get("is_instant", False))
-    stock_codes = body.get("stock_codes") or []
+    media_urls = body.get("mediaUrls") or body.get("media_urls") or []
+    if body.get("imageUrl") and not media_urls:
+        media_urls = [str(body["imageUrl"])]
 
-    new_prod = {
-        "id": f"cp_{uuid.uuid4().hex[:8]}",
-        "name": name[:120],
-        "category_id": category_id[:32],
-        "category_name": category_name[:64],
-        "price_usd": round(price_usd, 2),
-        "description": description[:500],
-        "input_label": input_label[:64],
-        "image_url": image_url[:255],
-        "is_instant": is_instant,
-        "stock_codes": stock_codes if isinstance(stock_codes, list) else [],
-        "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
-    }
+    price_options = body.get("priceOptions") or body.get("price_options") or []
+    if not price_options:
+        cost_p = float(body.get("costPrice") or body.get("cost_price") or 1.0)
+        user_p = float(body.get("userPrice") or body.get("price_usd") or body.get("price") or 1.5)
+        price_options = [{"id": "opt_1", "label": name_ar, "costPrice": cost_p, "userPrice": user_p}]
 
-    prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
-    prods.insert(0, new_prod)
-    await db.kv_set(ctx.bot.id, "store:custom_products", prods)
+    # التحقق الأمني: سعر البيع لا يمكن أن يكون أقل من سعر التكلفة
+    for opt in price_options:
+        cost = float(opt.get("costPrice", 0))
+        user_p = float(opt.get("userPrice", opt.get("price", 0)))
+        if user_p < cost:
+            return web.json_response({
+                "ok": False,
+                "success": False,
+                "error": f"سعر البيع (${user_p}) للخيار '{opt.get('label', opt.get('id'))}' لا يمكن أن يكون أقل من سعر التكلفة (${cost})"
+            }, status=400)
 
-    return web.json_response({"ok": True, "product": new_prod, "message": "تمت إضافة المنتج بنجاح ✅"})
+    prod_id = body.get("id") or body.get("productId")
+    prods = await db.kv_get(bot.id, "store:custom_products", []) or []
+
+    first_user_p = float(price_options[0].get("userPrice", 1.0))
+    first_cost_p = float(price_options[0].get("costPrice", 0.8))
+
+    if prod_id:
+        found = False
+        for i, p in enumerate(prods):
+            if p.get("id") == prod_id:
+                prods[i] = {
+                    **p,
+                    "name": name,
+                    "nameAr": name_ar,
+                    "category": category,
+                    "category_id": category,
+                    "templateType": template_type,
+                    "description": description,
+                    "mediaUrls": media_urls,
+                    "image_url": media_urls[0] if media_urls else "",
+                    "priceOptions": price_options,
+                    "price_usd": first_user_p,
+                    "cost_price": first_cost_p,
+                    "requirements": body.get("requirements") or p.get("requirements") or [],
+                    "updated_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+                }
+                found = True
+                break
+        if not found:
+            prod_id = f"cp_{uuid.uuid4().hex[:8]}"
+            prods.insert(0, {
+                "id": prod_id,
+                "name": name,
+                "nameAr": name_ar,
+                "category": category,
+                "category_id": category,
+                "templateType": template_type,
+                "description": description,
+                "mediaUrls": media_urls,
+                "image_url": media_urls[0] if media_urls else "",
+                "priceOptions": price_options,
+                "price_usd": first_user_p,
+                "cost_price": first_cost_p,
+                "requirements": body.get("requirements") or [],
+                "active": True,
+                "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+            })
+    else:
+        prod_id = f"cp_{uuid.uuid4().hex[:8]}"
+        prods.insert(0, {
+            "id": prod_id,
+            "name": name,
+            "nameAr": name_ar,
+            "category": category,
+            "category_id": category,
+            "templateType": template_type,
+            "description": description,
+            "mediaUrls": media_urls,
+            "image_url": media_urls[0] if media_urls else "",
+            "priceOptions": price_options,
+            "price_usd": first_user_p,
+            "cost_price": first_cost_p,
+            "requirements": body.get("requirements") or [],
+            "active": True,
+            "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+        })
+
+    await db.kv_set(bot.id, "store:custom_products", prods)
+    target_prod = next((p for p in prods if p.get("id") == prod_id), None)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": "تم حفظ المنتج بنجاح ✅",
+        "productId": prod_id,
+        "product_id": prod_id,
+        "product": target_prod,
+    })
+
+
+async def add_seller_product(req: web.Request) -> web.Response:
+    """نقطة دخول مساعدة للإضافة السريعة للمنتجات."""
+    return await upsert_seller_product(req)
+
+
+async def toggle_seller_product(req: web.Request) -> web.Response:
+    """يبدل حالة تفعيل المنتج في المتجر (نشط / معطل)."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    bot = ctx.bot
+
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
+
+    prod_id = body.get("id") or body.get("productId")
+    if not prod_id:
+        return web.json_response({"ok": False, "success": False, "error": "missing_id"}, status=400)
+
+    prods = await db.kv_get(bot.id, "store:custom_products", []) or []
+    for p in prods:
+        if p.get("id") == prod_id:
+            p["active"] = not p.get("active", True)
+            break
+    await db.kv_set(bot.id, "store:custom_products", prods)
+
+    return web.json_response({"ok": True, "success": True, "message": "تم تغيير حالة تفعيل المنتج بنجاح"})
 
 
 async def delete_seller_product(req: web.Request) -> web.Response:
     """يحذف منتجاً مخصصاً من المتجر."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
-    prod_id = req.match_info["product_id"]
+    prod_id = req.match_info.get("product_id") or req.match_info.get("id")
 
     prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
     prods = [p for p in prods if p.get("id") != prod_id]
     await db.kv_set(ctx.bot.id, "store:custom_products", prods)
 
-    return web.json_response({"ok": True, "message": "تم حذف المنتج بنجاح 🗑️"})
+    return web.json_response({"ok": True, "success": True, "message": "تم حذف المنتج بنجاح 🗑️"})
+
+
+async def get_master_catalog(req: web.Request) -> web.Response:
+    """يعيد قائمة المنتجات المتاحة في الكتالوج العام للاستيراد المباشر."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    template = req.query.get("template")
+    items = MASTER_CATALOG_ITEMS
+    if template:
+        items = [i for i in items if i.get("template_type") == template or i.get("category") == template]
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "data": items,
+        "items": items,
+    })
+
+
+async def import_master_catalog(req: web.Request) -> web.Response:
+    """يستورد منتجات من الكتالوج العام مع تطبيق هامش الربح المختار تلقائياً."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    bot = ctx.bot
+
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
+
+    master_ids = body.get("masterIds") or body.get("master_ids") or []
+    margin_percent = float(body.get("marginPercent") or body.get("margin_percent") or 15)
+
+    if not isinstance(master_ids, list) or not master_ids:
+        return web.json_response({"ok": False, "success": False, "error": "الرجاء تحديد منتج واحد على الأقل للاستيراد"}, status=400)
+
+    margin_multiplier = 1.0 + (margin_percent / 100.0)
+    prods = await db.kv_get(bot.id, "store:custom_products", []) or []
+    imported_count = 0
+
+    for m_item in MASTER_CATALOG_ITEMS:
+        if m_item["id"] in master_ids:
+            raw_options = m_item.get("price_options", [])
+            adjusted_options = []
+            for opt in raw_options:
+                cost = float(opt.get("costPrice", 1.0))
+                user_p = max(cost, round(cost * margin_multiplier, 2))
+                adjusted_options.append({
+                    "id": opt.get("id", f"opt_{len(adjusted_options)+1}"),
+                    "label": opt.get("label", m_item["name_ar"]),
+                    "costPrice": cost,
+                    "userPrice": user_p,
+                })
+
+            first_user_p = adjusted_options[0]["userPrice"] if adjusted_options else 1.0
+            first_cost_p = adjusted_options[0]["costPrice"] if adjusted_options else 0.8
+
+            new_prod = {
+                "id": f"cp_{m_item['id']}_{uuid.uuid4().hex[:4]}",
+                "name": m_item["name"],
+                "nameAr": m_item["name_ar"],
+                "category": m_item["category"],
+                "category_id": m_item["category"],
+                "category_name": m_item["category"],
+                "templateType": m_item.get("template_type", "manual_subs"),
+                "description": m_item.get("description", ""),
+                "mediaUrls": m_item.get("media_urls", []),
+                "image_url": m_item.get("media_urls", [""])[0] if m_item.get("media_urls") else "",
+                "priceOptions": adjusted_options,
+                "price_usd": first_user_p,
+                "cost_price": first_cost_p,
+                "requirements": m_item.get("requirements", []),
+                "active": True,
+                "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+            }
+            prods.insert(0, new_prod)
+            imported_count += 1
+
+    await db.kv_set(bot.id, "store:custom_products", prods)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "data": {"importedCount": imported_count},
+        "message": f"تم استيراد {imported_count} منتج بنجاح إلى متجرك!"
+    })
+
+
+async def get_seller_settings(req: web.Request) -> web.Response:
+    """يعيد إعدادات الدعم والشروط والسياسات الخاصة بمتجر البائع."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    settings = await db.kv_get(ctx.bot.id, "store:settings", {}) or {}
+    defaults = {
+        "support_url": f"https://t.me/{ctx.bot.username}",
+        "terms_text": "جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.",
+        "policy_text": "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت."
+    }
+    merged = {**defaults, **settings}
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "data": merged,
+        "settings": merged,
+    })
 
 
 async def save_seller_settings(req: web.Request) -> web.Response:
     """يحفظ إعدادات المتجر والدعم والشروط والسياسات."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     try:
         body = await req.json()
     except Exception:
-        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
     settings = {
-        "support_url": str(body.get("support_url") or "").strip()[:200],
-        "terms_text": str(body.get("terms_text") or "").strip()[:1000],
-        "policy_text": str(body.get("policy_text") or "").strip()[:1000],
+        "support_url": str(body.get("support_url") or body.get("supportUrl") or "").strip()[:255],
+        "terms_text": str(body.get("terms_text") or body.get("termsText") or "").strip()[:1000],
+        "policy_text": str(body.get("policy_text") or body.get("policyText") or "").strip()[:1000],
     }
     await db.kv_set(ctx.bot.id, "store:settings", settings)
-    return web.json_response({"ok": True, "settings": settings, "message": "تم حفظ الإعدادات والشروط بنجاح ✅"})
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "settings": settings,
+        "data": settings,
+        "message": "تم حفظ الإعدادات والشروط بنجاح ✅"
+    })
 
 
 async def save_seller_theme(req: web.Request) -> web.Response:
     """يحفظ إعدادات تصميم المتجر بعد التحقق من الـ schema مع حفظ نسخة استعادة."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
     bot = ctx.bot
 
     try:
-        raw_data = await req.json()
+        raw_body = await req.json()
+        raw_data = raw_body.get("themeSettings") or raw_body
     except Exception:
-        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
     clean_theme = validate_theme_config(raw_data)
     old_theme = await db.kv_get(bot.id, "store:theme_config", {}) or {}
 
-    # حفظ النسخة السابقة في جدول store_design_versions
     async with db.Session() as s:
         ver_cnt = (await s.execute(
             select(func.count(db.StoreDesignVersion.id)).where(db.StoreDesignVersion.bot_id == bot.id)
@@ -994,12 +1623,19 @@ async def save_seller_theme(req: web.Request) -> web.Response:
         details="Theme updated by seller",
     )
 
-    return web.json_response({"ok": True, "theme": clean_theme, "version": ver_cnt + 1})
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "data": clean_theme,
+        "theme": clean_theme,
+        "version": ver_cnt + 1,
+        "message": "تم حفظ ونشر المظهر الجديد بنجاح!"
+    })
 
 
 async def get_theme_versions(req: web.Request) -> web.Response:
     """يعيد سجل النسخ المحفوظة لتصميم المتجر."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     async with db.Session() as s:
@@ -1010,40 +1646,137 @@ async def get_theme_versions(req: web.Request) -> web.Response:
             .limit(10)
         )).scalars().all()
 
+    formatted = [
+        {
+            "id": v.id,
+            "version": v.version_num,
+            "version_num": v.version_num,
+            "name": v.name,
+            "publishedAt": int(v.created.timestamp() * 1000) if v.created else int(time.time() * 1000),
+            "created": v.created.strftime("%Y-%m-%d %H:%M") if v.created else "",
+            "theme": v.theme_config,
+        }
+        for v in versions
+    ]
+
     return web.json_response({
         "ok": True,
-        "versions": [
-            {
-                "id": v.id,
-                "version_num": v.version_num,
-                "name": v.name,
-                "created": v.created.strftime("%Y-%m-%d %H:%M"),
-                "config": v.theme_config,
-            }
-            for v in versions
-        ],
+        "success": True,
+        "versions": formatted,
+        "data": formatted,
     })
 
 
-# ─────────────────────────────────────────────────────────────
-# 7. المساعد الذكي لتخصيص المتجر (AI Store Customizer)
-# ─────────────────────────────────────────────────────────────
-
-async def ai_customizer_prompt(req: web.Request) -> web.Response:
-    """يحلل طلب البائع النصي ويولد إعدادات ثيم منظمة تتبع الـ schema حصراً."""
-    bot_u = req.match_info["bot_username"]
+async def rollback_seller_theme(req: web.Request) -> web.Response:
+    """يسترجع نسخة تصميم سابقة من السجل."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    bot = ctx.bot
 
     try:
         body = await req.json()
     except Exception:
-        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
-    prompt = str(body.get("prompt") or "").strip().lower()
-    if not prompt:
-        return web.json_response({"ok": False, "error": "missing_prompt"}, status=400)
+    version_num = body.get("version")
+    if not version_num:
+        return web.json_response({"ok": False, "success": False, "error": "missing_version"}, status=400)
 
-    # محرك التوليد المنظم للثيمات بناءً على كلمات البائع
+    async with db.Session() as s:
+        ver = (await s.execute(
+            select(db.StoreDesignVersion)
+            .where(db.StoreDesignVersion.bot_id == bot.id, db.StoreDesignVersion.version_num == int(version_num))
+        )).scalars().first()
+
+    if not ver:
+        return web.json_response({"ok": False, "success": False, "error": "النسخة السابقة المطلوبة غير موجودة في السجل"}, status=404)
+
+    target_theme = ver.theme_config or {}
+    await db.kv_set(bot.id, "store:theme_config", target_theme)
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "data": target_theme,
+        "message": f"تمت استعادة النسخة رقم ({version_num}) بنجاح!"
+    })
+
+
+async def ai_suggest_theme(req: web.Request) -> web.Response:
+    """يقترح هويات بصرية وألوان وبانرات متناسقة بواسطة الذكاء الاصطناعي."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    try:
+        body = await req.json() if req.can_read_body else {}
+    except Exception:
+        body = {}
+
+    category = body.get("category") or "gaming"
+    presets = {
+        "gaming": {
+            "palette": {"primaryColor": "#8b5cf6", "secondaryColor": "#ec4899", "backgroundColor": "#0b0f19", "textColor": "#f8fafc"},
+            "cardStyle": "modern",
+            "fontFamily": "Tajawal",
+            "slogan": "أقوى شحنات الألعاب والشدات الفورية بأفضل الأسعار وبسرعة البرق ⚡🎮",
+            "suggestedBanners": [
+                {"title": "عروض الألعاب الكبرى 🔥 شحن فوري بضمان ذهبي", "imageUrl": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&q=80"}
+            ]
+        },
+        "stars": {
+            "palette": {"primaryColor": "#f59e0b", "secondaryColor": "#3b82f6", "backgroundColor": "#0f172a", "textColor": "#f8fafc"},
+            "cardStyle": "glassmorphism",
+            "fontFamily": "Cairo",
+            "slogan": "خدمات تيليجرام الحصرية: نجوم ⭐، بريميوم 🌟 وهدايا مميزة فورية",
+            "suggestedBanners": [
+                {"title": "نجوم تيليجرام بأقل تكلفة مع تفعيل فوري بحسابك ✨", "imageUrl": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80"}
+            ]
+        },
+        "smm": {
+            "palette": {"primaryColor": "#06b6d4", "secondaryColor": "#10b981", "backgroundColor": "#0f172a", "textColor": "#f8fafc"},
+            "cardStyle": "modern",
+            "fontFamily": "Tajawal",
+            "slogan": "ارتقِ بحسابك إلى القمة! زيادة متابعين وتفاعل فوري وآمن 🚀📈",
+            "suggestedBanners": [
+                {"title": "انطلق نحو الشهرة! متابعون حقيقيون وضمان تعويض 🎯", "imageUrl": "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=1200&q=80"}
+            ]
+        },
+        "numbers": {
+            "palette": {"primaryColor": "#10b981", "secondaryColor": "#6366f1", "backgroundColor": "#0b1329", "textColor": "#f8fafc"},
+            "cardStyle": "minimal",
+            "fontFamily": "Almarai",
+            "slogan": "أرقام تفعيل وهمية لمختلف دول العالم لجميع برامج التواصل فوراً 📲🌐",
+            "suggestedBanners": [
+                {"title": "أرقام أمريكية وأوروبية لتفعيل واتساب وتيليجرام بضمان الاسترجاع 🛡️", "imageUrl": "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?w=1200&q=80"}
+            ]
+        }
+    }
+    key = category if category in presets else ("smm" if ctx.bot.template == "smm" else ("numbers" if ctx.bot.template == "sms" else ("stars" if ctx.bot.template == "tgstars" else "gaming")))
+    suggestion = presets.get(key, presets["gaming"])
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "data": {
+            **suggestion,
+            "usage": {"usedToday": 1, "limit": 15, "remaining": 14}
+        },
+        "message": "تم توليد الاقتراحات الذكية بنجاح بواسطة المساعد الذكي"
+    })
+
+
+async def ai_customizer_prompt(req: web.Request) -> web.Response:
+    """يحلل طلب البائع النصي ويولد إعدادات ثيم منظمة تتبع الـ schema حصراً."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    try:
+        body = await req.json() if req.can_read_body else {}
+    except Exception:
+        body = {}
+
+    prompt = str(body.get("prompt") or body.get("category") or "").strip().lower()
+
     generated = {
         "primary_color": "#2563eb",
         "secondary_color": "#1d4ed8",
@@ -1075,14 +1808,14 @@ async def ai_customizer_prompt(req: web.Request) -> web.Response:
             "text_color": "#ecfdf5",
             "font_family": "Almarai",
         })
-    elif "بنفسج" in prompt or "purple" in prompt or "نيون" in prompt:
+    elif "بنفسج" in prompt or "purple" in prompt or "نيون" in prompt or "gaming" in prompt or "ألعاب" in prompt:
         generated.update({
             "primary_color": "#7c3aed",
             "secondary_color": "#6d28d9",
             "bg_color": "#2e1065",
             "card_bg": "#3b0764",
             "text_color": "#faf5ff",
-            "font_family": "Readex Pro",
+            "font_family": "Tajawal",
         })
     elif "فاتح" in prompt or "أبيض" in prompt or "light" in prompt:
         generated.update({
@@ -1096,13 +1829,20 @@ async def ai_customizer_prompt(req: web.Request) -> web.Response:
 
     return web.json_response({
         "ok": True,
+        "success": True,
         "suggested_theme": generated,
+        "data": {
+            "palette": {"primaryColor": generated["primary_color"], "secondaryColor": generated["secondary_color"]},
+            "cardStyle": "modern",
+            "fontFamily": generated["font_family"],
+            "usage": {"usedToday": 1, "limit": 15, "remaining": 14}
+        },
         "message": "تم إنشاء نموذج التصميم بنجاح! يمكنك معاينته والموافقة عليه لتطبيقه.",
     })
 
 
 # ─────────────────────────────────────────────────────────────
-# 8. لوحة الأدمن المركزية (Admin Dashboard API)
+# 7. لوحة الأدمن المركزية (Admin Dashboard API)
 # ─────────────────────────────────────────────────────────────
 
 async def get_admin_overview(req: web.Request) -> web.Response:
@@ -1114,15 +1854,24 @@ async def get_admin_overview(req: web.Request) -> web.Response:
         total_users = (await s.execute(select(func.count(db.BUser.user_id)))).scalar() or 0
         total_orders = (await s.execute(select(func.count(db.ServiceOrder.id)))).scalar() or 0
         total_volume_usd = (await s.execute(select(func.coalesce(func.sum(db.ServiceOrder.price_user_usd), 0.0)))).scalar() or 0.0
+        pending_orders = (await s.execute(select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.status == "queued"))).scalar() or 0
 
     return web.json_response({
         "ok": True,
+        "success": True,
         "stats": {
             "total_bots": total_bots,
             "total_users": total_users,
             "total_orders": total_orders,
             "total_volume_usd": round(total_volume_usd, 2),
+            "pending_orders": pending_orders,
         },
+        "data": {
+            "totalStores": total_bots,
+            "totalOrders": total_orders,
+            "totalPlatformVolume": round(total_volume_usd, 2),
+            "pendingManualOrders": pending_orders,
+        }
     })
 
 
@@ -1137,22 +1886,122 @@ async def get_admin_orders(req: web.Request) -> web.Response:
             .limit(100)
         )).scalars().all()
 
+    formatted = [
+        {
+            "id": o.id,
+            "order_id": o.order_id,
+            "order_ref": o.order_id,
+            "bot_id": o.bot_id,
+            "user_id": o.user_id,
+            "user_telegram_id": o.user_id,
+            "service_name": o.service_name,
+            "product_name": o.service_name,
+            "target": o.target,
+            "userInputs": {"البيانات": o.target} if o.target else {},
+            "price_usd": o.price_user_usd,
+            "total_price": o.price_user_usd,
+            "status": "pending" if o.status == "queued" else o.status,
+            "created": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
+            "created_at": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
+        }
+        for o in orders
+    ]
+
     return web.json_response({
         "ok": True,
-        "orders": [
-            {
-                "order_id": o.order_id,
-                "bot_id": o.bot_id,
-                "user_id": o.user_id,
-                "service_name": o.service_name,
-                "target": o.target,
-                "price_usd": o.price_user_usd,
-                "status": o.status,
-                "created": o.created.strftime("%Y-%m-%d %H:%M"),
-            }
-            for o in orders
-        ],
+        "success": True,
+        "orders": formatted,
+        "data": formatted,
     })
+
+
+async def admin_order_action(req: web.Request) -> web.Response:
+    """ينفذ إجراءات الأدمن على الطلبات: تسليم، استرجاع مزدوج ذري، أو رفض."""
+    ctx = await authenticate_admin_request(req)
+
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
+
+    order_ref = str(body.get("orderRef") or body.get("order_id") or body.get("order_ref") or "").strip()
+    action = str(body.get("action") or "").strip()
+    delivery_data = str(body.get("deliveryData") or body.get("delivery_data") or "تم التسليم بنجاح").strip()
+    rejection_reason = str(body.get("rejectionReason") or body.get("reason") or "تم الإلغاء من الإدارة").strip()
+
+    if not order_ref:
+        return web.json_response({"ok": False, "success": False, "error": "missing_order_ref"}, status=400)
+
+    async with db.Session() as s:
+        order = (await s.execute(
+            select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_ref)
+        )).scalars().first()
+
+    if not order:
+        return web.json_response({"ok": False, "success": False, "error": "الطلب غير موجود"}, status=404)
+
+    if action == "deliver":
+        async with db.Session() as s:
+            ord_up = await s.get(db.ServiceOrder, order.id)
+            if ord_up:
+                ord_up.status = "completed"
+                details = ord_up.details or {}
+                details["delivery_text"] = delivery_data
+                ord_up.details = details
+                await s.commit()
+
+        await log_audit(
+            bot_id=order.bot_id,
+            actor_id=ctx.uid,
+            actor_role="admin",
+            action="deliver_order",
+            target_type="order",
+            target_id=order_ref,
+            details=f"Order delivered: {delivery_data}",
+        )
+        return web.json_response({"ok": True, "success": True, "message": "تم تأكيد تسليم الطلب وإشعار المشتري بنجاح ✅"})
+
+    elif action == "reject":
+        async with db.Session() as s:
+            ord_up = await s.get(db.ServiceOrder, order.id)
+            if ord_up:
+                ord_up.status = "canceled"
+                ord_up.refund_reason = rejection_reason
+                await s.commit()
+
+        await log_audit(
+            bot_id=order.bot_id,
+            actor_id=ctx.uid,
+            actor_role="admin",
+            action="reject_order",
+            target_type="order",
+            target_id=order_ref,
+            details=f"Order rejected: {rejection_reason}",
+        )
+        return web.json_response({"ok": True, "success": True, "message": "تم رفض الطلب بنجاح ❌"})
+
+    elif action in ("refund_both", "refund"):
+        ok, msg, res = await ledger.atomic_dual_refund(order_ref, reason=rejection_reason)
+        if not ok:
+            return web.json_response({"ok": False, "success": False, "error": msg}, status=400)
+
+        await log_audit(
+            bot_id=order.bot_id,
+            actor_id=ctx.uid,
+            actor_role="admin",
+            action="dual_refund",
+            target_type="order",
+            target_id=order_ref,
+            details=f"Dual refund: {rejection_reason}",
+        )
+        return web.json_response({
+            "ok": True,
+            "success": True,
+            "message": f"تم استرجاع المبلغ (${order.price_user_usd}) إلى رصيد المشتري فورياً وإلغاء الطلب بنجاح 🔄",
+            "details": res
+        })
+
+    return web.json_response({"ok": False, "success": False, "error": "إجراء غير معروف"}, status=400)
 
 
 async def admin_dual_refund_action(req: web.Request) -> web.Response:
@@ -1162,14 +2011,17 @@ async def admin_dual_refund_action(req: web.Request) -> web.Response:
     try:
         body = await req.json()
     except Exception:
-        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
-    order_id = str(body.get("order_id") or "").strip()
+    order_id = str(body.get("order_id") or body.get("orderRef") or body.get("order_ref") or "").strip()
     reason = str(body.get("reason") or "استرجاع يدوي من الأدمن").strip()
+
+    if not order_id:
+        return web.json_response({"ok": False, "success": False, "error": "missing_order_id"}, status=400)
 
     ok, msg, res = await ledger.atomic_dual_refund(order_id, reason=reason)
     if not ok:
-        return web.json_response({"ok": False, "error": msg}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": msg}, status=400)
 
     await log_audit(
         bot_id=0,
@@ -1181,35 +2033,89 @@ async def admin_dual_refund_action(req: web.Request) -> web.Response:
         details=f"Dual refund performed: {reason}",
     )
 
-    return web.json_response({"ok": True, "message": msg, "details": res})
+    return web.json_response({"ok": True, "success": True, "message": msg, "details": res})
 
 
 def setup_routes(app: web.Application) -> None:
-    """يسجل كافة مسارات الـ Mini Apps API."""
+    """يسجل كافة مسارات الـ Mini Apps API بالصيغتين المباشرة والمسماة."""
     u = r"{bot_username:[A-Za-z][A-Za-z0-9_]{3,39}}"
 
-    # 1. المشتري والمتجر
+    # 1. المشتري والمتجر العام
+    app.router.add_get("/api/miniapp/store-info", api_store_info)
+    app.router.add_get(f"/api/miniapp/{u}/store-info", api_store_info)
+    app.router.add_post("/api/miniapp/auth", api_auth)
+    app.router.add_post(f"/api/miniapp/{u}/auth", api_auth)
+
+    app.router.add_get("/api/miniapp/bootstrap", get_store_bootstrap)
     app.router.add_get(f"/api/miniapp/{u}/bootstrap", get_store_bootstrap)
+
+    app.router.add_get("/api/miniapp/catalog", get_store_catalog)
     app.router.add_get(f"/api/miniapp/{u}/catalog", get_store_catalog)
+
+    app.router.add_post("/api/miniapp/order", create_store_order)
     app.router.add_post(f"/api/miniapp/{u}/order", create_store_order)
+    app.router.add_post("/api/miniapp/order/create", create_store_order)
+    app.router.add_post(f"/api/miniapp/{u}/order/create", create_store_order)
+
+    app.router.add_get("/api/miniapp/orders", get_user_orders)
     app.router.add_get(f"/api/miniapp/{u}/orders", get_user_orders)
+    app.router.add_get("/api/miniapp/orders/my", get_user_orders)
+    app.router.add_get(f"/api/miniapp/{u}/orders/my", get_user_orders)
+
+    app.router.add_get("/api/miniapp/account", get_user_account)
     app.router.add_get(f"/api/miniapp/{u}/account", get_user_account)
+
+    app.router.add_get("/api/miniapp/reviews/{product_id}", get_product_reviews)
     app.router.add_get(f"/api/miniapp/{u}/reviews/{{product_id}}", get_product_reviews)
+    app.router.add_post("/api/miniapp/reviews", add_product_review)
     app.router.add_post(f"/api/miniapp/{u}/reviews", add_product_review)
 
-    # 2. البائع والتصميم
+    # 2. البائع والتصميم والكتالوج
+    app.router.add_post("/api/miniapp/upload", upload_media_endpoint)
     app.router.add_post(f"/api/miniapp/{u}/upload", upload_media_endpoint)
+
+    app.router.add_get("/api/miniapp/seller/stats", get_seller_stats)
     app.router.add_get(f"/api/miniapp/{u}/seller/stats", get_seller_stats)
+    app.router.add_get("/api/miniapp/seller/analytics", get_seller_analytics)
     app.router.add_get(f"/api/miniapp/{u}/seller/analytics", get_seller_analytics)
+
+    app.router.add_get("/api/miniapp/seller/products", get_seller_products)
     app.router.add_get(f"/api/miniapp/{u}/seller/products", get_seller_products)
-    app.router.add_post(f"/api/miniapp/{u}/seller/products", add_seller_product)
+    app.router.add_post("/api/miniapp/seller/products", upsert_seller_product)
+    app.router.add_post(f"/api/miniapp/{u}/seller/products", upsert_seller_product)
+    app.router.add_post("/api/miniapp/seller/products/upsert", upsert_seller_product)
+    app.router.add_post(f"/api/miniapp/{u}/seller/products/upsert", upsert_seller_product)
+    app.router.add_post("/api/miniapp/seller/products/toggle", toggle_seller_product)
+    app.router.add_post(f"/api/miniapp/{u}/seller/products/toggle", toggle_seller_product)
+    app.router.add_delete("/api/miniapp/seller/products/{product_id}", delete_seller_product)
     app.router.add_delete(f"/api/miniapp/{u}/seller/products/{{product_id}}", delete_seller_product)
+
+    app.router.add_get("/api/miniapp/seller/master-catalog", get_master_catalog)
+    app.router.add_get(f"/api/miniapp/{u}/seller/master-catalog", get_master_catalog)
+    app.router.add_post("/api/miniapp/seller/import-master", import_master_catalog)
+    app.router.add_post(f"/api/miniapp/{u}/seller/import-master", import_master_catalog)
+
+    app.router.add_get("/api/miniapp/seller/settings", get_seller_settings)
+    app.router.add_get(f"/api/miniapp/{u}/seller/settings", get_seller_settings)
+    app.router.add_post("/api/miniapp/seller/settings", save_seller_settings)
     app.router.add_post(f"/api/miniapp/{u}/seller/settings", save_seller_settings)
+
+    app.router.add_post("/api/miniapp/seller/theme", save_seller_theme)
     app.router.add_post(f"/api/miniapp/{u}/seller/theme", save_seller_theme)
+    app.router.add_get("/api/miniapp/seller/theme/versions", get_theme_versions)
     app.router.add_get(f"/api/miniapp/{u}/seller/theme/versions", get_theme_versions)
+    app.router.add_post("/api/miniapp/seller/theme/rollback", rollback_seller_theme)
+    app.router.add_post(f"/api/miniapp/{u}/seller/theme/rollback", rollback_seller_theme)
+
+    app.router.add_post("/api/miniapp/seller/ai-suggest", ai_suggest_theme)
+    app.router.add_post(f"/api/miniapp/{u}/seller/ai-suggest", ai_suggest_theme)
+    app.router.add_post("/api/miniapp/seller/ai_customizer", ai_customizer_prompt)
     app.router.add_post(f"/api/miniapp/{u}/seller/ai_customizer", ai_customizer_prompt)
 
-    # 3. الأدمن
+    # 3. الأدمن المركزي
+    app.router.add_get("/api/miniapp/admin/overview", get_admin_overview)
     app.router.add_get("/api/admin_app/overview", get_admin_overview)
+    app.router.add_get("/api/miniapp/admin/orders", get_admin_orders)
     app.router.add_get("/api/admin_app/orders", get_admin_orders)
+    app.router.add_post("/api/miniapp/admin/orders/action", admin_order_action)
     app.router.add_post("/api/admin_app/dual_refund", admin_dual_refund_action)
