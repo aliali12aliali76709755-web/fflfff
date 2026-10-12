@@ -572,7 +572,7 @@ async def test_buyer_account_and_seller_features():
         cat_data = await r_cat.json()
         assert any(p["id"] == prod_id for p in cat_data["products"])
 
-        # 7. البائع يحفظ إعدادات المتجر والدعم والشروط
+        # 7. البائع يحفظ إعدادات المتجر والدعم والشروط وقناة الطلبات
         r_sett = await client.post(
             f"/api/miniapp/{bot_user}/seller/settings",
             headers={"X-Telegram-Init-Data": seller_init},
@@ -580,14 +580,28 @@ async def test_buyer_account_and_seller_features():
                 "support_url": "https://t.me/ShopSupportVIP",
                 "terms_text": "الشروط المحدثة للمتجر",
                 "policy_text": "سياسة الاسترجاع المحدثة",
+                "order_channel": "@MyOrdersChannelVIP",
             }
         )
         assert r_sett.status == 200
         sett_res = await r_sett.json()
         assert sett_res["ok"] is True
         assert sett_res["settings"]["support_url"] == "https://t.me/ShopSupportVIP"
+        assert sett_res["settings"]["order_channel"] == "@MyOrdersChannelVIP"
 
-        # 8. البائع يحذف المنتج المخصص
+        # 8. اختبار استيراد منتجات بالجملة من ملف إكسل / CSV
+        csv_sample = "name,name_ar,category,cost_price,user_price,image_url,description\nشحن ببجي 60 شدة,PUBG 60 UC,gaming,0.85,1.2,https://img.com/pubg.jpg,شحن فوري بالمعرف\nبطاقة ايتونز 10$,iTunes $10,subscriptions,8.5,10.0,,كود رقمي فوري"
+        r_bulk = await client.post(
+            f"/api/miniapp/{bot_user}/seller/products/bulk",
+            headers={"X-Telegram-Init-Data": seller_init},
+            json={"csv_text": csv_sample}
+        )
+        assert r_bulk.status == 200
+        bulk_res = await r_bulk.json()
+        assert bulk_res["ok"] is True
+        assert bulk_res["imported_count"] == 2
+
+        # 9. البائع يحذف المنتج المخصص
         r_del = await client.delete(f"/api/miniapp/{bot_user}/seller/products/{prod_id}", headers={"X-Telegram-Init-Data": seller_init})
         assert r_del.status == 200
         del_res = await r_del.json()

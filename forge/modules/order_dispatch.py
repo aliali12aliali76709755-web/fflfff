@@ -52,11 +52,18 @@ class OrderDispatcher:
     ) -> None:
         # 1. القناة المخصصة للبوت (التي حددها البائع باليوزر أو الآيدي)
         bot_chan_cfg = await db.kv_get(order.bot_id, "store:order_channel", {}) or {}
-        bot_chan_id = bot_chan_cfg.get("id")
+        bot_chan_id = bot_chan_cfg.get("id") or bot_chan_cfg.get("username") or bot_chan_cfg.get("channel")
+        if not bot_chan_id:
+            store_settings = await db.kv_get(order.bot_id, "store:settings", {}) or {}
+            bot_chan_id = store_settings.get("order_channel") or store_settings.get("orderChannel")
+        if isinstance(bot_chan_id, str):
+            bot_chan_id = bot_chan_id.strip()
+            if bot_chan_id and not bot_chan_id.startswith("@") and not bot_chan_id.startswith("-") and not bot_chan_id.isdigit():
+                bot_chan_id = f"@{bot_chan_id}"
 
         # 2. القناة العامة للنظام
         chan_cfg = await db.kv_get(0, "sys:order_channel", {}) or {}
-        chan_id = chan_cfg.get("id")
+        chan_id = chan_cfg.get("id") or chan_cfg.get("username")
 
         async with db.Session() as s:
             bot_row = await s.get(db.Bot, order.bot_id)

@@ -1235,6 +1235,15 @@ async def get_seller_analytics(req: web.Request) -> web.Response:
                 )
             )).scalar() or 0
 
+            day_canceled = (await s.execute(
+                select(func.count(db.ServiceOrder.id)).where(
+                    db.ServiceOrder.bot_id == bot.id,
+                    db.ServiceOrder.status.in_(("canceled", "refunded")),
+                    db.ServiceOrder.created >= d_start,
+                    db.ServiceOrder.created <= d_end,
+                )
+            )).scalar() or 0
+
             day_rev = (await s.execute(
                 select(func.coalesce(func.sum(db.ServiceOrder.price_user_usd), 0.0)).where(
                     db.ServiceOrder.bot_id == bot.id,
@@ -1244,11 +1253,23 @@ async def get_seller_analytics(req: web.Request) -> web.Response:
                 )
             )).scalar() or 0.0
 
+            day_cost = (await s.execute(
+                select(func.coalesce(func.sum(db.ServiceOrder.cost_platform_usd), 0.0)).where(
+                    db.ServiceOrder.bot_id == bot.id,
+                    db.ServiceOrder.status == "completed",
+                    db.ServiceOrder.created >= d_start,
+                    db.ServiceOrder.created <= d_end,
+                )
+            )).scalar() or 0.0
+            day_profit = max(0.0, day_rev - day_cost)
+
             chart_days.append({
                 "date": target_date.strftime("%Y-%m-%d"),
                 "day_name": day_names_ar[target_date.weekday()],
                 "orders": day_orders,
                 "revenue": round(day_rev, 2),
+                "profit": round(day_profit, 2),
+                "canceled": day_canceled,
             })
 
     return web.json_response({
@@ -1268,6 +1289,8 @@ async def get_seller_analytics(req: web.Request) -> web.Response:
             "totalSales": round(revenue_usd, 2),
             "totalProfit": round(profit_usd, 2),
             "pendingOrders": pending_orders,
+            "canceledOrders": canceled_orders,
+            "completedOrders": completed_orders,
             "recentChart": chart_days,
         }
     })
@@ -1533,17 +1556,22 @@ async def import_master_catalog(req: web.Request) -> web.Response:
 
 
 async def get_seller_settings(req: web.Request) -> web.Response:
-    """يعيد إعدادات الدعم والشروط والسياسات الخاصة بمتجر البائع."""
+    """يعيد إعدادات الدعم والشروط والسياسات وقناة الإشعارات الخاصة بمتجر البائع."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     settings = await db.kv_get(ctx.bot.id, "store:settings", {}) or {}
+    chan_cfg = await db.kv_get(ctx.bot.id, "store:order_channel", {}) or {}
+    chan_val = settings.get("order_channel") or chan_cfg.get("username") or chan_cfg.get("id") or ""
     defaults = {
         "support_url": f"https://t.me/{ctx.bot.username}",
         "terms_text": "جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.",
-        "policy_text": "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت."
+        "policy_text": "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت.",
+        "order_channel": str(chan_val),
     }
     merged = {**defaults, **settings}
+    if not merged.get("order_channel") and chan_val:
+        merged["order_channel"] = str(chan_val)
     return web.json_response({
         "ok": True,
         "success": True,
@@ -1553,7 +1581,7 @@ async def get_seller_settings(req: web.Request) -> web.Response:
 
 
 async def save_seller_settings(req: web.Request) -> web.Response:
-    """يحفظ إعدادات المتجر والدعم والشروط والسياسات."""
+    """يحفظ إعدادات المتجر والدعم والشروط والسياسات وقناة إشعارات الطلبات."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
@@ -1562,18 +1590,176 @@ async def save_seller_settings(req: web.Request) -> web.Response:
     except Exception:
         return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
+    order_chan = str(body.get("order_channel") or body.get("orderChannel") or "").strip()[:100]
     settings = {
         "support_url": str(body.get("support_url") or body.get("supportUrl") or "").strip()[:255],
         "terms_text": str(body.get("terms_text") or body.get("termsText") or "").strip()[:1000],
         "policy_text": str(body.get("policy_text") or body.get("policyText") or "").strip()[:1000],
+        "order_channel": order_chan,
     }
     await db.kv_set(ctx.bot.id, "store:settings", settings)
+    if order_chan:
+        await db.kv_set(ctx.bot.id, "store:order_channel", {"username": order_chan, "id": order_chan})
+
     return web.json_response({
         "ok": True,
         "success": True,
         "settings": settings,
         "data": settings,
-        "message": "تم حفظ الإعدادات والشروط بنجاح ✅"
+        "message": "تم حفظ إعدادات المتجر وقناة الإشعارات بنجاح ✅"
+    })
+
+
+def _parse_csv_products(text: str) -> list[dict]:
+    import csv, io
+    f = io.StringIO(text.strip())
+    first_line = text.split("\n")[0] if text else ""
+    delimiter = "\t" if "\t" in first_line else (";" if ";" in first_line else ",")
+    reader = csv.reader(f, delimiter=delimiter)
+    rows = list(reader)
+    if not rows:
+        return []
+
+    header = [h.strip().lower() for h in rows[0]]
+    has_header = any(h in ["name", "اسم", "cost", "price", "سعر", "category", "قسم"] for h in header)
+    data_rows = rows[1:] if has_header else rows
+
+    col_map = {}
+    if has_header:
+        for idx, h in enumerate(header):
+            if "ar" in h or "عربي" in h or "اسم المنتج" in h:
+                col_map["nameAr"] = idx
+            elif "name" in h or "اسم" in h:
+                col_map["name"] = idx
+            elif "cost" in h or "تكلفة" in h or "شراء" in h:
+                col_map["costPrice"] = idx
+            elif "price" in h or "بيع" in h or "سعر" in h:
+                col_map["userPrice"] = idx
+            elif "cat" in h or "قسم" in h or "فئة" in h:
+                col_map["category"] = idx
+            elif "img" in h or "صورة" in h or "image" in h or "url" in h:
+                col_map["imageUrl"] = idx
+            elif "desc" in h or "وصف" in h or "تفاصيل" in h:
+                col_map["description"] = idx
+
+    results = []
+    for r in data_rows:
+        if not r or not any(cell.strip() for cell in r):
+            continue
+        def get_val(key, default_idx):
+            idx = col_map.get(key, default_idx)
+            return r[idx].strip() if idx is not None and idx < len(r) else ""
+
+        name = get_val("name", 0)
+        name_ar = get_val("nameAr", 1) or name
+        cat = get_val("category", 2) or "subscriptions"
+        cost_str = get_val("costPrice", 3) or "1.0"
+        price_str = get_val("userPrice", 4) or "1.5"
+        img = get_val("imageUrl", 5)
+        desc = get_val("description", 6)
+
+        try:
+            cost = float(cost_str.replace("$", "").strip() or 1.0)
+        except Exception:
+            cost = 1.0
+        try:
+            price = float(price_str.replace("$", "").strip() or cost * 1.2)
+        except Exception:
+            price = cost * 1.2
+
+        if name or name_ar:
+            results.append({
+                "name": name or name_ar,
+                "nameAr": name_ar or name,
+                "category": cat,
+                "costPrice": cost,
+                "userPrice": max(cost, price),
+                "imageUrl": img,
+                "description": desc,
+            })
+    return results
+
+
+async def bulk_import_seller_products(req: web.Request) -> web.Response:
+    """استيراد منتجات متعددة دفعة واحدة من ملف إكسل أو جدول CSV أو لصق بيانات."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    bot = ctx.bot
+
+    try:
+        content_type = req.content_type or ""
+        items_to_add = []
+        if "multipart" in content_type:
+            reader = await req.multipart()
+            field = await reader.next()
+            if field:
+                csv_bytes = await field.read()
+                csv_str = csv_bytes.decode("utf-8-sig", errors="ignore")
+                items_to_add = _parse_csv_products(csv_str)
+        else:
+            body = await req.json()
+            if "csv_text" in body:
+                items_to_add = _parse_csv_products(body["csv_text"])
+            elif "items" in body and isinstance(body["items"], list):
+                items_to_add = body["items"]
+            else:
+                return web.json_response({"ok": False, "success": False, "error": "البيانات المدخلة غير صحيحة"}, status=400)
+    except Exception as e:
+        return web.json_response({"ok": False, "success": False, "error": f"خطأ في قراءة البيانات: {e}"}, status=400)
+
+    if not items_to_add:
+        return web.json_response({"ok": False, "success": False, "error": "لم يتم العثور على أي منتجات صالحة في الملف"}, status=400)
+
+    prods = await db.kv_get(bot.id, "store:custom_products", []) or []
+    imported_count = 0
+
+    for item in items_to_add:
+        name = str(item.get("name") or item.get("nameAr") or item.get("name_ar") or "").strip()
+        name_ar = str(item.get("nameAr") or item.get("name_ar") or name).strip()
+        if not name:
+            continue
+        category = str(item.get("category") or item.get("category_id") or "subscriptions").strip()
+        cost_p = float(item.get("costPrice") or item.get("cost_price") or 1.0)
+        user_p = float(item.get("userPrice") or item.get("user_price") or item.get("price_usd") or (cost_p * 1.2))
+        if user_p < cost_p:
+            user_p = cost_p
+
+        img = str(item.get("imageUrl") or item.get("image_url") or "").strip()
+        desc = str(item.get("description") or "").strip()
+        tpl = str(item.get("templateType") or item.get("template_type") or "manual_subs").strip()
+
+        prod_id = f"cp_bulk_{uuid.uuid4().hex[:6]}"
+        prods.insert(0, {
+            "id": prod_id,
+            "name": name,
+            "nameAr": name_ar,
+            "category": category,
+            "category_id": category,
+            "templateType": tpl,
+            "description": desc,
+            "mediaUrls": [img] if img else [],
+            "image_url": img,
+            "priceOptions": [{
+                "id": "opt_1",
+                "label": name_ar,
+                "costPrice": cost_p,
+                "userPrice": user_p,
+            }],
+            "price_usd": user_p,
+            "cost_price": cost_p,
+            "requirements": [],
+            "active": True,
+            "created_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d"),
+        })
+        imported_count += 1
+
+    await db.kv_set(bot.id, "store:custom_products", prods)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "imported_count": imported_count,
+        "count": imported_count,
+        "message": f"تم استيراد {imported_count} منتج بنجاح إلى متجرك! 🎉"
     })
 
 
@@ -2089,6 +2275,8 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post(f"/api/miniapp/{u}/seller/products/toggle", toggle_seller_product)
     app.router.add_delete("/api/miniapp/seller/products/{product_id}", delete_seller_product)
     app.router.add_delete(f"/api/miniapp/{u}/seller/products/{{product_id}}", delete_seller_product)
+    app.router.add_post("/api/miniapp/seller/products/bulk", bulk_import_seller_products)
+    app.router.add_post(f"/api/miniapp/{u}/seller/products/bulk", bulk_import_seller_products)
 
     app.router.add_get("/api/miniapp/seller/master-catalog", get_master_catalog)
     app.router.add_get(f"/api/miniapp/{u}/seller/master-catalog", get_master_catalog)

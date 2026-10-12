@@ -562,6 +562,96 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
           </div>
 
+          <!-- Interactive Analytics Chart Card -->
+          <div class="bg-dark-800/90 border border-slate-700/70 rounded-2xl p-4 space-y-3 shadow-lg">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <span class="text-base">📈</span>
+                <div>
+                  <h4 class="font-black text-xs text-white">المخطط التحليلي وتفاعل البوت</h4>
+                  <p class="text-[10px] text-slate-400">تحليل حي لحركة الطلبات والأرباح ونسب الإلغاء</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 bg-dark-900/80 p-0.5 rounded-xl border border-slate-700">
+                <button @click="chartMetric = 'orders'" :class="['px-2 py-1 rounded-lg text-[10px] font-bold transition', chartMetric === 'orders' ? 'bg-brand-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+                  الطلبات 📦
+                </button>
+                <button @click="chartMetric = 'profit'" :class="['px-2 py-1 rounded-lg text-[10px] font-bold transition', chartMetric === 'profit' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+                  الأرباح 💰
+                </button>
+                <button @click="chartMetric = 'canceled'" :class="['px-2 py-1 rounded-lg text-[10px] font-bold transition', chartMetric === 'canceled' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+                  الإلغاءات ❌
+                </button>
+              </div>
+            </div>
+
+            <!-- SVG Animated Chart -->
+            <div class="relative w-full h-36 bg-dark-900/90 rounded-xl p-2 border border-slate-800 overflow-hidden flex flex-col justify-between">
+              <svg viewBox="0 0 320 100" class="w-full h-24 overflow-visible">
+                <defs>
+                  <linearGradient id="chartGradOrders" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.45" />
+                    <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0" />
+                  </linearGradient>
+                  <linearGradient id="chartGradProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#10b981" stop-opacity="0.45" />
+                    <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                  </linearGradient>
+                  <linearGradient id="chartGradCanceled" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.45" />
+                    <stop offset="100%" stop-color="#f43f5e" stop-opacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                <!-- Grid lines -->
+                <line x1="10" y1="20" x2="310" y2="20" stroke="#334155" stroke-dasharray="3 3" stroke-width="0.5" />
+                <line x1="10" y1="50" x2="310" y2="50" stroke="#334155" stroke-dasharray="3 3" stroke-width="0.5" />
+                <line x1="10" y1="80" x2="310" y2="80" stroke="#334155" stroke-dasharray="3 3" stroke-width="0.5" />
+
+                <!-- Area Fill -->
+                <polygon :points="getChartAreaPoints()" :fill="chartMetric === 'profit' ? 'url(#chartGradProfit)' : (chartMetric === 'canceled' ? 'url(#chartGradCanceled)' : 'url(#chartGradOrders)')" />
+
+                <!-- Line -->
+                <polyline :points="getChartLinePoints()" fill="none" :stroke="chartMetric === 'profit' ? '#10b981' : (chartMetric === 'canceled' ? '#f43f5e' : '#3b82f6')" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+                <!-- Data Points -->
+                <circle v-for="(pt, idx) in getChartPointsList()" :key="idx" :cx="pt.x" :cy="pt.y" r="3.5" :fill="chartMetric === 'profit' ? '#10b981' : (chartMetric === 'canceled' ? '#f43f5e' : '#3b82f6')" stroke="#0f172a" stroke-width="1.5" class="cursor-pointer transition-all hover:r-5" @mouseenter="hoveredPoint = pt" @click="hoveredPoint = pt" />
+              </svg>
+
+              <!-- X-Axis Labels -->
+              <div class="flex justify-between items-center text-[9px] text-slate-400 px-1 pt-1 border-t border-slate-800/80">
+                <span v-for="d in (sellerStats.recentChart || [])" :key="d.date">{{ d.day_name?.slice(0, 3) || d.date.slice(5) }}</span>
+              </div>
+            </div>
+
+            <!-- Active Point Details Strip -->
+            <div v-if="hoveredPoint" class="bg-dark-900/80 rounded-xl p-2 border border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span class="text-slate-300 font-bold">📅 {{ hoveredPoint.day_name }} ({{ hoveredPoint.date }}):</span>
+              <span class="font-mono font-black" :class="chartMetric === 'profit' ? 'text-emerald-400' : (chartMetric === 'canceled' ? 'text-rose-400' : 'text-blue-400')">
+                {{ chartMetric === 'profit' ? '+$' + hoveredPoint.profit : (chartMetric === 'canceled' ? hoveredPoint.canceled + ' ملغي' : hoveredPoint.orders + ' طلب') }}
+              </span>
+            </div>
+
+            <!-- KPI Micro Breakdown -->
+            <div class="grid grid-cols-3 gap-2 pt-1 text-center">
+              <div class="bg-dark-900/60 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] text-slate-400">نسبة النجاح</span>
+                <div class="text-xs font-black text-emerald-400">{{ getSuccessRate() }}%</div>
+              </div>
+              <div class="bg-dark-900/60 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] text-slate-400">معدل الإلغاء</span>
+                <div class="text-xs font-black text-rose-400">{{ getCancellationRate() }}%</div>
+              </div>
+              <div class="bg-dark-900/60 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] text-slate-400">تفاعل حي</span>
+                <div class="text-xs font-black text-sky-400 flex items-center justify-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  نشط 🟢
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- AI Assistant Banner for Seller -->
           <div class="bg-gradient-to-r from-purple-900/60 to-indigo-900/60 border border-purple-500/40 rounded-2xl p-3 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -578,30 +668,40 @@ HTML_SHELL = """<!DOCTYPE html>
           </div>
 
           <!-- Seller Action Buttons Grid -->
-          <div class="grid grid-cols-3 gap-2">
-            <button @click="openCustomizer" class="bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-200 hover:text-white font-bold text-[11px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+          <div class="grid grid-cols-4 gap-2">
+            <button @click="openCustomizer" class="bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
               <span class="text-base">🎨</span>
-              <span>محرر المظهر</span>
+              <span>المظهر</span>
             </button>
-            <button @click="openMasterCatalog" class="bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-200 hover:text-white font-bold text-[11px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+            <button @click="openMasterCatalog" class="bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
               <span class="text-base">📥</span>
-              <span>استيراد كتالوج</span>
+              <span>كتالوج</span>
             </button>
-            <button @click="openNewProductModal" class="bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-200 hover:text-white font-bold text-[11px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+            <button @click="openNewProductModal" class="bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
               <span class="text-base">➕</span>
-              <span>إضافة منتج</span>
+              <span>منتج جديد</span>
+            </button>
+            <button @click="openBulkModal" class="bg-amber-600/30 hover:bg-amber-600 border border-amber-500/40 text-amber-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+              <span class="text-base">📑</span>
+              <span>إكسل / CSV</span>
             </button>
           </div>
 
-          <!-- Seller Settings Form (Support & Terms) -->
+          <!-- Seller Settings Form (Support & Terms & Channel) -->
           <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3">
             <h4 class="font-bold text-xs text-slate-200 flex items-center gap-1.5">
-              <span>⚙️</span> تعديل روابط الدعم الفني وشروط المتجر
+              <span>⚙️</span> تعديل روابط الدعم الفني وشروط المتجر وقناة الإشعارات
             </h4>
 
             <div class="space-y-1">
               <label class="text-[11px] font-bold text-slate-300">رابط أو معرف الدعم الفني للعملاء:</label>
               <input v-model="sellerSettingsForm.support_url" type="text" placeholder="https://t.me/support_user أو @support_channel" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-300">قناة إشعارات الطلبات الفورية (@username أو -100xxx):</label>
+              <input v-model="sellerSettingsForm.order_channel" type="text" placeholder="@my_orders_channel أو -100123456789" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+              <p class="text-[10px] text-slate-400">أضف البوت مشرفاً بالقناة، وستصلك كل الطلبات الجديدة فورياً مع أزرار التسليم والاسترجاع داخل القناة.</p>
             </div>
 
             <div class="space-y-1">
@@ -616,7 +716,7 @@ HTML_SHELL = """<!DOCTYPE html>
 
             <button @click="saveSellerSettingsForm" :disabled="savingSettings" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2.5 rounded-xl shadow transition">
               <span v-if="savingSettings">جاري الحفظ... ⏳</span>
-              <span v-else>حفظ إعدادات المتجر والدعم 💾</span>
+              <span v-else>حفظ إعدادات المتجر والدعم والقناة 💾</span>
             </button>
           </div>
 
@@ -1087,6 +1187,56 @@ HTML_SHELL = """<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- F. EXCEL / CSV BULK IMPORT MODAL -->
+      <div v-if="showBulkModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-lg rounded-3xl border border-slate-700/80 p-5 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <span>📑</span> استيراد منتجات سريعة من ملف إكسل / CSV
+            </h3>
+            <button @click="showBulkModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-[11px] text-slate-300 leading-relaxed">
+              يمكنك نسخ الصفوف مباشرة من ملف Excel أو Google Sheets ولصقها هنا، أو رفع ملف <code>.csv</code> لإضافة المنتجات دفعة واحدة.
+            </p>
+
+            <div class="flex items-center gap-2">
+              <label class="cursor-pointer bg-dark-800 hover:bg-dark-750 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition">
+                <span>📁 رفع ملف CSV</span>
+                <input type="file" accept=".csv,.txt,.tsv" @change="handleBulkFileUpload" class="hidden">
+              </label>
+              <span class="text-[10px] text-slate-400">أو الصق الجدول أدناه مباشرة:</span>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">بيانات الجدول (الاسم، القسم، التكلفة، البيع، الصورة):</label>
+              <textarea v-model="bulkCsvText" rows="6" placeholder="اسم المنتج,القسم,سعر التكلفة,سعر البيع,رابط الصورة,الوصف&#10;شحن ببجي 60 شدة,gaming,0.85,1.20,https://...,شحن فوري بالمعرف&#10;اشتراك نتفلكس شهر,subscriptions,3.0,4.50,,حساب رسمي" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white leading-relaxed"></textarea>
+            </div>
+
+            <!-- Preview parsed items -->
+            <div v-if="parsedBulkItems.length" class="space-y-1.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300 font-bold">معاينة المنتجات المستخرجة ({{ parsedBulkItems.length }}):</span>
+                <span class="text-emerald-400 font-bold">جاهز للاستيراد ✅</span>
+              </div>
+              <div class="max-h-36 overflow-y-auto space-y-1 border border-slate-800 rounded-xl p-2 bg-dark-900/60">
+                <div v-for="(it, i) in parsedBulkItems" :key="i" class="flex items-center justify-between text-[11px] border-b border-slate-800/60 pb-1">
+                  <span class="text-white font-bold">{{ it.name }}</span>
+                  <span class="text-slate-400 font-mono">تكلفة: ${{ it.costPrice }} | بيع: ${{ it.userPrice }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button @click="submitBulkImport" :disabled="!bulkCsvText.trim() || importingBulk" class="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow">
+            <span v-if="importingBulk">جاري الاستيراد... ⏳</span>
+            <span v-else>استيراد المنتجات إلى متجري فوراً 🚀</span>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1127,7 +1277,13 @@ HTML_SHELL = """<!DOCTYPE html>
         const showDepositModal = ref(false);
         const showThemeCustomizer = ref(false);
 
-        // Seller Settings & Customizer state
+        // Seller Settings, Analytics Chart & Bulk Import state
+        const chartMetric = ref('orders');
+        const hoveredPoint = ref(null);
+        const showBulkModal = ref(false);
+        const bulkCsvText = ref('');
+        const importingBulk = ref(false);
+
         const sellerProducts = ref([]);
         const masterCatalogItems = ref([]);
         const showMasterModal = ref(false);
@@ -1136,7 +1292,8 @@ HTML_SHELL = """<!DOCTYPE html>
         const sellerSettingsForm = ref({
           support_url: '',
           terms_text: '',
-          policy_text: ''
+          policy_text: '',
+          order_channel: ''
         });
 
         const editingProduct = ref({
@@ -1195,6 +1352,7 @@ HTML_SHELL = """<!DOCTYPE html>
               sellerSettingsForm.value.support_url = storeJson.data.supportUrl || '';
               sellerSettingsForm.value.terms_text = storeJson.data.termsText || '';
               sellerSettingsForm.value.policy_text = storeJson.data.policyText || '';
+              sellerSettingsForm.value.order_channel = storeJson.data.orderChannel || storeJson.data.order_channel || '';
             }
 
             // 2. Authenticate user via Telegram initData
@@ -1238,6 +1396,7 @@ HTML_SHELL = """<!DOCTYPE html>
             // 4. Load initial orders & stats
             await loadOrders();
             if (role.value === 'seller' || role.value === 'admin') {
+              await loadSellerSettings();
               await loadSellerStats();
               await loadSellerProducts();
               await loadThemeVersions();
@@ -1762,6 +1921,135 @@ HTML_SHELL = """<!DOCTYPE html>
           } catch {}
         };
 
+        const loadSellerSettings = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/settings', {
+              headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.success && json.data) {
+              sellerSettingsForm.value.support_url = json.data.support_url || '';
+              sellerSettingsForm.value.terms_text = json.data.terms_text || '';
+              sellerSettingsForm.value.policy_text = json.data.policy_text || '';
+              sellerSettingsForm.value.order_channel = json.data.order_channel || '';
+            }
+          } catch {}
+        };
+
+        // Chart Methods
+        const getChartPointsList = () => {
+          const list = sellerStats.value?.recentChart || [];
+          if (!list.length) return [];
+          const values = list.map(d => {
+            if (chartMetric.value === 'profit') return Number(d.profit || 0);
+            if (chartMetric.value === 'canceled') return Number(d.canceled || 0);
+            return Number(d.orders || 0);
+          });
+          const maxVal = Math.max(...values, 4);
+          const stepX = 300 / Math.max(list.length - 1, 1);
+          return list.map((d, i) => {
+            const val = values[i];
+            const x = 10 + i * stepX;
+            const y = 80 - (val / maxVal) * 60;
+            return { x, y, val, day_name: d.day_name, date: d.date, orders: d.orders, profit: d.profit || 0, canceled: d.canceled || 0 };
+          });
+        };
+
+        const getChartLinePoints = () => {
+          const pts = getChartPointsList();
+          if (!pts.length) return '10,80 310,80';
+          return pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        };
+
+        const getChartAreaPoints = () => {
+          const pts = getChartPointsList();
+          if (!pts.length) return '10,80 310,80 310,95 10,95';
+          const lineStr = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+          const lastX = pts[pts.length - 1].x.toFixed(1);
+          const firstX = pts[0].x.toFixed(1);
+          return `${lineStr} ${lastX},95 ${firstX},95`;
+        };
+
+        const getSuccessRate = () => {
+          const total = sellerStats.value?.totalOrders || 0;
+          const canceled = sellerStats.value?.canceledOrders || 0;
+          if (!total) return 100;
+          return Math.max(0, Math.round(((total - canceled) / total) * 100));
+        };
+
+        const getCancellationRate = () => {
+          const total = sellerStats.value?.totalOrders || 0;
+          const canceled = sellerStats.value?.canceledOrders || 0;
+          if (!total) return 0;
+          return Math.min(100, Math.round((canceled / total) * 100));
+        };
+
+        // Bulk CSV Import Methods
+        const openBulkModal = () => {
+          showBulkModal.value = true;
+        };
+
+        const parsedBulkItems = computed(() => {
+          if (!bulkCsvText.value.trim()) return [];
+          const lines = bulkCsvText.value.trim().split('\n');
+          const firstLine = lines[0];
+          const delim = firstLine.includes('\t') ? '\t' : (firstLine.includes(';') ? ';' : ',');
+          const items = [];
+          for (let i = 0; i < lines.length; i++) {
+            const row = lines[i].split(delim).map(c => c.trim().replace(/^["']|["']$/g, ''));
+            if (!row[0] || (i === 0 && (row[0].toLowerCase() === 'name' || row[0] === 'اسم' || row[0] === 'الاسم'))) continue;
+            const name = row[0];
+            const cat = row[1] || 'subscriptions';
+            const cost = parseFloat((row[2] || '1.0').replace('$', '')) || 1.0;
+            const price = parseFloat((row[3] || (cost * 1.2).toString()).replace('$', '')) || (cost * 1.2);
+            const img = row[4] || '';
+            const desc = row[5] || '';
+            items.push({ name, category: cat, costPrice: cost, userPrice: Math.max(cost, price), imageUrl: img, description: desc });
+          }
+          return items;
+        });
+
+        const handleBulkFileUpload = (evt) => {
+          const file = evt.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            bulkCsvText.value = e.target.result || '';
+          };
+          reader.readAsText(file);
+        };
+
+        const submitBulkImport = async () => {
+          if (!bulkCsvText.value.trim()) return;
+          importingBulk.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/products/bulk', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({ csv_text: bulkCsvText.value })
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              alert(json.message || `تم استيراد ${json.imported_count || 0} منتج بنجاح!`);
+              showBulkModal.value = false;
+              bulkCsvText.value = '';
+              await loadSellerProducts();
+            } else {
+              alert(json.error || 'فشل الاستيراد');
+            }
+          } catch {
+            alert('حدث خطأ أثناء معالجة الملف');
+          } finally {
+            importingBulk.value = false;
+          }
+        };
+
         onMounted(() => {
           initApp();
         });
@@ -1835,6 +2123,21 @@ HTML_SHELL = """<!DOCTYPE html>
           sellerSettingsForm,
           savingSettings,
           saveSellerSettingsForm,
+          loadSellerSettings,
+          chartMetric,
+          hoveredPoint,
+          getChartPointsList,
+          getChartLinePoints,
+          getChartAreaPoints,
+          getSuccessRate,
+          getCancellationRate,
+          showBulkModal,
+          bulkCsvText,
+          importingBulk,
+          parsedBulkItems,
+          openBulkModal,
+          handleBulkFileUpload,
+          submitBulkImport,
           initApp
         };
       }
