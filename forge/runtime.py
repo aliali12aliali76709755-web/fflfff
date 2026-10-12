@@ -212,6 +212,8 @@ class Manager:
         if not _web.enabled():        # المواقع معطّلة نهائياً: لا نشغّل خادم ويب ولا نفقاً
             self.web = None
             return
+        if self.web is not None:
+            return  # الخادم يعمل مسبقاً (مثلاً عبر run.py)
         self.tunnel = None
         try:
             from .web import server as webserver

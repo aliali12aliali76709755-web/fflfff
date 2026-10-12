@@ -248,7 +248,7 @@ async def avatar(req: web.Request) -> web.StreamResponse:
 
 
 async def health(_req: web.Request) -> web.Response:
-    return web.json_response({"ok": True})
+    return web.Response(text="BotForge OK", status=200)
 
 
 @web.middleware

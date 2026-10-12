@@ -160,9 +160,9 @@ async def handle_reload_bots(_req: web.Request) -> web.Response:
 
 
 async def start_http_server(port: int):
-    app = web.Application()
-    app.router.add_get("/", handle_health)
-    app.router.add_get("/healthz", handle_health)
+    from forge.runtime import manager
+    from forge.web import server
+    app = server.build(manager)
     app.router.add_get("/debug", handle_debug)
     app.router.add_get("/test_start", handle_test_start)
     app.router.add_get("/reload_bots", handle_reload_bots)
@@ -170,7 +170,8 @@ async def start_http_server(port: int):
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logging.info("Health HTTP server listening on 0.0.0.0:%d", port)
+    manager.web = runner
+    logging.info("Main Web & Mini App server listening on 0.0.0.0:%d", port)
     return runner
 
 
