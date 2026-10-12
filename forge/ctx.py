@@ -227,6 +227,15 @@ class Ctx:
             return InlineKeyboardButton(self.t(app_ar or ar, app_en or en), web_app=WebAppInfo(url), style="primary")
         return InlineKeyboardButton(self.t(ar, en), url=url)
 
+    def miniapp_btn(self, ar: str = "🛍️ افتح المتجر المصغر (Mini App)", en: str = "🛍️ Open Store Mini App"):
+        """زر يفتح التطبيق المصغر للمتجر مباشرة داخل تيليجرام."""
+        from . import config
+        from telegram import InlineKeyboardButton, WebAppInfo
+        if not config.PUBLIC_URL:
+            return None
+        app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{self.bot.username}"
+        return InlineKeyboardButton(self.t(ar, en), web_app=WebAppInfo(app_url), style="primary")
+
     def tail(self):
         """آخر صف في الشاشة الرئيسية: مشاركة البوت للعضو، وغرفة التحكم للمالك."""
         from urllib.parse import quote

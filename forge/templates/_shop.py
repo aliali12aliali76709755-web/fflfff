@@ -124,13 +124,14 @@ class Shop(Tpl):
         t = c.t
         n = sum(self.cart(c).values())
         intro = await c.kv(f"{self.ns}:intro") or t(*self.w_intro)
-        app = c.mini_app()      # داخل تيليجرام: التطبيق المصغّر هو الواجهة الأولى، والتصفح بالأزرار بديل
+        miniapp_btn = c.miniapp_btn()
+        miniapp = [miniapp_btn] if miniapp_btn else None
         site = [c.site_btn(*self.w_site, *self.w_app)]
-        rows = [site if app else None,
-                [B(t(*self.w_menu), "t:menu", style=None if app else "success")],
-                None if app else site,
+        rows = [miniapp,
+                [B(t(*self.w_menu), "t:menu", style="success")],
                 [B(t(f"🛒 سلتي ({n})", f"🛒 My cart ({n})"), "t:cart"), B(t("🧾 طلباتي", "🧾 My orders"), "t:mine")],
                 [B(t("📍 الدفع والاستلام", "📍 Payment & delivery"), "t:info")],
+                site if not miniapp else None,
                 c.tail()]
         await c.edit(ui.head(c.brand) + intro, kb(rows))
 

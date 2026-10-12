@@ -367,6 +367,7 @@ async def home(m: M, *, new: bool = False) -> None:
     tail = ("\n" + " · ".join(links)) if links else ""
     try:
         await m.show(head + body + tail, kb([
+            [B(T("🛍️ فتح تطبيق المتجر المصغر (Mini App)", "🛍️ Open Store Mini App"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/app", style="primary")] if config.PUBLIC_URL else None,
             [B(T("➕ ابنِ بوتاً جديداً", "➕ Build a new bot"), "m:new", style="success")],
             [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T("📊 لوحتي", "📊 My dashboard"), "m:stats")],
             [B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref"), B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
@@ -678,6 +679,7 @@ async def bot_card(m: M, bot_id: int) -> None:
             return
     toggle = (B(T("⏸ إيقاف مؤقت", "⏸ Pause"), f"m:dis:{b.id}") if b.status == "active" else B(T("▶️ تشغيل", "▶️ Start"), f"m:en:{b.id}", style="success"))
     await m.show(text, kb([
+        [B(T("🛍️ فتح تطبيق المتجر المصغر (Mini App)", "🛍️ Open Store Mini App"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/app/{b.username}", style="primary")] if config.PUBLIC_URL and b.status == "active" else None,
         [B(T("🎛 غرفة التحكم", "🎛 Control room"), url=f"https://t.me/{b.username}?start=panel"), B(T("↗ فتح البوت", "↗ Open bot"), url=f"https://t.me/{b.username}")],
         [B(T("🌐 موقع البوت", "🌐 Bot website"), url=web.site_url(b.username))] if web.public() and b.status == "active" else None,
         [B(T("📈 الإحصائيات", "📈 Statistics"), f"m:bs:{b.id}"), B(T("🩺 فحص وإصلاح", "🩺 Check & repair"), f"m:chk:{b.id}")],
@@ -1393,7 +1395,7 @@ async def apply_menu(app: Application) -> None:
     try:
         was = bool(await db.kv_get(0, "sys:menu_web", False))
         if web.https():
-            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp("لوحتي", WebAppInfo(f"{config.PUBLIC_URL}/app")))
+            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp("🛍️ المتجر", WebAppInfo(f"{config.PUBLIC_URL}/app")))
             if not was:
                 await db.kv_set(0, "sys:menu_web", True)
         elif was:

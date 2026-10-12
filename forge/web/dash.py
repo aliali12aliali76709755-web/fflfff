@@ -59,19 +59,10 @@ def _denied(lang: str = "ar") -> web.Response:
 
 # ───────────────────────── الدخول من داخل تيليجرام ─────────────────────────
 async def app_entry(req: web.Request) -> web.Response:
-    """يفتحها زر القائمة في بوت الصانع، أو يتم التوجيه للتطبيق المصغر إن وجد معرّف البوت."""
-    if req.query.get("bot") or req.query.get("start_param"):
-        from . import miniapp_view
-        return await miniapp_view.render_miniapp_view(req)
-    body = ('<main class="wrap"><div class="empty" style="padding-top:26vh" id="msg"><div class="big">📊</div><p>جارٍ فتح لوحتك…</p></div></main>'
-            "<script>(function(){var tg=window.Telegram&&window.Telegram.WebApp,m=document.getElementById('msg');"
-            "function fail(t){m.innerHTML='<div class=\"big\">🔐</div><p>'+t+'</p>';}"
-            "if(!tg||!tg.initData){fail('افتح هذه الصفحة من داخل تيليجرام: زر القائمة بجانب خانة الكتابة في بوت الصانع.');return;}"
-            "try{tg.ready();tg.expand();}catch(e){}"
-            "fetch('/auth',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData})})"
-            ".then(function(r){return r.json();}).then(function(r){if(r.ok){location.replace(r.to);}else{fail('تعذّر التحقق من حسابك. أغلق الصفحة وافتحها من جديد.');}})"
-            ".catch(function(){fail('تعذّر الاتصال. حاول مرة أخرى.');});})();</script>")
-    return render.page(render.brand("ar"), body, noindex=True, frame_tg=True)
+    """يفتح التطبيق المصغر الموحد دائماً دون تحويلات كوكيز."""
+    from . import miniapp_view
+    return await miniapp_view.render_miniapp_view(req)
+
 
 
 async def auth(req: web.Request) -> web.Response:

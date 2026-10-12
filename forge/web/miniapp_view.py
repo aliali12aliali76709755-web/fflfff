@@ -1547,7 +1547,8 @@ HTML_SHELL = """<!DOCTYPE html>
 
             const urlParams = new URLSearchParams(window.location.search);
             const pathParts = window.location.pathname.split('/').filter(Boolean);
-            let storeId = urlParams.get('store_id') || urlParams.get('start_param') || '';
+            const tgStartParam = tg?.initDataUnsafe?.start_param || '';
+            let storeId = urlParams.get('store_id') || urlParams.get('start_param') || tgStartParam || '';
             if (!storeId && pathParts.length > 1 && (pathParts[0] === 'store' || pathParts[0] === 'app')) {
               storeId = pathParts[1];
             }
@@ -1555,29 +1556,40 @@ HTML_SHELL = """<!DOCTYPE html>
               storeId = 'default';
             }
 
-            // 1. Fetch store info
-            const storeRes = await fetch(`/api/miniapp/store-info?store_id=${storeId}`);
-            const storeJson = await storeRes.json();
-            if (storeJson.success && storeJson.data) {
-              store.value = storeJson.data;
-              themeSettings.value = storeJson.data.themeSettings || {};
-              sellerSettingsForm.value.support_url = storeJson.data.supportUrl || '';
-              sellerSettingsForm.value.terms_text = storeJson.data.termsText || '';
-              sellerSettingsForm.value.policy_text = storeJson.data.policyText || '';
-              sellerSettingsForm.value.order_channel = storeJson.data.orderChannel || storeJson.data.order_channel || '';
+            // 1. Authenticate user via Telegram initData
+            const initData = tg?.initData || '';
+            try {
+              const authRes = await fetch('/api/miniapp/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ initData, storeId })
+              });
+              const authJson = await authRes.json();
+              if (authJson.success && authJson.data) {
+                user.value = authJson.data.user || {};
+                role.value = authJson.data.role || 'buyer';
+                if (storeId === 'default' && authJson.data.store?.botUsername) {
+                  storeId = authJson.data.store.botUsername;
+                }
+              }
+            } catch (authErr) {
+              console.warn('Auth error:', authErr);
             }
 
-            // 2. Authenticate user via Telegram initData
-            const initData = tg?.initData || '';
-            const authRes = await fetch('/api/miniapp/auth', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ initData, storeId })
-            });
-            const authJson = await authRes.json();
-            if (authJson.success && authJson.data) {
-              user.value = authJson.data.user || {};
-              role.value = authJson.data.role || 'buyer';
+            // 2. Fetch store info
+            try {
+              const storeRes = await fetch(`/api/miniapp/store-info?store_id=${storeId}`);
+              const storeJson = await storeRes.json();
+              if (storeJson.success && storeJson.data) {
+                store.value = storeJson.data;
+                themeSettings.value = storeJson.data.themeSettings || {};
+                sellerSettingsForm.value.support_url = storeJson.data.supportUrl || '';
+                sellerSettingsForm.value.terms_text = storeJson.data.termsText || '';
+                sellerSettingsForm.value.policy_text = storeJson.data.policyText || '';
+                sellerSettingsForm.value.order_channel = storeJson.data.orderChannel || storeJson.data.order_channel || '';
+              }
+            } catch (sErr) {
+              console.warn('Store info error:', sErr);
             }
 
             // Tab routing from URL or pathname
@@ -1592,17 +1604,23 @@ HTML_SHELL = """<!DOCTYPE html>
               } else {
                 currentTab.value = tabParam;
               }
+            } else if (role.value === 'seller' && (urlParams.has('panel') || urlParams.has('seller'))) {
+              currentTab.value = 'seller';
             }
 
             // 3. Load catalog
-            const catRes = await fetch(`/api/miniapp/catalog?store_id=${storeId}`);
-            const catJson = await catRes.json();
-            if (catJson.success && catJson.data) {
-              categories.value = catJson.data.categories || [];
-              products.value = catJson.data.products || [];
+            try {
+              const catRes = await fetch(`/api/miniapp/catalog?store_id=${storeId}`);
+              const catJson = await catRes.json();
+              if (catJson.success && catJson.data) {
+                categories.value = catJson.data.categories || [];
+                products.value = catJson.data.products || [];
 
-              const catParam = urlParams.get('cat') || urlParams.get('category');
-              if (catParam) selectedCategory.value = catParam;
+                const catParam = urlParams.get('cat') || urlParams.get('category');
+                if (catParam) selectedCategory.value = catParam;
+              }
+            } catch (cErr) {
+              console.warn('Catalog error:', cErr);
             }
 
             // 4. Load initial orders & stats

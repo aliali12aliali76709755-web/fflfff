@@ -255,7 +255,9 @@ async def owner_home(c: Ctx) -> None:
     done = sum(1 for ok, _, _ in todo if ok)
     if todo and done < len(todo):
         text += "\n\n🚀 " + t("جاهزية بوتك", "Setup progress") + f": <code>{ui.bar(done, len(todo))}</code> {round(done * 100 / len(todo))}%"
+    app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{c.bot.username}" if config.PUBLIC_URL else ""
     rows = list(rows) + [
+        [B(t("🛍️ افتح التطبيق المصغر للمتجر (Mini App)", "🛍️ Open Store Mini App"), web_app=app_url, style="primary")] if app_url else None,
         [B(t(f"🚀 أكمل التجهيز ({done}/{len(todo)})", f"🚀 Finish setup ({done}/{len(todo)})"), "o:todo", style="primary")] if todo and done < len(todo) else None,
         [B(t("🪪 هوية البوت", "🪪 Bot identity"), "o:idn")],
         [B(t("👁 جرّب كمستخدم", "👁 Try as a user"), "o:preview"), B(t("📖 شرح القالب", "📖 Template guide"), "o:tguide")],
@@ -371,24 +373,8 @@ async def apply_menu_button(app: Application) -> None:
     try:
         bot_row = await db.get_bot(bot_id) if bot_id else None
         if bot_row and config.PUBLIC_URL:
-            if bot_row.template in ("digital", "sms", "smm", "tgstars", "store"):
-                app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{bot_row.username}"
-                btn_text = "🛍 المتجر"
-            elif bot_row.template == "quran":
-                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
-                btn_text = "📖 المصحف"
-            elif bot_row.template == "english":
-                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
-                btn_text = "📚 الإنجليزية"
-            elif bot_row.template == "booking":
-                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
-                btn_text = "📅 الحجوزات"
-            elif bot_row.template == "qrmenu":
-                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
-                btn_text = "🍽️ المنيو"
-            else:
-                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
-                btn_text = "📱 التطبيق"
+            app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{bot_row.username}"
+            btn_text = "🛍 المتجر"
             await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text=btn_text, web_app=WebAppInfo(url=app_url)))
             app.bot_data["menu_web"] = True
             return
