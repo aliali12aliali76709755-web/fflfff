@@ -280,8 +280,11 @@ def build(mgr) -> web.Application:
     dash.routes(app)
 
     # التطبيقات المصغرة ولوحة الأدمن (Telegram Mini Apps)
+    app.router.add_get("/app", miniapp_view.render_miniapp_view)
+    app.router.add_get("/app/", miniapp_view.render_miniapp_view)
     app.router.add_get(f"/app/{u}", miniapp_view.render_miniapp_view)
     app.router.add_get("/admin_app", miniapp_view.render_miniapp_view)
+    app.router.add_get("/admin_app/", miniapp_view.render_miniapp_view)
     miniapp_api.setup_routes(app)
 
     app.router.add_get(f"/{u}", bot_page)

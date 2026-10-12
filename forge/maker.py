@@ -1404,12 +1404,17 @@ async def apply_menu(app: Application) -> None:
 
 
 async def set_commands(app: Application) -> None:
-    from telegram import BotCommand, BotCommandScopeChat
+    from telegram import BotCommand, BotCommandScopeChat, MenuButtonWebApp, WebAppInfo
     await apply_menu(app)
     try:
         await app.bot.set_my_commands([BotCommand("start", "القائمة الرئيسية")])
         if config.ADMIN_ID:
             await app.bot.set_my_commands([BotCommand("start", "القائمة الرئيسية"), BotCommand("admin", "لوحة الإدارة")], scope=BotCommandScopeChat(config.ADMIN_ID))
+            if web.https():
+                try:
+                    await app.bot.set_chat_menu_button(chat_id=config.ADMIN_ID, menu_button=MenuButtonWebApp("🛡️ لوحة الإدارة", WebAppInfo(f"{config.PUBLIC_URL}/admin_app")))
+                except Exception:
+                    pass
     except TelegramError:
         pass
 

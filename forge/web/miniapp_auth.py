@@ -42,7 +42,14 @@ async def resolve_bot(bot_identifier: str | int) -> db.Bot | None:
         if isinstance(bot_identifier, int) or (isinstance(bot_identifier, str) and bot_identifier.isdigit()):
             return await s.get(db.Bot, int(bot_identifier))
         clean_u = str(bot_identifier).lstrip("@").lower()
-        return (await s.execute(select(db.Bot).where(func.lower(db.Bot.username) == clean_u))).scalars().first()
+        bot = (await s.execute(select(db.Bot).where(func.lower(db.Bot.username) == clean_u))).scalars().first()
+        if bot is None and clean_u in ("shop", "app", "default", "store", ""):
+            bot = (await s.execute(
+                select(db.Bot).where(db.Bot.status == "active", db.Bot.template.in_(("digital", "sms", "smm", "tgstars", "store")))
+            )).scalars().first()
+            if bot is None:
+                bot = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().first()
+        return bot
 
 
 async def authenticate_miniapp_request(

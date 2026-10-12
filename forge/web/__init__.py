@@ -7,8 +7,7 @@ from .. import config
 
 
 def enabled() -> bool:
-    # المواقع والتطبيقات المصغّرة معطّلة نهائياً على مستوى المنصة.
-    return False
+    return True
 
 
 def base() -> str:

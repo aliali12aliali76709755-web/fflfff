@@ -67,8 +67,11 @@ OCR_SPACE_KEY = os.environ.get("OCR_SPACE_KEY", "helloworld")
 _PORT = _int("PORT", 0)
 WEB_PORT = _PORT if _PORT > 0 else _int("WEB_PORT", 0)
 WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0")
-# الرابط العام الذي يصل به الناس إلى الخادم، مثل https://bots.example.com — بدونه تبقى المواقع محلية ولا تظهر أزرارها في البوتات
-PUBLIC_URL = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
+PUBLIC_URL = (
+    os.environ.get("PUBLIC_URL")
+    or os.environ.get("RENDER_EXTERNAL_URL")
+    or "https://botforge-service.onrender.com"
+).strip().rstrip("/")
 
 # نفق https تلقائي حين لا يوجد PUBLIC_URL: يشغّل cloudflared ليحصل على رابط عام مؤقت، فتفتح مواقع البوتات داخل تيليجرام من جهازك مباشرة.
 # عند أول تشغيل ينزّل برنامج cloudflared الرسمي من صفحة إصدارات Cloudflare على GitHub إلى data/tools (إن لم يكن مثبتاً).

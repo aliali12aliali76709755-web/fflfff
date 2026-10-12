@@ -365,14 +365,31 @@ async def apply_identity(app: Application, *, first: bool = False) -> None:
 
 
 async def apply_menu_button(app: Application) -> None:
-    """زر القائمة بجانب خانة الكتابة: يفتح المتجر المصغر للقوالب الأربعة أو يعرض الأوامر."""
+    """زر القائمة بجانب خانة الكتابة: يفتح المتجر المصغر أو التطبيق المناسب لكل بوت أو يعرض الأوامر."""
     from telegram import MenuButtonCommands, MenuButtonWebApp, WebAppInfo
     bot_id = app.bot_data.get("bot_id", 0)
     try:
         bot_row = await db.get_bot(bot_id) if bot_id else None
-        if bot_row and bot_row.template in ("digital", "sms", "smm", "tgstars") and config.PUBLIC_URL:
-            app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{bot_row.username}"
-            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="🛍 المتجر", web_app=WebAppInfo(url=app_url)))
+        if bot_row and config.PUBLIC_URL:
+            if bot_row.template in ("digital", "sms", "smm", "tgstars", "store"):
+                app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{bot_row.username}"
+                btn_text = "🛍 المتجر"
+            elif bot_row.template == "quran":
+                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
+                btn_text = "📖 المصحف"
+            elif bot_row.template == "english":
+                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
+                btn_text = "📚 الإنجليزية"
+            elif bot_row.template == "booking":
+                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
+                btn_text = "📅 الحجوزات"
+            elif bot_row.template == "qrmenu":
+                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
+                btn_text = "🍽️ المنيو"
+            else:
+                app_url = f"{config.PUBLIC_URL.rstrip('/')}/{bot_row.username}"
+                btn_text = "📱 التطبيق"
+            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text=btn_text, web_app=WebAppInfo(url=app_url)))
             app.bot_data["menu_web"] = True
             return
         await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
