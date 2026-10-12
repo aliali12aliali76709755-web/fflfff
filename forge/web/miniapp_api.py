@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import time
 import uuid
 from typing import Any
 from aiohttp import web
@@ -1056,13 +1057,13 @@ async def add_product_review(req: web.Request) -> web.Response:
 
 async def upload_media_endpoint(req: web.Request) -> web.Response:
     """رفع الوسائط وفحص Magic Bytes وضغطها وتخزينها."""
-    bot_u = req.match_info["bot_username"]
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     reader = await req.multipart()
     field = await reader.next()
     if not field:
-        return web.json_response({"ok": False, "error": "no_file"}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": "no_file"}, status=400)
 
     filename = field.filename or "upload"
     file_bytes = await field.read()
@@ -1078,9 +1079,168 @@ async def upload_media_endpoint(req: web.Request) -> web.Response:
             target_id=res.get("url", ""),
             details=f"File uploaded: {filename}",
         )
-        return web.json_response({"ok": True, **res})
+        return web.json_response({"ok": True, "success": True, "data": res, "url": res.get("url", ""), **res})
     except ValueError as e:
-        return web.json_response({"ok": False, "error": str(e)}, status=400)
+        return web.json_response({"ok": False, "success": False, "error": str(e)}, status=400)
+
+
+async def deposit_stars_endpoint(req: web.Request) -> web.Response:
+    """معالجة شحن نجوم تيليجرام: إنشاء رابط فاتورة أو شحن الرصيد مباشرة."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+    bot = ctx.bot
+
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+
+    stars_amount = int(body.get("stars") or body.get("amount") or 50)
+    if stars_amount <= 0:
+        stars_amount = 50
+
+    invoice_link = None
+    try:
+        from ..runtime import manager
+        bot_app = manager.apps.get(bot.id)
+        if bot_app and bot_app.bot:
+            from telegram import LabeledPrice
+            invoice_link = await bot_app.bot.create_invoice_link(
+                title=f"شحن {stars_amount} ⭐ في {bot.name or 'المتجر'}",
+                description=f"شحن فوري لرصيد المحفظة بالنجوم بقيمة {stars_amount} نجمة تيليجرام",
+                payload=f"dep_stars_{bot.id}_{ctx.uid}_{stars_amount}_{uuid.uuid4().hex[:6]}",
+                currency="XTR",
+                prices=[LabeledPrice(f"{stars_amount} Stars", stars_amount)],
+            )
+    except Exception as e:
+        log.warning("Could not generate Stars invoice link: %s", e)
+
+    ok, tx, new_bal = await payments.process_stars_deposit(bot.id, ctx.uid, stars_amount)
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "invoice_link": invoice_link,
+        "stars_amount": stars_amount,
+        "new_balance_usd": new_bal,
+        "message": f"تم معالجة شحن {stars_amount} نجمة بنجاح! ⭐",
+        "data": {
+            "invoice_link": invoice_link,
+            "stars_amount": stars_amount,
+            "new_balance_usd": new_bal,
+        }
+    })
+
+
+async def checkout_cart_order(req: web.Request) -> web.Response:
+    """تنفيذ طلبات السلة المجمعة وإجراء الخصم الذري."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+    bot = ctx.bot
+
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
+
+    cart_items = body.get("items") or []
+    if not isinstance(cart_items, list) or not cart_items:
+        return web.json_response({"ok": False, "success": False, "error": "السلة فارغة"}, status=400)
+
+    # حساب إجمالي السعر
+    total_cost = 0.0
+    for it in cart_items:
+        qty = max(1, int(it.get("quantity", 1)))
+        price = float(it.get("price", it.get("price_usd", 1.0)))
+        total_cost += price * qty
+
+    user_bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
+    if user_bal < total_cost:
+        return web.json_response({
+            "ok": False,
+            "success": False,
+            "error": "insufficient_balance",
+            "message": f"رصيدك الحالي (${user_bal:.2f}) غير كافٍ لإتمام السلة (${total_cost:.2f})"
+        }, status=402)
+
+    batch_ref = f"CART-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+    ok_debit, tx, new_bal = await ledger.debit_user(
+        bot_id=bot.id,
+        user_id=ctx.uid,
+        amount_usd=total_cost,
+        kind=f"order_{bot.template}",
+        ref_id=batch_ref,
+        description=f"طلب سلة مشتريات ({len(cart_items)} عناصر)",
+    )
+    if not ok_debit:
+        return web.json_response({"ok": False, "success": False, "error": "debit_failed"}, status=500)
+
+    bot_cur = await currency.get_bot_currency(bot.id)
+    created_orders = []
+
+    async with db.Session() as s:
+        for idx, it in enumerate(cart_items):
+            p_name = it.get("name") or it.get("nameAr") or "منتج"
+            p_id = it.get("productId") or it.get("id") or str(idx)
+            qty = max(1, int(it.get("quantity", 1)))
+            p_price = float(it.get("price", it.get("price_usd", 1.0))) * qty
+            target_data = it.get("target") or it.get("userInputs") or ""
+            if isinstance(target_data, dict):
+                target_data = json.dumps(target_data, ensure_ascii=False)
+
+            order = db.ServiceOrder(
+                order_id=f"{batch_ref}-{idx+1}",
+                bot_id=bot.id,
+                user_id=ctx.uid,
+                tpl_key=bot.template,
+                service_id=str(p_id),
+                service_name=p_name,
+                target=str(target_data),
+                quantity=qty,
+                cost_provider_usd=0.0,
+                cost_platform_usd=0.0,
+                price_user_usd=p_price,
+                currency=bot_cur,
+                price_user_currency=p_price,
+                status="queued",
+                provider_name="InternalFulfillment",
+                provider_order_id=f"{batch_ref}-{idx+1}",
+                details={"batch": batch_ref},
+                created=dt.datetime.now(dt.timezone.utc),
+            )
+            s.add(order)
+            created_orders.append(order)
+        await s.commit()
+
+    try:
+        from ..runtime import manager
+        bot_app = manager.apps.get(bot.id)
+        if bot_app and bot_app.bot and created_orders:
+            for ord_row in created_orders:
+                await order_dispatch.OrderDispatcher.dispatch_new_order(
+                    bot_app.bot,
+                    ord_row,
+                    bot_username=bot.username,
+                    seller_name=bot.name,
+                    buyer_name=ctx.uname,
+                    buyer_username=ctx.user.get("username", ""),
+                )
+    except Exception as e:
+        log.warning("Cart dispatch error: %s", e)
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": f"تم تأكيد وشراء عناصر السلة بنجاح ({len(cart_items)} عناصر)! 🎉",
+        "batch_ref": batch_ref,
+        "total_amount": total_cost,
+        "new_balance_usd": new_bal,
+        "data": {
+            "batch_ref": batch_ref,
+            "items_count": len(cart_items),
+            "new_balance_usd": new_bal,
+        }
+    })
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2242,6 +2402,10 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post(f"/api/miniapp/{u}/order", create_store_order)
     app.router.add_post("/api/miniapp/order/create", create_store_order)
     app.router.add_post(f"/api/miniapp/{u}/order/create", create_store_order)
+    app.router.add_post("/api/miniapp/order/cart-checkout", checkout_cart_order)
+    app.router.add_post(f"/api/miniapp/{u}/order/cart-checkout", checkout_cart_order)
+    app.router.add_post("/api/miniapp/deposit/stars", deposit_stars_endpoint)
+    app.router.add_post(f"/api/miniapp/{u}/deposit/stars", deposit_stars_endpoint)
 
     app.router.add_get("/api/miniapp/orders", get_user_orders)
     app.router.add_get(f"/api/miniapp/{u}/orders", get_user_orders)

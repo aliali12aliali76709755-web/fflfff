@@ -189,6 +189,14 @@ HTML_SHELL = """<!DOCTYPE html>
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- Shopping Cart Button with Dynamic Badge -->
+          <button @click="showCartDrawer = true" class="relative bg-dark-800/90 border border-slate-700/60 rounded-xl p-2 text-slate-200 hover:text-white transition active:scale-95 flex items-center justify-center shadow-inner">
+            <span class="text-sm">🛒</span>
+            <span v-if="cartTotalCount > 0" class="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow">
+              {{ cartTotalCount }}
+            </span>
+          </button>
+
           <!-- Balance Pill -->
           <div class="bg-dark-800/90 border border-slate-700/60 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 shadow-inner">
             <span class="text-xs text-amber-400">💰</span>
@@ -340,7 +348,7 @@ HTML_SHELL = """<!DOCTYPE html>
                       ${{ getEffectivePrice(prod) }}
                     </div>
                   </div>
-                  <button class="bg-brand-600/30 text-brand-400 border border-brand-500/30 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs group-hover:bg-brand-600 group-hover:text-white transition">
+                  <button @click.stop="addToCart(prod)" class="bg-brand-600/30 text-brand-400 border border-brand-500/30 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs hover:bg-brand-600 hover:text-white transition active:scale-95 shadow-sm" title="أضف إلى السلة">
                     🛒
                   </button>
                 </div>
@@ -868,49 +876,114 @@ HTML_SHELL = """<!DOCTYPE html>
       <!-- 4. MODALS & SUB-SCREENS                                              -->
       <!-- ════════════════════════════════════════════════════════════════════ -->
 
-      <!-- A. PRODUCT DETAILS & CHECKOUT MODAL -->
-      <div v-if="activeProduct" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="bg-dark-850 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-700/80 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-          
-          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
-            <h3 class="font-black text-sm text-white">{{ activeProduct.nameAr || activeProduct.name }}</h3>
-            <button @click="activeProduct = null" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+      <!-- A. DEDICATED FULL PRODUCT SCREEN (صفحة كاملة وتفصيلية للمنتج) -->
+      <div v-if="activeProduct" class="fixed inset-0 z-50 bg-dark-900 overflow-y-auto flex flex-col pb-24 safe-top">
+        <!-- Sticky Navigation Bar -->
+        <header class="sticky top-0 z-10 glass-panel border-b border-slate-800/80 px-4 py-3 flex items-center justify-between">
+          <button @click="activeProduct = null" class="flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-dark-800/80 border border-slate-700/80 px-3 py-1.5 rounded-xl transition active:scale-95 shadow-sm">
+            <span>←</span>
+            <span>رجوع للمتجر</span>
+          </button>
+          <span class="text-xs font-black text-slate-200 truncate max-w-[170px]">{{ activeProduct.nameAr || activeProduct.name }}</span>
+          <button @click="showCartDrawer = true" class="relative bg-dark-800/80 border border-slate-700/80 p-2 rounded-xl text-slate-200 hover:text-white transition active:scale-95">
+            <span class="text-xs">🛒</span>
+            <span v-if="cartTotalCount > 0" class="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center shadow">
+              {{ cartTotalCount }}
+            </span>
+          </button>
+        </header>
+
+        <!-- Product Content Body -->
+        <div class="p-4 space-y-4 max-w-md mx-auto w-full flex-1">
+          <!-- Hero Media (Image or Video) -->
+          <div class="w-full h-64 rounded-2xl bg-dark-850 overflow-hidden relative border border-slate-800 shadow-lg">
+            <video v-if="isMediaVideo((activeProduct.mediaUrls && activeProduct.mediaUrls[0]) || activeProduct.image_url)" 
+                   :src="(activeProduct.mediaUrls && activeProduct.mediaUrls[0]) || activeProduct.image_url" 
+                   controls playsinline class="w-full h-full object-cover"></video>
+            <img v-else 
+                 :src="(activeProduct.mediaUrls && activeProduct.mediaUrls[0]) || activeProduct.image_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80'" 
+                 class="w-full h-full object-cover" alt="product"
+                 onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80'">
+
+            <span v-if="activeProduct.discountPercent > 0" class="absolute top-3 right-3 bg-rose-600 text-white text-xs font-black px-2.5 py-1 rounded-lg shadow-lg">
+              خصم {{ activeProduct.discountPercent }}% 🔥
+            </span>
           </div>
 
-          <!-- Product Image -->
-          <div class="w-full h-40 rounded-2xl bg-dark-900 overflow-hidden">
-            <img :src="(activeProduct.mediaUrls && activeProduct.mediaUrls[0]) || activeProduct.image_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80'" class="w-full h-full object-cover" alt="product">
+          <!-- Product Title & Price Header -->
+          <div class="bg-dark-850 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm">
+            <div class="flex items-start justify-between gap-2">
+              <h2 class="text-base font-black text-white leading-snug">{{ activeProduct.nameAr || activeProduct.name }}</h2>
+              <div class="text-left shrink-0">
+                <div v-if="activeProduct.discountPercent > 0" class="text-[11px] text-slate-400 line-through">
+                  ${{ getOriginalPrice(activeProduct) }}
+                </div>
+                <div class="text-lg font-black text-emerald-400 font-mono">
+                  ${{ getCalculatedTotal() }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Trust Badges -->
+            <div class="flex items-center gap-2 pt-1 flex-wrap">
+              <span class="text-[10px] bg-brand-500/10 text-brand-300 border border-brand-500/20 px-2 py-0.5 rounded-md font-semibold">
+                {{ activeProduct.category || 'خدمات رقمية' }}
+              </span>
+              <span class="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                <span>⚡</span> تسليم فوري
+              </span>
+              <span class="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                <span>🛡️</span> ضمان ذهبي 100%
+              </span>
+            </div>
           </div>
 
-          <p class="text-xs text-slate-300 leading-relaxed">{{ activeProduct.description }}</p>
+          <!-- Quantity Stepper for regular products -->
+          <div v-if="activeProduct.templateType !== 'smm_boost'" class="bg-dark-850 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between shadow-sm">
+            <div>
+              <div class="text-xs font-bold text-slate-200">الكمية المطلوبة:</div>
+              <div class="text-[10px] text-slate-400">حدد عدد الحبات للطلب</div>
+            </div>
+            <div class="flex items-center gap-3 bg-dark-900 border border-slate-700/80 rounded-xl p-1">
+              <button @click="if (purchaseQuantity > 1) purchaseQuantity--" class="w-8 h-8 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-200 font-bold flex items-center justify-center transition active:scale-95">-</button>
+              <span class="w-8 text-center font-bold text-sm text-white font-mono">{{ purchaseQuantity }}</span>
+              <button @click="purchaseQuantity++" class="w-8 h-8 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-200 font-bold flex items-center justify-center transition active:scale-95">+</button>
+            </div>
+          </div>
 
-          <!-- Pricing Options -->
-          <div v-if="activeProduct.priceOptions && activeProduct.priceOptions.length" class="space-y-1.5">
+          <!-- Pricing Options (Packages) -->
+          <div v-if="activeProduct.priceOptions && activeProduct.priceOptions.length" class="bg-dark-850 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm">
             <label class="text-xs font-bold text-slate-300">اختر الباقة أو الفئة:</label>
             <div class="grid grid-cols-2 gap-2">
               <button v-for="opt in activeProduct.priceOptions" :key="opt.id"
                       @click="selectedPriceOption = opt"
-                      :class="['p-2.5 rounded-xl border text-xs font-bold transition flex flex-col justify-between items-start',
+                      :class="['p-3 rounded-xl border text-xs font-bold transition flex flex-col justify-between items-start',
                               selectedPriceOption?.id === opt.id ? 'border-brand-500 bg-brand-900/30 text-white ring-1 ring-brand-500' : 'border-slate-700 bg-dark-800 text-slate-300']">
                 <span>{{ opt.label }}</span>
-                <span class="text-emerald-400 font-mono mt-1">${{ opt.userPrice || opt.price }}</span>
+                <span class="text-emerald-400 font-mono mt-1 text-sm">${{ opt.userPrice || opt.price }}</span>
               </button>
             </div>
           </div>
 
-          <!-- Quantity Slider for SMM -->
-          <div v-if="activeProduct.templateType === 'smm_boost'" class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
+          <!-- Description Section -->
+          <div class="bg-dark-850 border border-slate-800 rounded-2xl p-4 space-y-1.5 shadow-sm">
+            <h4 class="text-xs font-bold text-slate-300">تفاصيل ومميزات الخدمة:</h4>
+            <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{{ activeProduct.description || 'خدمة رقمية معتمدة وسريعة التنفيذ مع ضمان كامل.' }}</p>
+          </div>
+
+          <!-- SMM Boost Slider -->
+          <div v-if="activeProduct.templateType === 'smm_boost'" class="bg-dark-850 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
             <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-300 font-bold">الكمية المطلوبة:</span>
-              <span class="text-emerald-400 font-mono font-black">{{ smmQuantity }}</span>
+              <span class="text-slate-300 font-bold">العدد المطلوب:</span>
+              <span class="text-emerald-400 font-mono font-black text-sm">{{ smmQuantity }}</span>
             </div>
             <input type="range" min="100" max="10000" step="100" v-model="smmQuantity" class="w-full accent-brand-500">
             <div class="text-[11px] text-slate-400">رابط الحساب أو المنشور:</div>
-            <input type="url" v-model="smmUrl" placeholder="https://..." class="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+            <input type="url" v-model="smmUrl" placeholder="https://..." class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
           </div>
 
           <!-- Custom Requirements Fields -->
-          <div v-if="activeProduct.requirements && activeProduct.requirements.length" class="space-y-2">
+          <div v-if="activeProduct.requirements && activeProduct.requirements.length" class="bg-dark-850 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
             <div v-for="reqField in activeProduct.requirements" :key="reqField.name" class="space-y-1">
               <label class="text-xs font-bold text-slate-300 flex items-center justify-between">
                 <span>{{ reqField.label || reqField.name }} <span v-if="reqField.required" class="text-rose-500">*</span></span>
@@ -918,50 +991,156 @@ HTML_SHELL = """<!DOCTYPE html>
               <input v-model="userFormInputs[reqField.name]" 
                      :type="reqField.type || 'text'" 
                      :placeholder="reqField.placeholder || ''"
-                     class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+                     class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
             </div>
           </div>
 
-          <!-- Terms Agreement Checkbox -->
-          <div class="flex items-center gap-2 pt-2">
-            <input type="checkbox" id="termsCheck" v-model="termsAgreed" class="accent-brand-500 w-4 h-4 rounded">
-            <label for="termsCheck" class="text-[11px] text-slate-300">
-              قرأت الشروط وسياسة الضمان الذهبي وأوافق عليها بالكامل
-            </label>
+          <!-- Automatic Guarantee Disclaimer (No annoying blocking checkbox!) -->
+          <div class="p-3 rounded-xl bg-amber-950/30 border border-amber-500/20 flex items-center gap-2 text-[11px] text-amber-200">
+            <span class="text-base">🛡️</span>
+            <span>مشمول بالضمان الذهبي والاسترجاع الفوري التلقائي للمحفظة في حال تعذر التنفيذ.</span>
           </div>
+        </div>
 
-          <!-- Submit Order Button -->
-          <button @click="submitOrder" 
-                  :disabled="isSubmitting || !termsAgreed"
-                  class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black py-3 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-sm">
-            <span v-if="isSubmitting">جاري التنفيذ... ⏳</span>
-            <span v-else>تأكيد ودفع ${{ getCalculatedTotal() }} 💳</span>
-          </button>
+        <!-- Sticky Bottom Actions Bar -->
+        <div class="fixed bottom-0 left-0 right-0 glass-panel border-t border-slate-800 p-3 safe-bottom z-30">
+          <div class="max-w-md mx-auto grid grid-cols-2 gap-2.5">
+            <!-- Add to Cart -->
+            <button @click="addToCart(activeProduct, purchaseQuantity)" 
+                    class="bg-dark-800 hover:bg-dark-750 border border-brand-500/40 text-brand-300 font-bold py-3 px-3 rounded-xl transition flex items-center justify-center gap-2 text-xs active:scale-95 shadow">
+              <span>🛒</span>
+              <span>أضف للسلة</span>
+            </button>
+            <!-- 1-Tap Instant Buy (Zero Friction!) -->
+            <button @click="submitOrder" 
+                    :disabled="isSubmitting"
+                    class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black py-3 px-3 rounded-xl shadow-lg transition flex items-center justify-center gap-1.5 text-xs active:scale-95">
+              <span v-if="isSubmitting">جاري الدفع... ⏳</span>
+              <span v-else>⚡ شراء فوري ${{ getCalculatedTotal() }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- B. DEPOSIT / TOP-UP MODAL -->
-      <div v-if="showDepositModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="bg-dark-850 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-700/80 p-5 space-y-4">
+      <!-- B. SHOPPING CART DRAWER (سلة المشتريات المجمعة) -->
+      <div v-if="showCartDrawer" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-dark-850 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-700/80 p-5 space-y-4 max-h-[85vh] flex flex-col">
           <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
-            <h3 class="font-black text-sm text-white">شحن رصيد المحفظة</h3>
+            <div class="flex items-center gap-2">
+              <span class="text-lg">🛒</span>
+              <h3 class="font-black text-sm text-white">سلة المشتريات</h3>
+              <span class="text-[10px] bg-brand-500/20 text-brand-300 px-2 py-0.5 rounded-full font-bold font-mono">{{ cartTotalCount }} عناصر</span>
+            </div>
+            <button @click="showCartDrawer = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <!-- Empty Cart State -->
+          <div v-if="!cartItems.length" class="text-center py-12 space-y-3">
+            <span class="text-4xl block">🛍️</span>
+            <h4 class="font-bold text-sm text-slate-300">سلتك فارغة حالياً</h4>
+            <p class="text-xs text-slate-400">تصفح المتجر وأضف منتجاتك المفضلة بضغطة زر واحدة</p>
+            <button @click="showCartDrawer = false; currentTab = 'store'" class="mt-2 px-5 py-2 bg-brand-600 rounded-xl text-xs font-bold text-white shadow">
+              تصفح المنتجات الآن
+            </button>
+          </div>
+
+          <!-- Cart Items List -->
+          <div v-else class="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-72">
+            <div v-for="(it, idx) in cartItems" :key="idx" class="bg-dark-800/90 border border-slate-700/70 p-3 rounded-2xl flex items-center justify-between gap-2.5 shadow-sm">
+              <div class="w-12 h-12 rounded-xl bg-dark-900 overflow-hidden shrink-0 border border-slate-700">
+                <img :src="it.image_url || (it.mediaUrls && it.mediaUrls[0]) || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&q=80'" class="w-full h-full object-cover">
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-xs text-white truncate">{{ it.nameAr || it.name }}</h4>
+                <div class="text-[11px] font-black text-emerald-400 font-mono mt-0.5">${{ (it.price * it.quantity).toFixed(2) }} <span class="text-[9px] text-slate-400 font-normal">(${{ it.price }}/قطعة)</span></div>
+              </div>
+              <!-- Quantity Stepper -->
+              <div class="flex items-center gap-1.5 bg-dark-900 border border-slate-700/60 rounded-xl p-1 shrink-0">
+                <button @click="decreaseCartQty(idx)" class="w-6 h-6 rounded-lg bg-dark-800 text-slate-300 text-xs font-bold flex items-center justify-center">-</button>
+                <span class="w-5 text-center text-xs font-bold font-mono text-white">{{ it.quantity }}</span>
+                <button @click="increaseCartQty(idx)" class="w-6 h-6 rounded-lg bg-dark-800 text-slate-300 text-xs font-bold flex items-center justify-center">+</button>
+              </div>
+              <!-- Remove Button -->
+              <button @click="removeCartItem(idx)" class="text-rose-400 hover:text-rose-300 p-1 text-xs shrink-0">🗑️</button>
+            </div>
+          </div>
+
+          <!-- Cart Footer Summary & Checkout -->
+          <div v-if="cartItems.length" class="border-t border-slate-700/60 pt-3 space-y-3">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400">إجمالي السلة:</span>
+              <span class="text-lg font-black text-emerald-400 font-mono">${{ cartTotalPrice.toFixed(2) }}</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span>رصيد محفظتك:</span>
+              <span class="font-bold font-mono text-slate-200">${{ (user.balance || 0).toFixed(2) }}</span>
+            </div>
+            <button @click="checkoutCart" :disabled="isCheckingOutCart" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black py-3 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-xs active:scale-95">
+              <span v-if="isCheckingOutCart">جاري الشراء... ⏳</span>
+              <span v-else>إتمام وشراء السلة (${{ cartTotalPrice.toFixed(2) }}) 💳</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- C. DEPOSIT / TOP-UP MODAL (Telegram Stars 1-Tap & Gateways) -->
+      <div v-if="showDepositModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-dark-850 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-700/80 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">💰</span>
+              <h3 class="font-black text-sm text-white">شحن رصيد المحفظة</h3>
+            </div>
             <button @click="showDepositModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
           </div>
 
-          <p class="text-xs text-slate-400">اختر طريقة الشحن لتزويد محفظتك بالرصيد فورياً:</p>
-
-          <div class="space-y-2">
-            <button @click="payWithStars" class="w-full bg-dark-800 hover:bg-dark-750 border border-amber-500/30 p-3 rounded-xl flex items-center justify-between text-xs font-bold text-white transition">
-              <div class="flex items-center gap-2.5">
+          <!-- Section 1: Telegram Stars (Direct 1-tap in-app) -->
+          <div class="space-y-2 bg-gradient-to-br from-amber-950/40 via-dark-800 to-amber-950/20 border border-amber-500/30 p-3.5 rounded-2xl">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
                 <span class="text-xl">⭐️</span>
-                <div class="text-right">
-                  <div>نجوم تيليجرام (Telegram Stars)</div>
-                  <div class="text-[10px] text-slate-400">دفع فوري وآمن داخل التطبيق</div>
+                <div>
+                  <h4 class="font-bold text-xs text-amber-300">شحن نجوم تيليجرام (Telegram Stars)</h4>
+                  <p class="text-[10px] text-slate-400">دفع فوري وآمن بنقرة واحدة داخل تيليجرام</p>
                 </div>
               </div>
-              <span class="text-amber-400">شحن نجوم ↗️</span>
-            </button>
+              <span class="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">فوري ⚡</span>
+            </div>
 
+            <!-- Stars Package Buttons -->
+            <div class="grid grid-cols-2 gap-2 pt-1.5">
+              <button @click="payWithStarsAmount(50)" :disabled="depositingStars" class="p-2.5 rounded-xl bg-dark-900/90 hover:bg-dark-750 border border-amber-500/40 text-center transition active:scale-95 flex items-center justify-between">
+                <span class="font-black text-xs text-amber-300">50 ⭐</span>
+                <span class="text-[11px] font-bold text-slate-300">+$1.00</span>
+              </button>
+              <button @click="payWithStarsAmount(100)" :disabled="depositingStars" class="p-2.5 rounded-xl bg-dark-900/90 hover:bg-dark-750 border border-amber-500/40 text-center transition active:scale-95 flex items-center justify-between">
+                <span class="font-black text-xs text-amber-300">100 ⭐</span>
+                <span class="text-[11px] font-bold text-slate-300">+$2.00</span>
+              </button>
+              <button @click="payWithStarsAmount(250)" :disabled="depositingStars" class="p-2.5 rounded-xl bg-dark-900/90 hover:bg-dark-750 border border-amber-500/40 text-center transition active:scale-95 flex items-center justify-between">
+                <span class="font-black text-xs text-amber-300">250 ⭐</span>
+                <span class="text-[11px] font-bold text-slate-300">+$5.00</span>
+              </button>
+              <button @click="payWithStarsAmount(500)" :disabled="depositingStars" class="p-2.5 rounded-xl bg-dark-900/90 hover:bg-dark-750 border border-amber-500/40 text-center transition active:scale-95 flex items-center justify-between">
+                <span class="font-black text-xs text-amber-300">500 ⭐</span>
+                <span class="text-[11px] font-bold text-slate-300">+$10.00</span>
+              </button>
+            </div>
+
+            <!-- Custom Stars Input -->
+            <div class="flex items-center gap-2 pt-1">
+              <input type="number" min="10" max="50000" v-model.number="customStarsAmount" placeholder="كمية نجوم أخرى..." class="flex-1 bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+              <button @click="payWithStarsAmount(customStarsAmount)" :disabled="depositingStars || !customStarsAmount" class="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-xs rounded-xl shadow active:scale-95 transition">
+                شحن ⭐
+              </button>
+            </div>
+            <div v-if="depositingStars" class="text-center text-xs text-amber-400 font-bold py-1">
+              جاري تجهيز الفاتورة... ⏳
+            </div>
+          </div>
+
+          <!-- Section 2: External Gateways -->
+          <div class="space-y-2">
             <button @click="payWithExternalGateway" class="w-full bg-dark-800 hover:bg-dark-750 border border-slate-700 p-3 rounded-xl flex items-center justify-between text-xs font-bold text-white transition">
               <div class="flex items-center gap-2.5">
                 <span class="text-xl">💳</span>
@@ -1169,9 +1348,32 @@ HTML_SHELL = """<!DOCTYPE html>
               ⚠️ تنبيه أمني: سعر البيع لا يمكن أن يكون أقل من سعر التكلفة لحماية أرباحك.
             </div>
 
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">رابط صورة المنتج (URL):</label>
-              <input type="text" v-model="editingProduct.imageUrl" placeholder="https://..." class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <!-- Native Gallery / Media File Upload -->
+            <div class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-bold text-slate-200">صورة أو فيديو المنتج:</label>
+                <span v-if="uploadingMedia" class="text-[10px] text-brand-400 font-bold animate-pulse">جاري الرفع... ⏳</span>
+              </div>
+
+              <!-- Media Preview if available -->
+              <div v-if="editingProduct.imageUrl" class="relative w-full h-32 rounded-xl bg-dark-900 overflow-hidden border border-slate-700">
+                <video v-if="isMediaVideo(editingProduct.imageUrl)" :src="editingProduct.imageUrl" controls class="w-full h-full object-cover"></video>
+                <img v-else :src="editingProduct.imageUrl" class="w-full h-full object-cover" alt="preview">
+                <button type="button" @click="editingProduct.imageUrl = ''" class="absolute top-2 left-2 bg-rose-600/80 hover:bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✕</button>
+              </div>
+
+              <!-- Native Gallery / File Picker -->
+              <input type="file" ref="productMediaFileInput" accept="image/*,video/*" @change="handleProductMediaUpload" class="hidden">
+              <button type="button" @click="$refs.productMediaFileInput.click()" :disabled="uploadingMedia" class="w-full py-2.5 px-3 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/40 rounded-xl text-xs font-bold text-brand-300 flex items-center justify-center gap-2 transition active:scale-95 shadow-sm">
+                <span>📸</span>
+                <span>اختيار صورة أو فيديو من المعرض (Phone Gallery)</span>
+              </button>
+
+              <!-- Optional URL input -->
+              <div class="flex items-center gap-1.5 pt-1">
+                <span class="text-[10px] text-slate-400">أو رابط مباشر:</span>
+                <input type="text" v-model="editingProduct.imageUrl" placeholder="https://..." class="flex-1 bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white">
+              </div>
             </div>
 
             <div>
@@ -1276,6 +1478,16 @@ HTML_SHELL = """<!DOCTYPE html>
         const isSubmitting = ref(false);
         const showDepositModal = ref(false);
         const showThemeCustomizer = ref(false);
+
+        // Cart & Native Media & Stars state
+        const cartItems = ref([]);
+        const showCartDrawer = ref(false);
+        const purchaseQuantity = ref(1);
+        const uploadingMedia = ref(false);
+        const productMediaFileInput = ref(null);
+        const depositingStars = ref(false);
+        const customStarsAmount = ref(50);
+        const isCheckingOutCart = ref(false);
 
         // Seller Settings, Analytics Chart & Bulk Import state
         const chartMetric = ref('orders');
@@ -1509,11 +1721,183 @@ HTML_SHELL = """<!DOCTYPE html>
           return (opt ? Number(opt.userPrice || opt.price || 1) : Number(prod.price_usd || 1)).toFixed(2);
         };
 
+        // Media format helper (video vs image)
+        const isMediaVideo = (url) => {
+          if (!url || typeof url !== 'string') return false;
+          const clean = url.split('?')[0].toLowerCase();
+          return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov') || clean.includes('/video/');
+        };
+
+        const cartTotalCount = computed(() => {
+          return cartItems.value.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+        });
+
+        const cartTotalPrice = computed(() => {
+          return cartItems.value.reduce((sum, item) => sum + (Number(item.price || 0) * (Number(item.quantity) || 1)), 0);
+        });
+
+        const addToCart = (prod, qty = 1) => {
+          if (!prod) return;
+          const opt = selectedPriceOption.value && activeProduct.value?.id === prod.id ? selectedPriceOption.value : prod.priceOptions?.[0];
+          const unitPrice = opt ? Number(opt.userPrice || opt.price || 1) : Number(prod.price_usd || 1);
+          const effectivePrice = prod.discountPercent > 0 ? Number((unitPrice * (100 - prod.discountPercent) / 100).toFixed(2)) : unitPrice;
+
+          const existingIndex = cartItems.value.findIndex(item => item.id === prod.id && (!opt || item.optionId === opt.id));
+          if (existingIndex > -1) {
+            cartItems.value[existingIndex].quantity += Number(qty) || 1;
+          } else {
+            cartItems.value.push({
+              id: prod.id,
+              name: prod.nameAr || prod.name,
+              nameAr: prod.nameAr || prod.name,
+              price: effectivePrice,
+              quantity: Number(qty) || 1,
+              optionId: opt?.id,
+              image_url: (prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url || '',
+              userInputs: { ...userFormInputs.value }
+            });
+          }
+          if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+          alert('تمت إضافة المنتج إلى السلة بنجاح! 🛒');
+        };
+
+        const increaseCartQty = (idx) => {
+          if (cartItems.value[idx]) cartItems.value[idx].quantity++;
+        };
+
+        const decreaseCartQty = (idx) => {
+          if (!cartItems.value[idx]) return;
+          if (cartItems.value[idx].quantity > 1) {
+            cartItems.value[idx].quantity--;
+          } else {
+            cartItems.value.splice(idx, 1);
+          }
+        };
+
+        const removeCartItem = (idx) => {
+          cartItems.value.splice(idx, 1);
+        };
+
+        const checkoutCart = async () => {
+          if (!cartItems.value.length) return;
+          if (user.value.balance < cartTotalPrice.value) {
+            alert(`رصيدك الحالي ($${(user.value.balance || 0).toFixed(2)}) غير كافٍ. يرجى شحن الرصيد أولاً.`);
+            showDepositModal.value = true;
+            return;
+          }
+          isCheckingOutCart.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/order/cart-checkout', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({ items: cartItems.value })
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              if (json.new_balance_usd !== undefined) {
+                user.value.balance = Number(json.new_balance_usd);
+              }
+              cartItems.value = [];
+              showCartDrawer.value = false;
+              currentTab.value = 'orders';
+              await loadOrders();
+              alert(json.message || 'تم تأكيد وشراء عناصر السلة بنجاح! 🎉');
+            } else {
+              alert(json.error || json.message || 'فشل إتمام طلبات السلة');
+            }
+          } catch {
+            alert('حدث خطأ أثناء معالجة السلة');
+          } finally {
+            isCheckingOutCart.value = false;
+          }
+        };
+
+        const handleProductMediaUpload = async (evt) => {
+          const file = evt.target.files?.[0];
+          if (!file) return;
+          uploadingMedia.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/miniapp/upload', {
+              method: 'POST',
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: formData
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              const uploadedUrl = json.url || json.data?.url || '';
+              editingProduct.value.imageUrl = uploadedUrl;
+              alert('تم رفع الوسائط بنجاح من المعرض! 📸');
+            } else {
+              alert(json.error || 'فشل رفع الملف، تأكد من حجم الملف ونوعه');
+            }
+          } catch {
+            alert('حدث خطأ أثناء رفع الملف');
+          } finally {
+            uploadingMedia.value = false;
+            if (evt.target) evt.target.value = '';
+          }
+        };
+
+        const payWithStarsAmount = async (starsAmount) => {
+          const amount = parseInt(starsAmount) || 50;
+          depositingStars.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/deposit/stars', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({ stars: amount })
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              if (json.invoice_link && tg?.openInvoice) {
+                tg.openInvoice(json.invoice_link, (status) => {
+                  if (status === 'paid') {
+                    if (json.new_balance_usd !== undefined) {
+                      user.value.balance = Number(json.new_balance_usd);
+                    }
+                    alert(`تم شحن ${amount} نجمة بنجاح إلى رصيدك! ⭐`);
+                    showDepositModal.value = false;
+                  }
+                });
+              } else {
+                if (json.new_balance_usd !== undefined) {
+                  user.value.balance = Number(json.new_balance_usd);
+                }
+                alert(json.message || `تم شحن ${amount} نجمة بنجاح! ⭐`);
+                showDepositModal.value = false;
+              }
+            } else {
+              alert(json.error || 'فشل إنشاء فاتورة النجوم');
+            }
+          } catch {
+            alert('حدث خطأ أثناء معالجة شحن النجوم');
+          } finally {
+            depositingStars.value = false;
+          }
+        };
+
         const openProductModal = (prod) => {
           activeProduct.value = prod;
           selectedPriceOption.value = prod.priceOptions?.[0] || null;
+          purchaseQuantity.value = 1;
           userFormInputs.value = {};
-          termsAgreed.value = false;
+          termsAgreed.value = true;
         };
 
         const getCalculatedTotal = () => {
@@ -1523,21 +1907,22 @@ HTML_SHELL = """<!DOCTYPE html>
             return ((base * smmQuantity.value) / 1000).toFixed(2);
           }
           const base = selectedPriceOption.value?.userPrice || activeProduct.value.price_usd || 1.0;
+          const qty = Number(purchaseQuantity.value) || 1;
           if (activeProduct.value.discountPercent > 0) {
-            return (base * (100 - activeProduct.value.discountPercent) / 100).toFixed(2);
+            return ((base * (100 - activeProduct.value.discountPercent) / 100) * qty).toFixed(2);
           }
-          return Number(base).toFixed(2);
+          return (Number(base) * qty).toFixed(2);
         };
 
         const submitOrder = async () => {
-          if (!termsAgreed.value) return;
           isSubmitting.value = true;
           try {
             const initData = tg?.initData || '';
+            const qty = activeProduct.value.templateType === 'smm_boost' ? smmQuantity.value : (Number(purchaseQuantity.value) || 1);
             const payload = {
               productId: activeProduct.value.id,
               priceOptionId: selectedPriceOption.value?.id,
-              quantity: activeProduct.value.templateType === 'smm_boost' ? smmQuantity.value : 1,
+              quantity: qty,
               targetUrl: smmUrl.value,
               userInputs: userFormInputs.value,
               idempotencyKey: `IDEMP-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
@@ -1607,7 +1992,7 @@ HTML_SHELL = """<!DOCTYPE html>
         };
 
         const payWithStars = () => {
-          alert('لشحن نجوم تيليجرام Telegram Stars، أرسل أمر /deposit داخل محادثة البوت الرئيسية وسيتم تزويدك بالفاتورة فوراً.');
+          payWithStarsAmount(50);
         };
 
         const payWithExternalGateway = () => {
@@ -2081,6 +2466,24 @@ HTML_SHELL = """<!DOCTYPE html>
           isSubmitting,
           showDepositModal,
           showThemeCustomizer,
+          cartItems,
+          showCartDrawer,
+          purchaseQuantity,
+          uploadingMedia,
+          productMediaFileInput,
+          depositingStars,
+          customStarsAmount,
+          isCheckingOutCart,
+          isMediaVideo,
+          cartTotalCount,
+          cartTotalPrice,
+          addToCart,
+          increaseCartQty,
+          decreaseCartQty,
+          removeCartItem,
+          checkoutCart,
+          handleProductMediaUpload,
+          payWithStarsAmount,
           getEffectivePrice,
           getOriginalPrice,
           openProductModal,

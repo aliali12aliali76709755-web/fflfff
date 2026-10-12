@@ -607,6 +607,47 @@ async def test_buyer_account_and_seller_features():
         del_res = await r_del.json()
         assert del_res["ok"] is True
 
+        # 10. اختبار شحن نجوم تيليجرام Stars Deposit
+        r_stars = await client.post(
+            f"/api/miniapp/{bot_user}/deposit/stars",
+            headers={"X-Telegram-Init-Data": buyer_init},
+            json={"stars": 100}
+        )
+        assert r_stars.status == 200
+        stars_res = await r_stars.json()
+        assert stars_res["ok"] is True
+        assert stars_res["stars_amount"] == 100
+        assert stars_res["new_balance_usd"] > 0
+
+        # 11. اختبار شراء السلة المجمعة Cart Checkout
+        cart_payload = {
+            "items": [
+                {
+                    "productId": "cart_p1",
+                    "name": "بطاقة نتفلكس",
+                    "price": 0.5,
+                    "quantity": 2,
+                    "target": "user@test.com"
+                },
+                {
+                    "productId": "cart_p2",
+                    "name": "شحن ببجي",
+                    "price": 0.5,
+                    "quantity": 1,
+                    "target": "55443322"
+                }
+            ]
+        }
+        r_cart = await client.post(
+            f"/api/miniapp/{bot_user}/order/cart-checkout",
+            headers={"X-Telegram-Init-Data": buyer_init},
+            json=cart_payload
+        )
+        assert r_cart.status == 200
+        cart_res = await r_cart.json()
+        assert cart_res["ok"] is True
+        assert cart_res["total_amount"] == 1.5
+
     finally:
         await client.close()
 
