@@ -306,6 +306,29 @@ async def get_store_catalog(req: web.Request) -> web.Response:
                 "icon": "⭐",
             })
 
+    # إضافة المنتجات المخصصة التي أضافها البائع
+    custom_prods = await db.kv_get(bot.id, "store:custom_products", []) or []
+    for cp in custom_prods:
+        c_cat_id = cp.get("category_id") or "custom"
+        c_cat_name = cp.get("category_name") or "منتجات حصرية"
+        if not any(c["id"] == c_cat_id for c in categories):
+            categories.append({"id": c_cat_id, "name": c_cat_name, "icon": cp.get("icon") or "⭐"})
+
+        products.append({
+            "id": cp["id"],
+            "category_id": c_cat_id,
+            "name": cp["name"],
+            "description": cp.get("description", ""),
+            "price_usd": float(cp.get("price_usd", 1.0)),
+            "original_price_usd": float(cp.get("price_usd", 1.0)),
+            "has_discount": False,
+            "input_label": cp.get("input_label", "بيانات الطلب"),
+            "is_instant": bool(cp.get("is_instant", False)),
+            "is_manual": not bool(cp.get("is_instant", False)),
+            "icon": cp.get("icon", "📦"),
+            "image_url": cp.get("image_url", ""),
+        })
+
     return web.json_response({
         "ok": True,
         "categories": categories,
@@ -399,6 +422,20 @@ async def create_store_order(req: web.Request) -> web.Response:
         final_usd = svc["price_usd"]
         product_name = svc["name_ar"]
 
+    # فحص المنتجات المخصصة للبائع
+    if not product_name:
+        custom_prods = await db.kv_get(bot.id, "store:custom_products", []) or []
+        cp = next((p for p in custom_prods if p["id"] == product_id), None)
+        if not cp:
+            return web.json_response({"ok": False, "error": "invalid_product", "message": "المنتج غير موجود"}, status=404)
+        final_usd = float(cp.get("price_usd", 1.0)) * quantity
+        product_name = cp["name"]
+        codes = cp.get("stock_codes") or []
+        if cp.get("is_instant") and codes:
+            voucher_code = codes.pop(0)
+            await db.kv_set(bot.id, "store:custom_products", custom_prods)
+            order_status = "completed"
+
     # فحص الرصيد المتاح
     user_bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
     if user_bal < final_usd:
@@ -470,6 +507,83 @@ async def create_store_order(req: web.Request) -> web.Response:
         "status": order_status,
         "voucher": voucher_code,
         "new_balance_usd": new_bal,
+    })
+
+
+async def get_user_orders(req: web.Request) -> web.Response:
+    """يعيد سجل طلبات المشتري في هذا البوت."""
+    bot_u = req.match_info["bot_username"]
+    ctx = await authenticate_miniapp_request(req, bot_u)
+
+    async with db.Session() as s:
+        orders = (await s.execute(
+            select(db.ServiceOrder)
+            .where(db.ServiceOrder.bot_id == ctx.bot.id, db.ServiceOrder.user_id == ctx.uid)
+            .order_by(desc(db.ServiceOrder.created))
+            .limit(50)
+        )).scalars().all()
+
+    res = []
+    for o in orders:
+        details = o.details or {}
+        voucher = details.get("voucher") or details.get("code") or details.get("delivery_text") or ""
+        res.append({
+            "order_id": o.order_id,
+            "product_name": o.service_name,
+            "target": o.target,
+            "quantity": o.quantity,
+            "price_usd": o.price_user_usd,
+            "currency": o.currency,
+            "status": o.status,
+            "voucher": voucher,
+            "created": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
+        })
+    return web.json_response({"ok": True, "orders": res})
+
+
+async def get_user_account(req: web.Request) -> web.Response:
+    """يعيد بيانات حساب العضو، الرصيد، نظام الإحالة، ومعلومات الدعم والسياسات."""
+    bot_u = req.match_info["bot_username"]
+    ctx = await authenticate_miniapp_request(req, bot_u)
+
+    bot_cur = await currency.get_bot_currency(ctx.bot.id)
+    user_bal_usd = await ledger.get_user_balance_usd(ctx.bot.id, ctx.uid)
+    user_bal_disp = await ledger.get_user_balance_display(ctx.bot.id, ctx.uid)
+
+    ref_tag = f"sl_{ctx.uid}"
+    async with db.Session() as s:
+        invited_count = (await s.execute(
+            select(func.count(db.BUser.user_id)).where(
+                db.BUser.bot_id == ctx.bot.id,
+                db.BUser.source == ref_tag
+            )
+        )).scalar() or 0
+
+    store_settings = await db.kv_get(ctx.bot.id, "store:settings", {}) or {}
+    theme_cfg = await db.kv_get(ctx.bot.id, "store:theme_config", {}) or {}
+    support_url = store_settings.get("support_url") or theme_cfg.get("contact_url") or f"https://t.me/{ctx.bot.username}"
+    terms_text = store_settings.get("terms_text") or "جميع الخدمات مضمونة ويتم تسليمها وفق الشروط المعتمدة. للاستفسار يرجى التواصل مع الدعم."
+    policy_text = store_settings.get("policy_text") or "في حال تعذر تنفيذ الخدمة أو تأخرها يتم استرجاع المبلغ كاملاً إلى محفظتك في البوت تلقائياً."
+
+    return web.json_response({
+        "ok": True,
+        "user": {
+            "uid": ctx.uid,
+            "name": ctx.uname,
+            "username": ctx.user.get("username", ""),
+            "role": ctx.role,
+            "balance_usd": user_bal_usd,
+            "balance_display": user_bal_disp,
+            "currency": bot_cur,
+            "referral_link": f"https://t.me/{ctx.bot.username}?start=sl_{ctx.uid}",
+            "invited_count": invited_count,
+            "earned_usd": round(invited_count * 0.10, 2),
+        },
+        "settings": {
+            "support_url": support_url,
+            "terms_text": terms_text,
+            "policy_text": policy_text,
+        }
     })
 
 
@@ -645,6 +759,193 @@ async def get_seller_stats(req: web.Request) -> web.Response:
         "total_sales_usd": round(total_sales_usd, 2),
         "seller_balance": seller_bal,
     })
+
+
+async def get_seller_analytics(req: web.Request) -> web.Response:
+    """يعيد إحصائيات متقدمة ومخطط بياني يومي تفاعلي لآخر 7 أيام."""
+    bot_u = req.match_info["bot_username"]
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    bot = ctx.bot
+
+    async with db.Session() as s:
+        total_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id)
+        )).scalar() or 0
+
+        completed_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
+        )).scalar() or 0
+
+        pending_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "queued")
+        )).scalar() or 0
+
+        canceled_orders = (await s.execute(
+            select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status.in_(("canceled", "refunded")))
+        )).scalar() or 0
+
+        revenue_usd = (await s.execute(
+            select(func.coalesce(func.sum(db.ServiceOrder.price_user_usd), 0.0))
+            .where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
+        )).scalar() or 0.0
+
+        cost_usd = (await s.execute(
+            select(func.coalesce(func.sum(db.ServiceOrder.cost_platform_usd), 0.0))
+            .where(db.ServiceOrder.bot_id == bot.id, db.ServiceOrder.status == "completed")
+        )).scalar() or 0.0
+
+        profit_usd = max(0.0, revenue_usd - cost_usd)
+
+        # مخطط آخر 7 أيام
+        chart_days = []
+        now_dt = dt.datetime.utcnow()
+        day_names_ar = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+        for i in range(6, -1, -1):
+            target_date = (now_dt - dt.timedelta(days=i)).date()
+            d_start = dt.datetime.combine(target_date, dt.time.min)
+            d_end = dt.datetime.combine(target_date, dt.time.max)
+
+            day_orders = (await s.execute(
+                select(func.count(db.ServiceOrder.id)).where(
+                    db.ServiceOrder.bot_id == bot.id,
+                    db.ServiceOrder.created >= d_start,
+                    db.ServiceOrder.created <= d_end,
+                )
+            )).scalar() or 0
+
+            day_comp = (await s.execute(
+                select(func.count(db.ServiceOrder.id)).where(
+                    db.ServiceOrder.bot_id == bot.id,
+                    db.ServiceOrder.status == "completed",
+                    db.ServiceOrder.created >= d_start,
+                    db.ServiceOrder.created <= d_end,
+                )
+            )).scalar() or 0
+
+            day_canc = (await s.execute(
+                select(func.count(db.ServiceOrder.id)).where(
+                    db.ServiceOrder.bot_id == bot.id,
+                    db.ServiceOrder.status.in_(("canceled", "refunded")),
+                    db.ServiceOrder.created >= d_start,
+                    db.ServiceOrder.created <= d_end,
+                )
+            )).scalar() or 0
+
+            day_rev = (await s.execute(
+                select(func.coalesce(func.sum(db.ServiceOrder.price_user_usd), 0.0)).where(
+                    db.ServiceOrder.bot_id == bot.id,
+                    db.ServiceOrder.status == "completed",
+                    db.ServiceOrder.created >= d_start,
+                    db.ServiceOrder.created <= d_end,
+                )
+            )).scalar() or 0.0
+
+            chart_days.append({
+                "date": target_date.strftime("%Y-%m-%d"),
+                "day_name": day_names_ar[target_date.weekday()],
+                "orders": day_orders,
+                "completed": day_comp,
+                "canceled": day_canc,
+                "revenue": round(day_rev, 2),
+            })
+
+    return web.json_response({
+        "ok": True,
+        "summary": {
+            "total_orders": total_orders,
+            "completed_orders": completed_orders,
+            "pending_orders": pending_orders,
+            "canceled_orders": canceled_orders,
+            "total_revenue_usd": round(revenue_usd, 2),
+            "net_profit_usd": round(profit_usd, 2),
+        },
+        "chart_days": chart_days,
+    })
+
+
+async def get_seller_products(req: web.Request) -> web.Response:
+    """يعيد قائمة المنتجات المخصصة للمتجر."""
+    bot_u = req.match_info["bot_username"]
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    custom_prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
+    return web.json_response({"ok": True, "products": custom_prods})
+
+
+async def add_seller_product(req: web.Request) -> web.Response:
+    """يضيف منتجاً مخصصاً جديداً مع الصورة والسعر والوصف."""
+    bot_u = req.match_info["bot_username"]
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    name = str(body.get("name") or "").strip()
+    if not name:
+        return web.json_response({"ok": False, "error": "missing_name", "message": "اسم المنتج مطلوب"}, status=400)
+
+    price_usd = float(body.get("price_usd") or 1.0)
+    category_id = str(body.get("category_id") or "custom").strip()
+    category_name = str(body.get("category_name") or "خدمات حصرية").strip()
+    description = str(body.get("description") or "").strip()
+    input_label = str(body.get("input_label") or "بيانات الطلب").strip()
+    image_url = str(body.get("image_url") or "").strip()
+    is_instant = bool(body.get("is_instant", False))
+    stock_codes = body.get("stock_codes") or []
+
+    new_prod = {
+        "id": f"cp_{uuid.uuid4().hex[:8]}",
+        "name": name[:120],
+        "category_id": category_id[:32],
+        "category_name": category_name[:64],
+        "price_usd": round(price_usd, 2),
+        "description": description[:500],
+        "input_label": input_label[:64],
+        "image_url": image_url[:255],
+        "is_instant": is_instant,
+        "stock_codes": stock_codes if isinstance(stock_codes, list) else [],
+        "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+    }
+
+    prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
+    prods.insert(0, new_prod)
+    await db.kv_set(ctx.bot.id, "store:custom_products", prods)
+
+    return web.json_response({"ok": True, "product": new_prod, "message": "تمت إضافة المنتج بنجاح ✅"})
+
+
+async def delete_seller_product(req: web.Request) -> web.Response:
+    """يحذف منتجاً مخصصاً من المتجر."""
+    bot_u = req.match_info["bot_username"]
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    prod_id = req.match_info["product_id"]
+
+    prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
+    prods = [p for p in prods if p.get("id") != prod_id]
+    await db.kv_set(ctx.bot.id, "store:custom_products", prods)
+
+    return web.json_response({"ok": True, "message": "تم حذف المنتج بنجاح 🗑️"})
+
+
+async def save_seller_settings(req: web.Request) -> web.Response:
+    """يحفظ إعدادات المتجر والدعم والشروط والسياسات."""
+    bot_u = req.match_info["bot_username"]
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    settings = {
+        "support_url": str(body.get("support_url") or "").strip()[:200],
+        "terms_text": str(body.get("terms_text") or "").strip()[:1000],
+        "policy_text": str(body.get("policy_text") or "").strip()[:1000],
+    }
+    await db.kv_set(ctx.bot.id, "store:settings", settings)
+    return web.json_response({"ok": True, "settings": settings, "message": "تم حفظ الإعدادات والشروط بنجاح ✅"})
 
 
 async def save_seller_theme(req: web.Request) -> web.Response:
@@ -891,12 +1192,19 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get(f"/api/miniapp/{u}/bootstrap", get_store_bootstrap)
     app.router.add_get(f"/api/miniapp/{u}/catalog", get_store_catalog)
     app.router.add_post(f"/api/miniapp/{u}/order", create_store_order)
+    app.router.add_get(f"/api/miniapp/{u}/orders", get_user_orders)
+    app.router.add_get(f"/api/miniapp/{u}/account", get_user_account)
     app.router.add_get(f"/api/miniapp/{u}/reviews/{{product_id}}", get_product_reviews)
     app.router.add_post(f"/api/miniapp/{u}/reviews", add_product_review)
 
     # 2. البائع والتصميم
     app.router.add_post(f"/api/miniapp/{u}/upload", upload_media_endpoint)
     app.router.add_get(f"/api/miniapp/{u}/seller/stats", get_seller_stats)
+    app.router.add_get(f"/api/miniapp/{u}/seller/analytics", get_seller_analytics)
+    app.router.add_get(f"/api/miniapp/{u}/seller/products", get_seller_products)
+    app.router.add_post(f"/api/miniapp/{u}/seller/products", add_seller_product)
+    app.router.add_delete(f"/api/miniapp/{u}/seller/products/{{product_id}}", delete_seller_product)
+    app.router.add_post(f"/api/miniapp/{u}/seller/settings", save_seller_settings)
     app.router.add_post(f"/api/miniapp/{u}/seller/theme", save_seller_theme)
     app.router.add_get(f"/api/miniapp/{u}/seller/theme/versions", get_theme_versions)
     app.router.add_post(f"/api/miniapp/{u}/seller/ai_customizer", ai_customizer_prompt)

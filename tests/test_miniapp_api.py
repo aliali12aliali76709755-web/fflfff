@@ -474,3 +474,120 @@ async def test_admin_miniapp_endpoints():
 
     finally:
         await client.close()
+
+
+@pytest.mark.anyio
+async def test_buyer_account_and_seller_features():
+    """اختبار شامل لميزات حساب المشتري، سجل الطلبات، ولوحة البائع والمخطط البياني وعزل الأدوار."""
+    await db.init()
+    app = web.Application()
+    miniapp_api.setup_routes(app)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+
+    seller_id = 998877
+    buyer_id = 112233
+    bot_token = "child_secret_token_seller_9988"
+    bot_user = "test_seller_bot"
+
+    # إنشاء البوت في قاعدة البيانات
+    async with db.Session() as s:
+        b = db.Bot(
+            id=556677,
+            owner_id=seller_id,
+            username=bot_user,
+            name="بوت المتجر الشامل",
+            token=crypto.enc(bot_token),
+            template="digital",
+            status="active",
+        )
+        s.add(b)
+        await s.commit()
+
+    buyer_init = make_init_data(bot_token, {"id": buyer_id, "first_name": "Buyer Person", "username": "buyer"})
+    seller_init = make_init_data(bot_token, {"id": seller_id, "first_name": "Store Owner", "username": "seller"})
+
+    try:
+        # 1. فحص طلباتي للمشتري (Orders)
+        r_ord = await client.get(f"/api/miniapp/{bot_user}/orders", headers={"X-Telegram-Init-Data": buyer_init})
+        assert r_ord.status == 200
+        ord_data = await r_ord.json()
+        assert ord_data["ok"] is True
+        assert isinstance(ord_data["orders"], list)
+
+        # 2. فحص حسابي للمشتري (Account & Referral)
+        r_acc = await client.get(f"/api/miniapp/{bot_user}/account", headers={"X-Telegram-Init-Data": buyer_init})
+        assert r_acc.status == 200
+        acc_data = await r_acc.json()
+        assert acc_data["ok"] is True
+        assert acc_data["user"]["uid"] == buyer_id
+        assert "referral_link" in acc_data["user"]
+        assert "settings" in acc_data
+        assert "terms_text" in acc_data["settings"]
+
+        # 3. عزل الأدوار: منع المشتري العادي من لوحة البائع (403 Forbidden)
+        r_deny_seller = await client.get(f"/api/miniapp/{bot_user}/seller/analytics", headers={"X-Telegram-Init-Data": buyer_init})
+        assert r_deny_seller.status == 403
+
+        r_deny_prods = await client.get(f"/api/miniapp/{bot_user}/seller/products", headers={"X-Telegram-Init-Data": buyer_init})
+        assert r_deny_prods.status == 403
+
+        # 4. قبول البائع في الإحصائيات والمخطط التحليلي (200 OK)
+        r_analytics = await client.get(f"/api/miniapp/{bot_user}/seller/analytics", headers={"X-Telegram-Init-Data": seller_init})
+        assert r_analytics.status == 200
+        an_data = await r_analytics.json()
+        assert an_data["ok"] is True
+        assert "summary" in an_data
+        assert "chart_days" in an_data
+        assert len(an_data["chart_days"]) == 7
+
+        # 5. البائع يضيف منتجاً مخصصاً (Add Product)
+        r_add_prod = await client.post(
+            f"/api/miniapp/{bot_user}/seller/products",
+            headers={"X-Telegram-Init-Data": seller_init},
+            json={
+                "name": "حساب نتفلكس بريميوم",
+                "category_id": "subscriptions",
+                "category_name": "اشتراكات",
+                "price_usd": 3.5,
+                "description": "حساب رسمي 4K لمدة شهر",
+                "input_label": "البريد الإلكتروني للتسليم",
+                "is_instant": True,
+                "stock_codes": ["NETFLIX_CODE_1", "NETFLIX_CODE_2"],
+            }
+        )
+        assert r_add_prod.status == 200
+        add_res = await r_add_prod.json()
+        assert add_res["ok"] is True
+        prod_id = add_res["product"]["id"]
+
+        # 6. ظهور المنتج المخصص في كتالوج المتجر
+        r_cat = await client.get(f"/api/miniapp/{bot_user}/catalog", headers={"X-Telegram-Init-Data": buyer_init})
+        assert r_cat.status == 200
+        cat_data = await r_cat.json()
+        assert any(p["id"] == prod_id for p in cat_data["products"])
+
+        # 7. البائع يحفظ إعدادات المتجر والدعم والشروط
+        r_sett = await client.post(
+            f"/api/miniapp/{bot_user}/seller/settings",
+            headers={"X-Telegram-Init-Data": seller_init},
+            json={
+                "support_url": "https://t.me/ShopSupportVIP",
+                "terms_text": "الشروط المحدثة للمتجر",
+                "policy_text": "سياسة الاسترجاع المحدثة",
+            }
+        )
+        assert r_sett.status == 200
+        sett_res = await r_sett.json()
+        assert sett_res["ok"] is True
+        assert sett_res["settings"]["support_url"] == "https://t.me/ShopSupportVIP"
+
+        # 8. البائع يحذف المنتج المخصص
+        r_del = await client.delete(f"/api/miniapp/{bot_user}/seller/products/{prod_id}", headers={"X-Telegram-Init-Data": seller_init})
+        assert r_del.status == 200
+        del_res = await r_del.json()
+        assert del_res["ok"] is True
+
+    finally:
+        await client.close()
+

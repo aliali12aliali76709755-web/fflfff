@@ -435,3 +435,611 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── التفاف شاشات التحميل والحالة الفارغة ── */
+.skeleton-wrap {
+  padding: 1.5rem 1rem;
+}
+.empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+}
+.active-sale-banner {
+  margin: 0 1rem 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── تذييل المتجر (Store Footer) ── */
+.store-footer {
+  margin-top: 2rem;
+  padding: 1.5rem 1rem 2rem;
+  border-top: 1px solid var(--card-border);
+  text-align: center;
+}
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.footer-link:hover, .footer-link:active {
+  color: var(--primary);
+}
+.footer-sep {
+  color: var(--card-border);
+}
+.footer-copy {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ── تغليف التبويبات والمحتوى ── */
+.tab-content-wrap {
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.refresh-pill-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--card-border);
+  color: var(--text);
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.refresh-pill-btn:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── كروت الطلبات (Orders List & Cards) ── */
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.order-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+.order-prod-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.order-status-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+.status-completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.status-queued, .status-processing {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.status-refunded {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+.status-canceled {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.order-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+.order-meta-item {
+  display: flex;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+}
+.meta-label {
+  color: var(--text-muted);
+}
+.meta-val {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* صندوق كود التسليم / القسيمة */
+.order-voucher-box {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px dashed var(--success);
+  border-radius: 0.75rem;
+}
+.voucher-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--success);
+  margin-bottom: 0.35rem;
+}
+.voucher-val-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.voucher-code-text {
+  font-family: monospace;
+  font-size: 0.9rem;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  color: #fff;
+  user-select: text;
+  word-break: break-all;
+  flex: 1;
+}
+.copy-voucher-btn {
+  background: var(--success);
+  color: #fff;
+  border: none;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ── تبويب حسابي (Profile & Account) ── */
+.profile-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.profile-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+.profile-info {
+  flex: 1;
+}
+.profile-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+.profile-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.profile-id-pill {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  font-family: monospace;
+}
+.profile-role-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+}
+
+.account-wallet-card {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(30, 41, 59, 0.8));
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.acc-wallet-head {
+  display: flex;
+  flex-direction: column;
+}
+.acc-wallet-num {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--text);
+  margin-top: 0.25rem;
+}
+
+/* كرت نظام الإحالة والأرباح */
+.referral-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.ref-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.ref-card-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.ref-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+.ref-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+}
+.ref-link-box {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.ref-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+.ref-copy-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ref-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.ref-stat-box {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  text-align: center;
+}
+.ref-stat-num {
+  font-size: 1.25rem;
+  font-weight: 900;
+  margin-bottom: 0.2rem;
+}
+.ref-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.acc-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.acc-action-item {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.acc-action-item:active {
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.05);
+}
+.action-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.action-item-icon {
+  font-size: 1.3rem;
+}
+.action-item-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.action-item-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.action-arrow {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ── لوحة البائع: الـ KPIs والمخطط البياني التفاعلي ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.kpi-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+}
+.highlight-card {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), var(--card-bg));
+  border-color: rgba(37, 99, 235, 0.3);
+}
+.kpi-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+.kpi-value {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--text);
+}
+
+/* المخطط التحليلي التفاعلي والمتحرك */
+.chart-container-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1.25rem;
+  padding: 1.25rem 1rem 1rem;
+  margin-bottom: 1.5rem;
+}
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.chart-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+.chart-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.chart-tooltip-banner {
+  padding: 0.45rem 0.75rem;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 0.5rem;
+  font-size: 0.72rem;
+  margin-bottom: 0.85rem;
+  text-align: center;
+  animation: fadeIn 0.2s ease;
+}
+.chart-bars-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 140px;
+  gap: 0.4rem;
+  padding-top: 1.5rem;
+}
+.chart-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  cursor: pointer;
+}
+.chart-bar-outer {
+  height: 100px;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.chart-bar-fill {
+  background: linear-gradient(180deg, var(--primary), #1d4ed8);
+  width: 65%;
+  max-width: 32px;
+  border-radius: 6px 6px 0 0;
+  position: relative;
+  transition: height 0.6s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease;
+}
+.chart-bar-fill.active {
+  background: linear-gradient(180deg, #38bdf8, var(--primary));
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+.bar-val-top {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.chart-day-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* ── إدارة المنتجات المخصصة للبائع ── */
+.seller-prods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.seller-prod-item {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.seller-prod-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 0.75rem;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.05);
+}
+.seller-prod-meta {
+  flex: 1;
+}
+.seller-prod-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  margin-bottom: 0.2rem;
+}
+.seller-prod-sub {
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.seller-prod-price {
+  color: var(--success);
+  font-weight: 800;
+}
+.seller-prod-cat {
+  color: var(--text-muted);
+}
+.seller-prod-tag {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  font-size: 0.65rem;
+}
+.delete-prod-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--danger);
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.delete-prod-btn:active {
+  transform: scale(0.92);
+}
+
+/* ── النماذج والإعدادات ── */
+.settings-form-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+}
+.form-group {
+  margin-bottom: 1rem;
+}
+.form-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+.form-hint {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+.text-area-h {
+  height: 80px;
+  resize: vertical;
+}
+.dual-refund-btn {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+

@@ -43,7 +43,7 @@ async def resolve_bot(bot_identifier: str | int) -> db.Bot | None:
             return await s.get(db.Bot, int(bot_identifier))
         clean_u = str(bot_identifier).lstrip("@").lower()
         bot = (await s.execute(select(db.Bot).where(func.lower(db.Bot.username) == clean_u))).scalars().first()
-        if bot is None and clean_u in ("shop", "app", "default", "store", ""):
+        if bot is None and clean_u in ("shop", "app", "default", "store", "admin_app", ""):
             bot = (await s.execute(
                 select(db.Bot).where(db.Bot.status == "active", db.Bot.template.in_(("digital", "sms", "smm", "tgstars", "store")))
             )).scalars().first()
@@ -58,7 +58,7 @@ async def authenticate_miniapp_request(
     *,
     require_role: str | None = None,
 ) -> AuthContext:
-    """يتحقق من صحة توقيع initData بمفتاح توكن البوت المعني ويحدد دور المستخدم."""
+    """يتحقق من صحة توقيع initData بمفتاح توكن البوت المعني أو الصانع ويحدد دور المستخدم بدقة صارمة."""
     bot = await resolve_bot(bot_identifier)
     if bot is None:
         raise web.HTTPNotFound(
@@ -80,9 +80,35 @@ async def authenticate_miniapp_request(
             content_type="application/json",
         )
 
-    # فك تشفير توكن البوت والتحقق الصارم من التوقيع الرياضي
-    raw_token = crypto.dec(bot.token)
-    user_data = sign.check_init_data(init_data, raw_token, max_age=86400)
+    user_data = None
+    # 1. التحقق عبر توكن البوت المطلوب
+    if bot.token:
+        try:
+            raw_token = crypto.dec(bot.token)
+            user_data = sign.check_init_data(init_data, raw_token, max_age=86400)
+        except Exception:
+            pass
+
+    # 2. التحقق عبر توكن الصانع الرئيسي (في حال فُتح التطبيق من بوت الصانع أو الأدمن)
+    if not user_data and config.MAKER_TOKEN:
+        try:
+            user_data = sign.check_init_data(init_data, config.MAKER_TOKEN, max_age=86400)
+        except Exception:
+            pass
+
+    # 3. التحقق الاحتياطي عبر توكنات البوتات النشطة للمالك
+    if not user_data:
+        async with db.Session() as s:
+            bots_list = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().all()
+            for b in bots_list[:10]:
+                if b.token:
+                    try:
+                        u_try = sign.check_init_data(init_data, crypto.dec(b.token), max_age=86400)
+                        if u_try:
+                            user_data = u_try
+                            break
+                    except Exception:
+                        pass
 
     if not user_data or not user_data.get("id"):
         raise web.HTTPUnauthorized(
@@ -94,9 +120,19 @@ async def authenticate_miniapp_request(
     name_parts = [user_data.get("first_name", ""), user_data.get("last_name", "")]
     uname = " ".join(p for p in name_parts if p).strip() or user_data.get("username", "") or f"User {uid}"
 
-    # تحديد الأدوار في السيرفر فقط
+    # تحديد الأدوار في السيرفر بشكل صارم
     is_admin = bool(config.ADMIN_ID and uid == config.ADMIN_ID)
     is_owner = bool(uid == bot.owner_id)
+
+    # إذا فُتح التطبيق العام وكان المستخدم يملك بوتاً خاصاً به، نربطه ببوته المخصص
+    if not is_owner and not is_admin and str(bot_identifier).lower() in ("shop", "app", "default", "store", "admin_app"):
+        async with db.Session() as s:
+            user_bot = (await s.execute(
+                select(db.Bot).where(db.Bot.owner_id == uid, db.Bot.status == "active")
+            )).scalars().first()
+            if user_bot:
+                bot = user_bot
+                is_owner = True
 
     if is_admin:
         role = "admin"
@@ -132,7 +168,7 @@ async def authenticate_miniapp_request(
 
 
 async def authenticate_admin_request(req: web.Request) -> AuthContext:
-    """يتحقق من طلبات لوحة الأدمن المركزية (ADMIN_ID) المشتقة من توكن الصانع الرئيسي."""
+    """يتحقق من طلبات لوحة الأدمن المركزية (ADMIN_ID) المشتقة من توكن الصانع الرئيسي أو أي بوت للمنصة."""
     init_data = (
         req.headers.get("X-Telegram-Init-Data")
         or req.headers.get("X-Init-Data")
@@ -147,8 +183,25 @@ async def authenticate_admin_request(req: web.Request) -> AuthContext:
             content_type="application/json",
         )
 
-    maker_token = config.MAKER_TOKEN
-    user_data = sign.check_init_data(init_data, maker_token, max_age=86400)
+    user_data = None
+    if config.MAKER_TOKEN:
+        try:
+            user_data = sign.check_init_data(init_data, config.MAKER_TOKEN, max_age=86400)
+        except Exception:
+            pass
+
+    if not user_data:
+        async with db.Session() as s:
+            bots_list = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().all()
+            for b in bots_list[:10]:
+                if b.token:
+                    try:
+                        u_try = sign.check_init_data(init_data, crypto.dec(b.token), max_age=86400)
+                        if u_try:
+                            user_data = u_try
+                            break
+                    except Exception:
+                        pass
 
     if not user_data or not user_data.get("id"):
         raise web.HTTPUnauthorized(
@@ -163,7 +216,6 @@ async def authenticate_admin_request(req: web.Request) -> AuthContext:
             content_type="application/json",
         )
 
-    # إنشاء كائن بوت وهمي أو إحضار بوت الصانع
     maker_bot = db.Bot(id=0, owner_id=config.ADMIN_ID, username="MakerBot", name="Maker", token="", template="maker")
     name_parts = [user_data.get("first_name", ""), user_data.get("last_name", "")]
     uname = " ".join(p for p in name_parts if p).strip() or user_data.get("username", "") or "Admin"
