@@ -945,7 +945,7 @@ HTML_SHELL = """<!DOCTYPE html>
               <div class="text-[10px] text-slate-400">حدد عدد الحبات للطلب</div>
             </div>
             <div class="flex items-center gap-3 bg-dark-900 border border-slate-700/80 rounded-xl p-1">
-              <button @click="if (purchaseQuantity > 1) purchaseQuantity--" class="w-8 h-8 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-200 font-bold flex items-center justify-center transition active:scale-95">-</button>
+              <button @click="purchaseQuantity > 1 && purchaseQuantity--" class="w-8 h-8 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-200 font-bold flex items-center justify-center transition active:scale-95">-</button>
               <span class="w-8 text-center font-bold text-sm text-white font-mono">{{ purchaseQuantity }}</span>
               <button @click="purchaseQuantity++" class="w-8 h-8 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-200 font-bold flex items-center justify-center transition active:scale-95">+</button>
             </div>
@@ -2576,7 +2576,7 @@ async def render_miniapp_view(req: web.Request) -> web.Response:
         "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": (
             "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; "
-            "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://*.t.me;"
+            "frame-ancestors *;"
         ),
         "Cache-Control": "no-cache",
     }
