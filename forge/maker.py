@@ -1388,6 +1388,23 @@ async def on_start(update: Update, context: ContextTypes.DEFAULT_TYPE, param: st
         ref = int(param[4:]) if param.startswith("ref_") and param[4:].isdigit() else 0
         await ensure_user(m, ref)
         m.udata["mseen"] = True
+
+        # قبول فوري وتلقائي لأي طلب انضمام معلق لهذا المستخدم في قنوات ومجموعات المنصة
+        async def _approve_user_channels(uid: int):
+            try:
+                chans = await db.kv_get(0, "sys:channels", []) or []
+                p_plat = await platform.get(0)
+                all_c = chans + p_plat.get("fs", [])
+                target_ids = list({c.get("id") or c.get("chat_id") for c in all_c if c.get("id") or c.get("chat_id")})
+                for cid in target_ids:
+                    try:
+                        await context.bot.approve_chat_join_request(cid, uid)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        context.application.create_task(_approve_user_channels(m.uid))
+
         if not await gate(m):
             log.info("▶ /start uid=%s blocked by gate", m.uid)
             return
@@ -1511,6 +1528,11 @@ async def set_commands(app: Application) -> None:
                     pass
     except TelegramError:
         pass
+    try:
+        import asyncio
+        asyncio.create_task(auto_approve_all_users(app.bot))
+    except Exception:
+        pass
 
 
 async def on_chat_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1593,6 +1615,33 @@ async def on_my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             pass
 
 
+async def auto_approve_all_users(bot) -> int:
+    """يقبل تلقائياً جميع طلبات الانضمام المعلقة لكافة المستخدمين الذين ضغطوا ستارت في كافة القنوات المسجلة."""
+    try:
+        channels = await db.kv_get(0, "sys:channels", []) or []
+        p = await platform.get(0)
+        all_c = channels + p.get("fs", [])
+        target_ids = list({c.get("id") or c.get("chat_id") for c in all_c if c.get("id") or c.get("chat_id")})
+        if not target_ids:
+            return 0
+        async with db.Session() as s:
+            u_rows = (await s.execute(select(db.MUser.user_id))).scalars().all()
+        approved = 0
+        for cid in target_ids:
+            for uid in u_rows:
+                try:
+                    await bot.approve_chat_join_request(cid, uid)
+                    approved += 1
+                    await asyncio.sleep(0.02)
+                except Exception:
+                    pass
+        log.info("auto_approve_all_users: approved %d requests across %d channels", approved, len(target_ids))
+        return approved
+    except Exception as e:
+        log.warning("auto_approve_all_users error: %s", e)
+        return 0
+
+
 async def _cmd_approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """أمر لقبول جميع الطلبات المعلقة دفعة واحدة."""
     m = M(update, context)
@@ -1601,7 +1650,9 @@ async def _cmd_approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     args = context.args or []
     target_chat = args[0] if args else None
     channels = await db.kv_get(0, "sys:channels", []) or []
-    target_chats = [target_chat] if target_chat else [c.get("id") for c in channels]
+    p = await platform.get(0)
+    all_c = channels + p.get("fs", [])
+    target_chats = [target_chat] if target_chat else list({c.get("id") or c.get("chat_id") for c in all_c if c.get("id") or c.get("chat_id")})
     if not target_chats:
         await m.send("⚠️ أرسل الأمر متبوعاً بمعرف القناة أو الآيدي:\n<code>/approve @channel_username</code>\nأو أضف البوت مشرفاً في القناة أولاً لتسجيلها تلقائياً.")
         return
@@ -1614,7 +1665,7 @@ async def _cmd_approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             try:
                 await context.bot.approve_chat_join_request(cid, uid)
                 approved += 1
-                await asyncio.sleep(0.04)
+                await asyncio.sleep(0.03)
             except Exception:
                 pass
     await wait_msg.edit_text(f"✅ تم الانتهاء! تم قبول {approved} طلب انضمام.")

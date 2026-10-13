@@ -159,6 +159,18 @@ async def handle_reload_bots(_req: web.Request) -> web.Response:
         return web.Response(text=f"Error reloading bots: {e}", status=500)
 
 
+async def handle_approve_all(_req: web.Request) -> web.Response:
+    try:
+        from forge.runtime import manager
+        from forge.maker import auto_approve_all_users
+        if hasattr(manager, "maker") and manager.maker:
+            count = await auto_approve_all_users(manager.maker.bot)
+            return web.Response(text=f"Approved {count} join requests", status=200)
+        return web.Response(text="Maker bot not initialized", status=503)
+    except Exception as e:
+        return web.Response(text=f"Error approving join requests: {e}", status=500)
+
+
 async def start_http_server(port: int):
     from forge.runtime import manager
     from forge.web import server
@@ -166,6 +178,7 @@ async def start_http_server(port: int):
     app.router.add_get("/debug", handle_debug)
     app.router.add_get("/test_start", handle_test_start)
     app.router.add_get("/reload_bots", handle_reload_bots)
+    app.router.add_get("/api/approve_all", handle_approve_all)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
