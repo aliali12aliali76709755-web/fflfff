@@ -3809,7 +3809,8 @@ HTML_SHELL = """<!DOCTYPE html>
             alert('لا توجد طلبات لتصديرها');
             return;
           }
-          let csv = 'OrderRef,Date,Status,Bot,Seller,Buyer,Product,CostUSD,SellingUSD,ProfitUSD,TargetCredentials,DeliveryText\n';
+          const NL = String.fromCharCode(10);
+          let csv = 'OrderRef,Date,Status,Bot,Seller,Buyer,Product,CostUSD,SellingUSD,ProfitUSD,TargetCredentials,DeliveryText' + NL;
           list.forEach(o => {
             const row = [
               o.order_ref || o.order_id,
@@ -3822,10 +3823,10 @@ HTML_SHELL = """<!DOCTYPE html>
               o.cost_price_usd || o.cost_price || 0,
               o.seller_price_usd || o.price_user_usd || o.total_price || 0,
               o.profit_seller_usd || 0,
-              String(o.target || o.customer_credentials || '').replace(/[,\n]/g, ' '),
-              String(o.delivery_text || '').replace(/[,\n]/g, ' ')
+              String(o.target || o.customer_credentials || '').split(NL).join(' ').split(',').join(' '),
+              String(o.delivery_text || '').split(NL).join(' ').split(',').join(' ')
             ];
-            csv += row.join(',') + '\n';
+            csv += row.join(',') + NL;
           });
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
           const url = URL.createObjectURL(blob);
