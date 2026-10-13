@@ -53,17 +53,20 @@ async def resolve_bot(bot_identifier: str | int | None = None) -> db.Bot | None:
                 bot = (await s.execute(select(db.Bot))).scalars().first()
             if bot is None:
                 admin_uid = config.ADMIN_ID or 8821038059
+                dummy_token = config.MAKER_TOKEN or "platform_default_token_secret_123"
                 bot = db.Bot(
                     id=1,
                     factory_id=0,
                     owner_id=admin_uid,
                     username="forge_store_bot",
                     name="متجر المنصة الرقمي",
+                    token=crypto.enc(dummy_token),
                     template="digital",
                     status="active",
                 )
                 s.add(bot)
                 await s.commit()
+
             return bot
 
         # إذا كان المعرف رقماً (Bot ID)
