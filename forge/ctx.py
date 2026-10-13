@@ -52,7 +52,8 @@ class Ctx:
     def is_super(self) -> bool:
         """مدير المنصة حين يفعّل «دخول غرفة التحكم» لهذا البوت من لوحة الإدارة."""
         bd = self.x.bot_data
-        return bool(self.uid and self.uid == config.ADMIN_ID and not bd.get("factory_id") and (bd.get("adm") or {}).get("super"))
+        return bool(self.uid and (config.is_admin(self.uid) or self.uid == config.ADMIN_ID) and not bd.get("factory_id") and (bd.get("adm") or {}).get("super"))
+
 
     @property
     def name(self) -> str:

@@ -175,6 +175,25 @@ HTML_SHELL = """<!DOCTYPE html>
     <!-- ══════════════════════════════════════════════════════════════════════ -->
     <div v-else class="max-w-md mx-auto min-h-screen flex flex-col">
 
+      <!-- 🌐 Browser Preview Role Switcher (Shown ONLY outside Telegram WebApp) -->
+      <div v-if="isBrowserPreview" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-500/30 px-3 py-1.5 flex items-center justify-between text-[11px] z-50">
+        <div class="flex items-center gap-1.5 text-indigo-300 font-bold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>معاينة المتصفح:</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button @click="switchRole('admin')" :class="['px-2 py-0.5 rounded-lg font-bold text-[10px] transition', role === 'admin' ? 'bg-rose-600 text-white shadow' : 'bg-dark-800 text-slate-300 hover:text-white border border-slate-700']">
+            👑 لوحة الأدمن
+          </button>
+          <button @click="switchRole('seller')" :class="['px-2 py-0.5 rounded-lg font-bold text-[10px] transition', role === 'seller' ? 'bg-amber-600 text-white shadow' : 'bg-dark-800 text-slate-300 hover:text-white border border-slate-700']">
+            ⚙️ لوحة البائع
+          </button>
+          <button @click="switchRole('buyer')" :class="['px-2 py-0.5 rounded-lg font-bold text-[10px] transition', role === 'buyer' ? 'bg-blue-600 text-white shadow' : 'bg-dark-800 text-slate-300 hover:text-white border border-slate-700']">
+            🛍️ واجهة المشتري
+          </button>
+        </div>
+      </div>
+
       <!-- ── TOP HEADER (Fixed / Sticky) ─────────────────────────────────── -->
       <header class="sticky top-0 z-40 glass-panel border-b border-slate-800/80 px-4 py-3 safe-top flex items-center justify-between">
         <div class="flex items-center gap-2.5">
@@ -2493,7 +2512,7 @@ HTML_SHELL = """<!DOCTYPE html>
         refund_policy: "سياسة الاسترجاع الفوري", terms_of_service: "شروط تقديم الخدمة",
         unit: "قطعة", store_currency: "عملة المتجر الافتراضية", role_admin: "مدير المنصة 🛡️",
         role_seller: "مالك المتجر 👑", role_buyer: "مشتري معتمد ⭐",
-        nav_store: "المتجر", nav_orders: "طلباتي", nav_account: "حسابي", nav_seller: "إدارتي", nav_admin: "الأدمن",
+        nav_store: "المتجر", nav_orders: "طلباتي", nav_account: "حسابي", nav_seller: "لوحة البائع", nav_admin: "لوحة الأدمن",
         balance: "الرصيد", invited: "المدعوون", earned: "الأرباح", transactions_count: "عمليات"
       },
       en: {
@@ -2510,7 +2529,7 @@ HTML_SHELL = """<!DOCTYPE html>
         refund_policy: "Instant Refund Policy", terms_of_service: "Terms of Service",
         unit: "item", store_currency: "Default Store Currency", role_admin: "Platform Admin 🛡️",
         role_seller: "Store Owner 👑", role_buyer: "Verified Buyer ⭐",
-        nav_store: "Store", nav_orders: "Orders", nav_account: "Account", nav_seller: "Seller", nav_admin: "Admin",
+        nav_store: "Store", nav_orders: "Orders", nav_account: "Account", nav_seller: "Seller Panel", nav_admin: "Admin Panel",
         balance: "Balance", invited: "Invited", earned: "Earned", transactions_count: "txs"
       },
       ru: {
@@ -2527,7 +2546,7 @@ HTML_SHELL = """<!DOCTYPE html>
         refund_policy: "Политика возврата средств", terms_of_service: "Условия обслуживания",
         unit: "шт", store_currency: "Основная валюта магазина", role_admin: "Администратор 🛡️",
         role_seller: "Владелец магазина 👑", role_buyer: "Покупатель ⭐",
-        nav_store: "Магазин", nav_orders: "Заказы", nav_account: "Аккаунт", nav_seller: "Управление", nav_admin: "Админ",
+        nav_store: "Магазин", nav_orders: "Заказы", nav_account: "Аккаунт", nav_seller: "Панель продавца", nav_admin: "Панель админа",
         balance: "Баланс", invited: "Приглашено", earned: "Заработано", transactions_count: "операций"
       },
       fa: {
@@ -2544,7 +2563,7 @@ HTML_SHELL = """<!DOCTYPE html>
         refund_policy: "سیاست بازگشت وجه فوری", terms_of_service: "شرایط ارائه خدمات",
         unit: "عدد", store_currency: "ارز پیش‌فرض فروشگاه", role_admin: "مدیر ارشد پلتفرم 🛡️",
         role_seller: "مالک فروشگاه 👑", role_buyer: "خریدار تایید شده ⭐",
-        nav_store: "فروشگاه", nav_orders: "سفارش‌ها", nav_account: "حساب من", nav_seller: "مدیریت", nav_admin: "ادمین",
+        nav_store: "فروشگاه", nav_orders: "سفارش‌ها", nav_account: "حساب من", nav_seller: "پنل فروشنده", nav_admin: "پنل ادمین",
         balance: "موجودی", invited: "دعوت شده‌ها", earned: "پاداش کسب شده", transactions_count: "تراکنش"
       },
       tr: {
@@ -2561,7 +2580,7 @@ HTML_SHELL = """<!DOCTYPE html>
         refund_policy: "Anında İade Politikası", terms_of_service: "Hizmet Şartları",
         unit: "adet", store_currency: "Varsayılan Mağaza Para Birimi", role_admin: "Platform Yöneticisi 🛡️",
         role_seller: "Mağaza Sahibi 👑", role_buyer: "Onaylı Müşteri ⭐",
-        nav_store: "Mağaza", nav_orders: "Siparişler", nav_account: "Hesabım", nav_seller: "Yönetim", nav_admin: "Yönetici",
+        nav_store: "Mağaza", nav_orders: "Siparişler", nav_account: "Hesabım", nav_seller: "Satıcı Paneli", nav_admin: "Yönetici Paneli",
         balance: "Bakiye", invited: "Davet Edilenler", earned: "Kazanılan", transactions_count: "işlem"
       }
     };
@@ -2586,6 +2605,24 @@ HTML_SHELL = """<!DOCTYPE html>
           const el = document.getElementById('financial-statement-card');
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         };
+
+        const isBrowserPreview = ref(!Boolean(window.Telegram?.WebApp?.initData));
+
+        const switchRole = async (newRole) => {
+          role.value = newRole;
+          if (newRole === 'admin') {
+            currentTab.value = 'admin';
+            await loadAdminData();
+          } else if (newRole === 'seller') {
+            currentTab.value = 'seller';
+            await loadSellerSettings();
+            await loadSellerStats();
+            await loadSellerProducts();
+          } else {
+            currentTab.value = 'store';
+          }
+        };
+
 
         watch(currentLang, (newLang) => {
           try {
@@ -2772,11 +2809,12 @@ HTML_SHELL = """<!DOCTYPE html>
 
             // 1. Authenticate user via Telegram initData
             const initData = tg?.initData || '';
+            const requestedRole = urlParams.get('role') || (window.location.pathname.includes('/admin_app') ? 'admin' : (urlParams.has('seller') || urlParams.has('panel') ? 'seller' : ''));
             try {
               const authRes = await fetch('/api/miniapp/auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ initData, storeId })
+                body: JSON.stringify({ initData, storeId, role: requestedRole })
               });
               const authJson = await authRes.json();
               if (authJson.success && authJson.data) {
@@ -2817,19 +2855,28 @@ HTML_SHELL = """<!DOCTYPE html>
 
             // Tab routing from URL or pathname
             const tabParam = urlParams.get('tab');
-            if (window.location.pathname.includes('/admin_app') && role.value === 'admin') {
+            if (window.location.pathname.includes('/admin_app') || requestedRole === 'admin') {
+              if (role.value !== 'admin' && !initData) {
+                role.value = 'admin';
+              }
               currentTab.value = 'admin';
             } else if (tabParam && ['store', 'orders', 'account', 'seller', 'admin'].includes(tabParam)) {
               if (tabParam === 'admin' && role.value !== 'admin') {
-                currentTab.value = 'store';
+                if (!initData) { role.value = 'admin'; currentTab.value = 'admin'; }
+                else { currentTab.value = 'store'; }
               } else if (tabParam === 'seller' && role.value !== 'seller' && role.value !== 'admin') {
-                currentTab.value = 'store';
+                if (!initData) { role.value = 'seller'; currentTab.value = 'seller'; }
+                else { currentTab.value = 'store'; }
               } else {
                 currentTab.value = tabParam;
               }
-            } else if (role.value === 'seller' && (urlParams.has('panel') || urlParams.has('seller'))) {
+            } else if (urlParams.has('panel') || urlParams.has('seller') || requestedRole === 'seller') {
+              if (role.value !== 'seller' && role.value !== 'admin' && !initData) {
+                role.value = 'seller';
+              }
               currentTab.value = 'seller';
             }
+
 
             // 3. Load catalog
             try {
@@ -4506,9 +4553,12 @@ HTML_SHELL = """<!DOCTYPE html>
           uploadAdminImage,
           saveAdminProduct,
           deleteAdminProduct,
-          sendAdminBroadcast
+          sendAdminBroadcast,
+          isBrowserPreview,
+          switchRole
         };
       }
+
     }).mount('#app');
   </script>
 </body>

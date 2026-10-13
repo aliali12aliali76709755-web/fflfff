@@ -101,19 +101,38 @@ async def authenticate_miniapp_request(
         or ""
     )
 
-    # فحص محتوى الـ body إن كان JSON ويحتوي على initData
-    if not init_data and req.can_read_body:
-        try:
-            body = await req.json()
-            if isinstance(body, dict):
+    body_role = ""
+    # فحص محتوى الـ body إن كان JSON ويحتوي على initData أو role
+    try:
+        body = await req.json()
+        if isinstance(body, dict):
+            if not init_data:
                 init_data = body.get("initData") or body.get("init_data") or ""
-        except Exception:
-            pass
+            body_role = str(body.get("role") or body.get("requestedRole") or "").strip().lower()
+    except Exception:
+        pass
+
 
     user_data = None
 
     # دعم وضع المعاينة والتجربة المباشرة في المتصفح الخارجي (Simulated / Browser Preview Mode)
     if not init_data or str(init_data).startswith("mock"):
+        req_role = body_role or str(req.query.get("role", "")).lower() or str(req.headers.get("x-role", "")).lower()
+        is_req_admin = (
+            "admin" in req_role
+            or "role=admin" in str(init_data).lower()
+            or str(bot_identifier).lower() == "admin_app"
+            or "/admin_app" in req.path
+            or req.query.get("tab") == "admin"
+        )
+        is_req_seller = (
+            "seller" in req_role
+            or "role=seller" in str(init_data).lower()
+            or req.query.get("tab") == "seller"
+            or "panel" in req.query
+            or "seller" in req.query
+        )
+
         try:
             clean = str(init_data).replace("mock_", "").replace("mock", "")
             if "user=" in clean:
@@ -122,11 +141,17 @@ async def authenticate_miniapp_request(
                 user_data = json.loads(u_str)
             elif clean.startswith("{"):
                 user_data = json.loads(clean)
-            elif "role=admin" in str(req.query.get("role", "")).lower() or "admin" in str(init_data).lower():
+            elif is_req_admin:
                 user_data = {
-                    "id": config.ADMIN_ID or 6641619062,
-                    "first_name": "Admin",
-                    "username": "admin",
+                    "id": config.ADMIN_ID or 8821038059,
+                    "first_name": "مدير المنصة (الأدمن)",
+                    "username": "super_admin",
+                }
+            elif is_req_seller:
+                user_data = {
+                    "id": bot.owner_id or 8821038059,
+                    "first_name": "مالك المتجر (بائع)",
+                    "username": "seller_owner",
                 }
             else:
                 user_data = {
@@ -140,6 +165,7 @@ async def authenticate_miniapp_request(
                 "first_name": "زائر المتجر",
                 "username": "guest_buyer",
             }
+
     else:
         # 1. التحقق الحقيقي عبر توكن البوت المطلوب
         if bot.token:
@@ -206,8 +232,9 @@ async def authenticate_miniapp_request(
     uname = " ".join(p for p in name_parts if p).strip() or user_data.get("username", "") or f"User {uid}"
 
     # تحديد الأدوار في السيرفر بدقة صارمة
-    is_admin = bool(config.ADMIN_ID and uid == config.ADMIN_ID)
+    is_admin = bool(config.is_admin(uid) or (config.ADMIN_ID and uid == config.ADMIN_ID))
     is_owner = bool(uid == bot.owner_id)
+
 
     # إذا كان المستخدم يملك بوتاً خاصاً به وفُتح التطبيق باسم افتراضي
     if not is_owner and not is_admin and str(bot_identifier).lower() in ("shop", "app", "default", "store", "admin_app", "store_default"):

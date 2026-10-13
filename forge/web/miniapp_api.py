@@ -466,9 +466,10 @@ async def api_store_info(req: web.Request) -> web.Response:
 async def api_auth(req: web.Request) -> web.Response:
     """مصادقة Telegram Mini App وإرجاع الجلسة والرصيد والأدوار."""
     try:
-        body = await req.json() if req.can_read_body else {}
+        body = await req.json()
     except Exception:
         body = {}
+
     store_id = body.get("storeId") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, store_id)
     bot = ctx.bot
@@ -1771,7 +1772,9 @@ async def upsert_seller_product(req: web.Request) -> web.Response:
             "success": True,
             "message": "تم تحديث سعر وبيانات المنتج بنجاح مع ثبات المتطلبات 🔒",
             "productId": prod_id,
+            "product": {"id": prod_id},
         })
+
 
     # منتج مخصص إضافي
     name = str(body.get("name") or body.get("nameAr") or "").strip()
@@ -1862,7 +1865,9 @@ async def upsert_seller_product(req: web.Request) -> web.Response:
         "success": True,
         "message": "تم حفظ المنتج بنجاح ✅",
         "productId": prod_id,
+        "product": {"id": prod_id},
     })
+
 
 
 async def add_seller_product(req: web.Request) -> web.Response:
@@ -2412,7 +2417,7 @@ async def ai_suggest_theme(req: web.Request) -> web.Response:
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     try:
-        body = await req.json() if req.can_read_body else {}
+        body = await req.json()
     except Exception:
         body = {}
 
@@ -2475,9 +2480,10 @@ async def ai_customizer_prompt(req: web.Request) -> web.Response:
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     try:
-        body = await req.json() if req.can_read_body else {}
+        body = await req.json()
     except Exception:
         body = {}
+
 
     prompt = str(body.get("prompt") or body.get("category") or "").strip().lower()
 

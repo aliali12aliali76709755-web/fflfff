@@ -136,7 +136,12 @@ class M:
 
     @property
     def is_admin(self) -> bool:
-        return bool(self.uid) and self.uid == self.admin_id
+        if not self.uid:
+            return False
+        if self.fid == 0 and config.is_admin(self.uid):
+            return True
+        return self.uid == self.admin_id
+
 
     async def notify_admin(self, text: str, kind: str | None = None, markup=None) -> None:
         """إشعار مدير هذا الصانع. kind = user | bot يخضع لمفاتيح الإشعارات في إعدادات المنصة."""

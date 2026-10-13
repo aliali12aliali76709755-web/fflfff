@@ -255,9 +255,9 @@ async def owner_home(c: Ctx) -> None:
     done = sum(1 for ok, _, _ in todo if ok)
     if todo and done < len(todo):
         text += "\n\n🚀 " + t("جاهزية بوتك", "Setup progress") + f": <code>{ui.bar(done, len(todo))}</code> {round(done * 100 / len(todo))}%"
-    app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{c.bot.username}" if config.PUBLIC_URL else ""
+    app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{c.bot.username}?role=seller" if config.PUBLIC_URL else ""
     rows = list(rows) + [
-        [B(t("🛍️ افتح التطبيق المصغر للمتجر (Mini App)", "🛍️ Open Store Mini App"), web_app=app_url, style="primary")] if app_url else None,
+        [B(t("🛍️ افتح التطبيق المصغر ولوحة تحكم البائع (Mini App)", "🛍️ Open Store Mini App & Seller Panel"), web_app=app_url, style="primary")] if app_url else None,
         [B(t(f"🚀 أكمل التجهيز ({done}/{len(todo)})", f"🚀 Finish setup ({done}/{len(todo)})"), "o:todo", style="primary")] if todo and done < len(todo) else None,
         [B(t("🪪 هوية البوت", "🪪 Bot identity"), "o:idn")],
         [B(t("👁 جرّب كمستخدم", "👁 Try as a user"), "o:preview"), B(t("📖 شرح القالب", "📖 Template guide"), "o:tguide")],

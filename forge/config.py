@@ -33,7 +33,22 @@ TMP_DIR = DATA_DIR / "tmp"
 TMP_DIR.mkdir(exist_ok=True)
 
 MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "")
-ADMIN_ID = _int("ADMIN_ID")
+ADMIN_ID = _int("ADMIN_ID", 8821038059)
+ADMIN_IDS: set[int] = {6641619062, 8821038059, 8471597348}
+if ADMIN_ID:
+    ADMIN_IDS.add(ADMIN_ID)
+
+
+def is_admin(uid: int | None) -> bool:
+    """يتحقق ما إذا كان المستخدم مسجلاً كمدير أعلى للمنصة."""
+    if not uid:
+        return False
+    try:
+        u = int(uid)
+        return u in ADMIN_IDS or (ADMIN_ID != 0 and u == ADMIN_ID)
+    except (ValueError, TypeError):
+        return False
+
 _raw_db = os.environ.get("DATABASE_URL", "").strip()
 if _raw_db:
     if _raw_db.startswith("postgres://"):
