@@ -1,5 +1,9 @@
-﻿.env
+.env
 data/
 __pycache__/
 *.pyc
+*.db
+forge.db
+scratch/
+tests/fake_tunnel_name.txt
 .system_generated/

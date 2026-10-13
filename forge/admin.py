@@ -328,6 +328,7 @@ async def admin_user(m: mk.M, uid: int) -> None:
     banned = uid in p["banned"]
     agg = await mk._agg([b.id for b in bots])
     lim = platform.max_bots(p, uid)
+    own_lim = (p.get("limits") or {}).get(str(uid))
     seller_bal = await ledger.get_seller_balance_display(uid)
     text = (f"👤 <b>{esc(u.name)}</b>" + (f"  @{u.username}" if u.username else "") + f"\n🆔 <code>{uid}</code>\n{ui.LINE}\n" + ui.rows([
         ("انضم", ui.when(u.created, "%Y-%m-%d")), ("اللغة", u.lang or "تلقائية"), ("بوتاته", len(bots)), ("جمهور بوتاته", ui.num(agg["total"])),

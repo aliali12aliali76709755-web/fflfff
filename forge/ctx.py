@@ -36,8 +36,16 @@ class Ctx:
         self.msg: Message | None = update.effective_message
         self.q = update.callback_query
         forced = self.core.get("lang") or "auto"
-        self.lang = norm(self.user.language_code if (forced == "auto" and self.user) else forced)
-        if forced == "auto" and not self.user:
+        user_saved_lang = None
+        if hasattr(context, "user_data") and isinstance(context.user_data, dict):
+            user_saved_lang = context.user_data.get("lang")
+        if user_saved_lang:
+            self.lang = norm(user_saved_lang)
+        elif forced != "auto":
+            self.lang = norm(forced)
+        elif self.user and self.user.language_code:
+            self.lang = norm(self.user.language_code)
+        else:
             self.lang = norm(None)
 
     # ── نص ──

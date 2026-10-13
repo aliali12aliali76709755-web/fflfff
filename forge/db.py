@@ -187,7 +187,12 @@ class ServiceOrder(Base):
     refunded_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     refund_reason: Mapped[str] = mapped_column(String(255), default="")
     is_dual_refunded: Mapped[bool] = mapped_column(Boolean, default=False)
-    sla_alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    seller_id: Mapped[int] = mapped_column(BigInteger, default=0, index=True)
+    delivery_text: Mapped[str] = mapped_column(Text, default="")
+    delivery_proof: Mapped[str] = mapped_column(String(512), default="")
+    admin_notes: Mapped[str] = mapped_column(Text, default="")
+    discount_code: Mapped[str] = mapped_column(String(64), default="")
+    discount_amount: Mapped[float] = mapped_column(Float, default=0.0)
     created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
     updated: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
@@ -340,6 +345,38 @@ class StoreDesignVersion(Base):
 
 
 
+class DiscountCode(Base):
+    """أكواد الخصم الخاصة بكل بوت أو متجر مع إحصائيات التتبع."""
+    __tablename__ = "discount_codes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    code: Mapped[str] = mapped_column(String(64), index=True)
+    discount_percent: Mapped[float] = mapped_column(Float, default=10.0)
+    discount_fixed: Mapped[float] = mapped_column(Float, default=0.0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    duration_type: Mapped[str] = mapped_column(String(16), default="days")  # hours | days | unlimited
+    duration_value: Mapped[int] = mapped_column(Integer, default=7)
+    expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    max_uses: Mapped[int] = mapped_column(Integer, default=0)
+    used_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_discounted: Mapped[float] = mapped_column(Float, default=0.0)
+    total_revenue: Mapped[float] = mapped_column(Float, default=0.0)
+    created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class DiscountUsage(Base):
+    """سجل استخدام أكواد الخصم بكل عملية وتتبع الأرباح والمشترين."""
+    __tablename__ = "discount_usages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code_id: Mapped[int] = mapped_column(Integer, index=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    order_id: Mapped[str] = mapped_column(String(64), default="", index=True)
+    discount_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    order_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    used_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
+
+
 _pool_args = {"pool_pre_ping": True}
 if not config.DATABASE_URL.startswith("sqlite"):
     _pool_args.update(pool_size=4, max_overflow=2, pool_timeout=10, pool_recycle=60)
@@ -374,6 +411,12 @@ async def init() -> None:
         ("refund_reason", "VARCHAR(255)", "DEFAULT ''"),
         ("is_dual_refunded", "BOOLEAN", "DEFAULT FALSE" if is_pg else "DEFAULT 0"),
         ("sla_alert_sent", "BOOLEAN", "DEFAULT FALSE" if is_pg else "DEFAULT 0"),
+        ("seller_id", "BIGINT" if is_pg else "INTEGER", "DEFAULT 0"),
+        ("delivery_text", "TEXT", "DEFAULT ''"),
+        ("delivery_proof", "VARCHAR(512)", "DEFAULT ''"),
+        ("admin_notes", "TEXT", "DEFAULT ''"),
+        ("discount_code", "VARCHAR(64)", "DEFAULT ''"),
+        ("discount_amount", "FLOAT", "DEFAULT 0.0"),
     ]
 
     for col_name, col_type, col_default in cols:

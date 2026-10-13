@@ -175,24 +175,6 @@ HTML_SHELL = """<!DOCTYPE html>
     <!-- ══════════════════════════════════════════════════════════════════════ -->
     <div v-else class="max-w-md mx-auto min-h-screen flex flex-col">
 
-      <!-- 🌐 Browser Preview Role Switcher (Shown ONLY outside Telegram WebApp) -->
-      <div v-if="isBrowserPreview" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-500/30 px-3 py-1.5 flex items-center justify-between text-[11px] z-50">
-        <div class="flex items-center gap-1.5 text-indigo-300 font-bold">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>معاينة المتصفح:</span>
-        </div>
-        <div class="flex items-center gap-1">
-          <button @click="switchRole('admin')" :class="['px-2 py-0.5 rounded-lg font-bold text-[10px] transition', role === 'admin' ? 'bg-rose-600 text-white shadow' : 'bg-dark-800 text-slate-300 hover:text-white border border-slate-700']">
-            👑 لوحة الأدمن
-          </button>
-          <button @click="switchRole('seller')" :class="['px-2 py-0.5 rounded-lg font-bold text-[10px] transition', role === 'seller' ? 'bg-amber-600 text-white shadow' : 'bg-dark-800 text-slate-300 hover:text-white border border-slate-700']">
-            ⚙️ لوحة البائع
-          </button>
-          <button @click="switchRole('buyer')" :class="['px-2 py-0.5 rounded-lg font-bold text-[10px] transition', role === 'buyer' ? 'bg-blue-600 text-white shadow' : 'bg-dark-800 text-slate-300 hover:text-white border border-slate-700']">
-            🛍️ واجهة المشتري
-          </button>
-        </div>
-      </div>
 
       <!-- ── TOP HEADER (Fixed / Sticky) ─────────────────────────────────── -->
       <header class="sticky top-0 z-40 glass-panel border-b border-slate-800/80 px-4 py-3 safe-top flex items-center justify-between">
@@ -829,86 +811,118 @@ HTML_SHELL = """<!DOCTYPE html>
             </button>
           </div>
 
-          <!-- Seller Action Buttons Grid -->
-          <div class="grid grid-cols-4 gap-2">
-            <button @click="openCustomizer" class="bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+          <!-- Seller Action Buttons Grid (Products managed exclusively from Admin Master Catalog) -->
+          <div class="grid grid-cols-3 gap-2">
+            <button @click="openCustomizer" class="bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1 shadow-sm">
               <span class="text-base">🎨</span>
               <span>المظهر</span>
             </button>
-            <button @click="openMasterCatalog" class="bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+            <button @click="openMasterCatalog" class="bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1 shadow-sm">
               <span class="text-base">📥</span>
-              <span>كتالوج</span>
+              <span>كتالوج المنصة</span>
             </button>
-            <button @click="openNewProductModal" class="bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
-              <span class="text-base">➕</span>
-              <span>منتج جديد</span>
-            </button>
-            <button @click="openBulkModal" class="bg-amber-600/30 hover:bg-amber-600 border border-amber-500/40 text-amber-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1">
+            <button @click="openBulkModal" class="bg-amber-600/30 hover:bg-amber-600 border border-amber-500/40 text-amber-200 hover:text-white font-bold text-[10px] py-2.5 rounded-xl transition flex flex-col items-center justify-center gap-1 shadow-sm">
               <span class="text-base">📑</span>
               <span>إكسل / CSV</span>
             </button>
           </div>
 
-          <!-- 🎟️ Discount Coupons Management Section -->
+          <!-- 🎟️ Dedicated Discount Coupons Tracking Center -->
           <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-md">
             <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
               <div class="flex items-center gap-2">
                 <span class="text-base">🎟️</span>
-                <h4 class="font-bold text-xs text-white">إدارة وتوليد أكواد الخصم (Coupons)</h4>
+                <div>
+                  <h4 class="font-bold text-xs text-white">مركز إنشاء وتتبع أكواد الخصم</h4>
+                  <p class="text-[9px] text-slate-400">حدد نسبة الخصم والمدة بالساعات أو الأيام وراقب المبيعات والأرباح</p>
+                </div>
               </div>
-              <span class="text-[10px] text-slate-400 font-mono">{{ (sellerCoupons || []).length }} أكواد</span>
+              <span class="text-[10px] text-amber-400 font-mono font-bold">{{ (sellerCoupons || []).length }} أكواد</span>
             </div>
 
             <!-- New Coupon Generator Form -->
-            <div class="bg-dark-900/80 p-3 rounded-xl border border-slate-800 space-y-2">
+            <div class="bg-dark-900/80 p-3 rounded-xl border border-slate-800 space-y-2.5">
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="text-[10px] font-bold text-slate-300">كود الخصم:</label>
-                  <input v-model="newCouponForm.code" type="text" placeholder="مثال: SAVE20" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white uppercase font-mono">
+                  <label class="text-[10px] font-bold text-slate-300">كود الخصم (Promo Code):</label>
+                  <input v-model="newCouponForm.code" type="text" placeholder="مثال: VIP20" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 uppercase font-mono font-bold">
                 </div>
                 <div>
-                  <label class="text-[10px] font-bold text-slate-300">نوع الخصم:</label>
-                  <select v-model="newCouponForm.type" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                    <option value="percent">نسبة مئوية (%)</option>
-                    <option value="fixed">مبلغ ثابت ($)</option>
-                  </select>
+                  <label class="text-[10px] font-bold text-slate-300">نسبة الخصم (%):</label>
+                  <div class="flex items-center gap-1">
+                    <input v-model.number="newCouponForm.val" type="number" min="1" max="100" placeholder="20" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono font-black">
+                    <span class="text-xs text-slate-400 font-bold">%</span>
+                  </div>
                 </div>
               </div>
 
+              <!-- Duration Selector: Hours or Days -->
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="text-[10px] font-bold text-slate-300">القيمة:</label>
-                  <input v-model.number="newCouponForm.val" type="number" step="0.5" placeholder="15" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                  <label class="text-[10px] font-bold text-slate-300">مدة صلاحية الكود:</label>
+                  <div class="grid grid-cols-2 gap-1">
+                    <input v-model.number="newCouponForm.duration_value" type="number" min="1" placeholder="7" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center">
+                    <select v-model="newCouponForm.duration_type" class="bg-dark-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[10px] text-sky-300 font-bold">
+                      <option value="days">أيام (Days)</option>
+                      <option value="hours">ساعات (Hours)</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label class="text-[10px] font-bold text-slate-300">أقصى عدد استخدامات:</label>
-                  <input v-model.number="newCouponForm.max_uses" type="number" placeholder="100" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                  <input v-model.number="newCouponForm.max_uses" type="number" min="1" placeholder="100" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
                 </div>
               </div>
 
-              <button @click="saveNewCoupon" :disabled="creatingCoupon || !newCouponForm.code" class="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-bold text-xs py-2 rounded-xl transition shadow flex items-center justify-center gap-1.5">
-                <span v-if="creatingCoupon">جاري الحفظ... ⏳</span>
-                <span v-else>➕ حفظ وتفعيل كود الخصم</span>
+              <button @click="saveNewCoupon" :disabled="creatingCoupon || !newCouponForm.code" class="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 disabled:opacity-50 text-slate-900 font-black text-xs py-2 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+                <span v-if="creatingCoupon">جاري الحفظ والإنشاء... ⏳</span>
+                <span v-else>➕ إنشاء وتفعيل كود الخصم فورياً</span>
               </button>
             </div>
 
-            <!-- Existing Coupons List -->
-            <div v-if="(sellerCoupons || []).length" class="space-y-2 max-h-48 overflow-y-auto pr-1">
-              <div v-for="cp in sellerCoupons" :key="cp.code" class="bg-dark-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs">
-                <div class="space-y-1">
+            <!-- Existing Coupons Detailed Tracking List -->
+            <div v-if="(sellerCoupons || []).length" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div v-for="cp in sellerCoupons" :key="cp.code" class="bg-dark-900 border border-slate-800 p-2.5 rounded-xl space-y-2 text-xs">
+                <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
-                    <span class="font-mono font-black text-amber-400 tracking-wider text-xs">{{ cp.code }}</span>
-                    <span class="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold font-mono">
-                      {{ cp.type === 'percent' ? cp.val + '%' : '$' + cp.val }}
+                    <span class="font-mono font-black text-amber-400 text-xs tracking-wider">🎟️ {{ cp.code }}</span>
+                    <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded font-black font-mono">
+                      {{ cp.discount_percent || cp.val }}% خصم
                     </span>
                   </div>
-                  <div class="flex items-center gap-2.5 text-[10px] text-slate-400">
-                    <span>استُخدم: <strong class="text-white font-mono">{{ cp.used_count || 0 }}</strong> / {{ cp.max_uses || '∞' }}</span>
-                    <span>عملاء: <strong class="text-sky-400 font-mono">{{ cp.unique_users_count || 0 }}</strong></span>
-                    <span>وفّر للعملاء: <strong class="text-emerald-400 font-mono">{{ formatPrice(cp.total_discount_usd || 0) }}</strong></span>
+                  <div class="flex items-center gap-1.5">
+                    <span :class="['text-[9px] font-bold px-1.5 py-0.5 rounded-full border', cp.is_active !== false ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700']">
+                      {{ cp.is_active !== false ? 'شغال ✅' : 'معطل ⏸️' }}
+                    </span>
+                    <span class="text-[9px] text-slate-400 font-mono">{{ cp.remaining_str || cp.duration_display || '' }}</span>
                   </div>
                 </div>
-                <button @click="deleteCoupon(cp.code)" class="text-rose-400 hover:text-rose-300 p-1.5 text-xs bg-rose-950/40 border border-rose-800/40 rounded-lg">🗑️ حذف</button>
+
+                <!-- Comprehensive Coupon Telemetry -->
+                <div class="grid grid-cols-3 gap-1.5 bg-dark-850 p-2 rounded-lg text-center font-mono text-[10px]">
+                  <div>
+                    <span class="text-slate-400 block text-[9px]">مرات الاستخدام</span>
+                    <strong class="text-white">{{ cp.used_count || 0 }}</strong>
+                    <span class="text-slate-500 text-[8px]"> / {{ cp.max_uses || '∞' }}</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 block text-[9px]">وفّر للمشترين</span>
+                    <strong class="text-rose-400">{{ formatPrice(cp.total_discounted || cp.total_discount_usd || 0) }}</strong>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 block text-[9px]">مبيعات حققها</span>
+                    <strong class="text-emerald-400">{{ formatPrice(cp.total_revenue || 0) }}</strong>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-800">
+                  <button @click="toggleCoupon(cp.code)" class="flex-1 py-1 rounded-lg text-[10px] font-bold transition border" :class="cp.is_active !== false ? 'bg-amber-950/40 text-amber-300 border-amber-800/40 hover:bg-amber-900/40' : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40 hover:bg-emerald-900/40'">
+                    {{ cp.is_active !== false ? 'إيقاف مؤقت ⏸️' : 'تفعيل الكود ▶️' }}
+                  </button>
+                  <button @click="deleteCoupon(cp.code)" class="text-rose-400 hover:text-rose-300 px-2.5 py-1 text-[10px] font-bold bg-rose-950/40 border border-rose-800/40 rounded-lg">
+                    🗑️ حذف
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1052,19 +1066,15 @@ HTML_SHELL = """<!DOCTYPE html>
               <span class="text-[10px] text-slate-400 font-mono">{{ sellerProducts.length }} منتج معروض</span>
             </div>
 
-            <!-- Seller Action Buttons Bar -->
-            <div class="grid grid-cols-3 gap-1.5">
-              <button @click="openNewProductModal" class="bg-brand-600 hover:bg-brand-500 text-white font-bold text-[10px] py-2 px-1 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1">
-                <span>➕</span>
-                <span>منتج خاص</span>
-              </button>
-              <button @click="resetSellerProducts" class="bg-dark-800 hover:bg-dark-750 text-sky-300 border border-sky-500/30 font-bold text-[10px] py-2 px-1 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1">
+            <!-- Seller Action Buttons Bar (Restricted: Products originate strictly from Central Catalog) -->
+            <div class="grid grid-cols-2 gap-2">
+              <button @click="resetSellerProducts" class="bg-dark-800 hover:bg-dark-750 text-sky-300 border border-sky-500/30 font-bold text-[10px] py-2 px-2 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1.5">
                 <span>🔄</span>
                 <span>استرجاع المحذوفة</span>
               </button>
-              <button @click="resetSellerPrices" class="bg-dark-800 hover:bg-dark-750 text-amber-300 border border-amber-500/30 font-bold text-[10px] py-2 px-1 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1">
+              <button @click="resetSellerPrices" class="bg-dark-800 hover:bg-dark-750 text-amber-300 border border-amber-500/30 font-bold text-[10px] py-2 px-2 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1.5">
                 <span>🏷️</span>
-                <span>أسعار الآدمن</span>
+                <span>استعادة أسعار الآدمن</span>
               </button>
             </div>
 
@@ -1142,8 +1152,8 @@ HTML_SHELL = """<!DOCTYPE html>
             <span class="text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">Admin Only</span>
           </div>
 
-          <!-- Admin Sub-Navigation Dock -->
-          <div class="grid grid-cols-5 gap-1 bg-dark-900/80 p-1 rounded-2xl border border-slate-800 text-[10px] font-bold">
+          <!-- Admin Sub-Navigation Dock (6 Full Management Sections) -->
+          <div class="grid grid-cols-6 gap-1 bg-dark-900/80 p-1 rounded-2xl border border-slate-800 text-[10px] font-bold">
             <button @click="adminActiveSubTab = 'catalog'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'catalog' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
               <span>🛍️</span>
               <span class="truncate">الكتالوج</span>
@@ -1152,13 +1162,17 @@ HTML_SHELL = """<!DOCTYPE html>
               <span>📊</span>
               <span class="truncate">الإحصائيات</span>
             </button>
-            <button @click="adminActiveSubTab = 'bots'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'bots' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
-              <span>🤖</span>
-              <span class="truncate">البوتات</span>
-            </button>
             <button @click="adminActiveSubTab = 'orders'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'orders' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
               <span>🧾</span>
               <span class="truncate">الطلبات</span>
+            </button>
+            <button @click="adminActiveSubTab = 'templates'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'templates' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+              <span>🎨</span>
+              <span class="truncate">القوالب</span>
+            </button>
+            <button @click="adminActiveSubTab = 'bots'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'bots' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+              <span>🤖</span>
+              <span class="truncate">البوتات</span>
             </button>
             <button @click="adminActiveSubTab = 'broadcast'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'broadcast' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
               <span>📢</span>
@@ -1322,36 +1336,267 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
           </div>
 
-          <!-- ── SUB-TAB 4: ORDERS QUEUE ── -->
-          <div v-if="adminActiveSubTab === 'orders'" class="space-y-3">
-            <h4 class="font-bold text-xs text-slate-300">الطلبات اليدوية والخدمات المعلقة</h4>
-            <div v-if="adminOrders.length" class="space-y-2">
-              <div v-for="ord in adminOrders" :key="ord.id" class="bg-dark-800 border border-slate-700 p-3 rounded-xl space-y-2 text-xs">
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-white">{{ ord.service_name || ord.product_name }}</span>
-                  <span class="font-mono text-emerald-400">{{ formatPrice(ord.total_price || ord.price_usd) }}</span>
+          <!-- ── SUB-TAB 4: MASTER ORDERS FULFILLMENT CENTER (مركز تسليم الطلبات وإدارة العمليات 20+ ميزة) ── -->
+          <div v-if="adminActiveSubTab === 'orders'" class="space-y-3.5">
+            <div class="flex items-center justify-between border-b border-rose-900/40 pb-2">
+              <div>
+                <h4 class="font-black text-xs text-white flex items-center gap-1.5">
+                  <span>🧾</span> مركز تسليم وإدارة طلبات المنصة المركزية
+                </h4>
+                <p class="text-[10px] text-slate-400">تتبع الطلبات، بيانات البوتات، البائعين، المشترين، والتسليم الفوري لتيليجرام</p>
+              </div>
+              <button @click="loadAdminOrders" class="text-[10px] bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 px-2 py-1 rounded-lg font-bold">
+                تحديث 🔄
+              </button>
+            </div>
+
+            <!-- Fulfillment KPI Telemetry Stats -->
+            <div class="grid grid-cols-4 gap-1.5 font-mono text-center">
+              <div class="bg-dark-850 border border-slate-800 p-2 rounded-xl">
+                <span class="text-[9px] text-slate-400 block font-sans">الكل</span>
+                <strong class="text-white text-xs">{{ adminOrders.length }}</strong>
+              </div>
+              <div class="bg-dark-850 border border-amber-500/30 p-2 rounded-xl">
+                <span class="text-[9px] text-amber-300 block font-sans">معلق ⏳</span>
+                <strong class="text-amber-400 text-xs">{{ adminOrders.filter(o => o.status === 'pending' || o.status === 'processing').length }}</strong>
+              </div>
+              <div class="bg-dark-850 border border-emerald-500/30 p-2 rounded-xl">
+                <span class="text-[9px] text-emerald-300 block font-sans">مكتمل ✅</span>
+                <strong class="text-emerald-400 text-xs">{{ adminOrders.filter(o => o.status === 'completed').length }}</strong>
+              </div>
+              <div class="bg-dark-850 border border-slate-800 p-2 rounded-xl">
+                <span class="text-[9px] text-slate-400 block font-sans">إجمالي $</span>
+                <strong class="text-emerald-400 text-xs">{{ formatPrice(adminOrders.reduce((sum, o) => sum + (Number(o.seller_price_usd || o.price_user_usd || o.total_price || 0)), 0)) }}</strong>
+              </div>
+            </div>
+
+            <!-- Search, Status Filter & Export Bar -->
+            <div class="space-y-2 bg-dark-850 p-2.5 rounded-xl border border-slate-800">
+              <div class="flex items-center gap-1.5">
+                <input v-model="adminOrdersSearchQuery" type="text" placeholder="بحث برقم الطلب، يوزر المشتري، البائع، أو البوت..." class="flex-1 bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                <button @click="exportOrdersCsv" class="bg-dark-750 hover:bg-dark-700 text-sky-300 border border-sky-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap">
+                  تصدير CSV 📥
+                </button>
+              </div>
+
+              <!-- Status Filter Pills -->
+              <div class="flex items-center gap-1 overflow-x-auto text-[10px] font-bold">
+                <button @click="adminOrdersStatusFilter = 'all'" :class="['px-2.5 py-1 rounded-lg transition', adminOrdersStatusFilter === 'all' ? 'bg-rose-600 text-white' : 'bg-dark-800 text-slate-400']">
+                  كافة الطلبات ({{ adminOrders.length }})
+                </button>
+                <button @click="adminOrdersStatusFilter = 'pending'" :class="['px-2.5 py-1 rounded-lg transition', adminOrdersStatusFilter === 'pending' ? 'bg-amber-600 text-white' : 'bg-dark-800 text-amber-300']">
+                  بانتظار التسليم ⏳ ({{ adminOrders.filter(o => o.status === 'pending' || o.status === 'processing').length }})
+                </button>
+                <button @click="adminOrdersStatusFilter = 'completed'" :class="['px-2.5 py-1 rounded-lg transition', adminOrdersStatusFilter === 'completed' ? 'bg-emerald-600 text-white' : 'bg-dark-800 text-emerald-300']">
+                  المكتملة ✅ ({{ adminOrders.filter(o => o.status === 'completed').length }})
+                </button>
+                <button @click="adminOrdersStatusFilter = 'canceled'" :class="['px-2.5 py-1 rounded-lg transition', adminOrdersStatusFilter === 'canceled' ? 'bg-slate-700 text-white' : 'bg-dark-800 text-slate-400']">
+                  الملغية والمسترجعة 🔄
+                </button>
+              </div>
+            </div>
+
+            <!-- Orders Cards List -->
+            <div v-if="filteredAdminOrdersList.length" class="space-y-3">
+              <div v-for="ord in filteredAdminOrdersList" :key="ord.id || ord.order_ref || ord.order_id" class="bg-dark-800 border border-slate-700/80 p-3.5 rounded-2xl space-y-2.5 text-xs shadow-md">
+                <!-- Card Header: Ref, Time, Status -->
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono font-black text-rose-300 text-xs">#{{ ord.order_ref || ord.order_id }}</span>
+                    <button @click="copyToClipboard(ord.order_ref || ord.order_id)" class="text-[10px] text-slate-400 hover:text-white">📋</button>
+                    <span class="text-[10px] text-slate-400 font-mono">🕒 {{ ord.created_at || ord.created }}</span>
+                  </div>
+                  <span :class="['text-[10px] font-bold px-2 py-0.5 rounded-full border', getStatusBadgeClass(ord.status)]">
+                    {{ getStatusLabelAr(ord.status) }}
+                  </span>
                 </div>
-                <div class="text-[11px] text-slate-400">
-                  العميل: {{ ord.user_id || ord.user_telegram_id }} | المرجع: {{ ord.order_ref || ord.order_id }}
+
+                <!-- Product & Template Info -->
+                <div class="flex items-center justify-between bg-dark-850 p-2 rounded-xl">
+                  <div class="font-bold text-white flex items-center gap-1.5">
+                    <span>📦</span>
+                    <span>{{ ord.service_name || ord.product_name }}</span>
+                  </div>
+                  <span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-md font-mono">
+                    {{ ord.template_type || ord.category || 'عام' }}
+                  </span>
                 </div>
-                <div v-if="ord.target" class="bg-dark-900 p-2 rounded text-[11px] font-mono text-slate-300">
-                  بيانات العميل: {{ ord.target }}
+
+                <!-- Three-Party Telemetry Grid (البوت، البائع، المشتري) -->
+                <div class="grid grid-cols-3 gap-1.5 bg-dark-900/90 p-2.5 rounded-xl border border-slate-800 text-[10px]">
+                  <!-- Bot Info -->
+                  <div class="space-y-0.5">
+                    <span class="text-slate-400 block font-bold">🤖 البوت المصدر:</span>
+                    <a v-if="ord.bot_username" :href="'https://t.me/' + ord.bot_username" target="_blank" class="text-sky-400 font-bold hover:underline truncate block">
+                      @{{ ord.bot_username }}
+                    </a>
+                    <span v-else class="text-slate-300 font-mono truncate block">ID: {{ ord.bot_id }}</span>
+                  </div>
+
+                  <!-- Seller Info -->
+                  <div class="space-y-0.5">
+                    <span class="text-slate-400 block font-bold">🏪 البائع (المالك):</span>
+                    <a v-if="ord.seller_username" :href="'https://t.me/' + ord.seller_username" target="_blank" class="text-amber-400 font-bold hover:underline truncate block">
+                      @{{ ord.seller_username }}
+                    </a>
+                    <span v-else class="text-slate-300 font-mono truncate block">{{ ord.seller_name || ord.seller_id }}</span>
+                    <span class="text-[9px] text-slate-500 font-mono block">ID: {{ ord.seller_id }}</span>
+                  </div>
+
+                  <!-- Buyer Info -->
+                  <div class="space-y-0.5">
+                    <span class="text-slate-400 block font-bold">👤 المشتري (الزبون):</span>
+                    <a v-if="ord.buyer_username" :href="'https://t.me/' + ord.buyer_username" target="_blank" class="text-emerald-400 font-bold hover:underline truncate block">
+                      @{{ ord.buyer_username }}
+                    </a>
+                    <span v-else class="text-slate-300 truncate block">{{ ord.buyer_name || 'عميل' }}</span>
+                    <span class="text-[9px] text-slate-500 font-mono block">ID: {{ ord.user_id || ord.buyer_id }}</span>
+                  </div>
                 </div>
-                <div class="flex items-center gap-2 pt-1 border-t border-slate-700/60">
-                  <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'deliver')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-1.5 rounded-lg text-white font-bold text-[11px]">
-                    تسليم ✅
+
+                <!-- Financial Telemetry Breakdown -->
+                <div class="grid grid-cols-4 gap-1 bg-dark-850 p-2 rounded-xl text-center font-mono text-[10px] border border-slate-800">
+                  <div>
+                    <span class="text-slate-400 block text-[9px] font-sans">جملة الآدمن</span>
+                    <strong class="text-slate-200">{{ formatPrice(ord.cost_price_usd || ord.cost_price || 0) }}</strong>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 block text-[9px] font-sans">سعر البيع</span>
+                    <strong class="text-white">{{ formatPrice(ord.seller_price_usd || ord.price_user_usd || ord.total_price || 0) }}</strong>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 block text-[9px] font-sans">ربح البائع</span>
+                    <strong class="text-emerald-400">+{{ formatPrice(ord.profit_seller_usd || 0) }}</strong>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 block text-[9px] font-sans">كود الخصم</span>
+                    <strong class="text-amber-400">{{ ord.discount_code ? ord.discount_code : 'لا يوجد' }}</strong>
+                  </div>
+                </div>
+
+                <!-- Customer Submitted Credentials / Requirements (بيانات الشراء المطلوبة) -->
+                <div class="bg-dark-900 border border-slate-700/80 p-2.5 rounded-xl space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-amber-300 flex items-center gap-1">
+                      <span>🔑</span> بيانات ومدخلات المشتري للطلب:
+                    </span>
+                    <button @click="copyToClipboard(ord.target || ord.customer_credentials || '')" class="text-[9px] bg-dark-750 text-slate-300 hover:text-white px-2 py-0.5 rounded font-bold border border-slate-700">
+                      نسخ البيانات 📋
+                    </button>
+                  </div>
+                  <div class="font-mono text-xs text-white bg-dark-850 p-2 rounded-lg break-all select-all border border-slate-800">
+                    {{ ord.target || ord.customer_credentials || 'لا توجد متطلبات إضافية مسجلة' }}
+                  </div>
+                </div>
+
+                <!-- Delivery Information if already Fulfilled -->
+                <div v-if="ord.delivery_text || ord.delivery_proof" class="bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-xl space-y-1 text-[11px]">
+                  <div class="text-emerald-300 font-bold flex items-center gap-1">
+                    <span>✅</span> تم تسليم الطلب للعميل بمحتوى:
+                  </div>
+                  <div class="font-mono text-slate-200 bg-dark-900/80 p-2 rounded break-all">
+                    {{ ord.delivery_text }}
+                  </div>
+                  <div v-if="ord.delivery_proof" class="pt-0.5">
+                    <a :href="ord.delivery_proof" target="_blank" class="text-sky-400 text-[10px] underline hover:text-sky-300">
+                      📎 عرض رابط إثبات التسليم
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Secret Admin Notes Section -->
+                <div class="flex items-center gap-1.5 pt-1">
+                  <input v-model="ord.admin_notes" type="text" placeholder="ملاحظة إدارية سرية خاصة بهذا الطلب..." class="flex-1 bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] text-slate-300">
+                  <button @click="saveOrderAdminNotes(ord)" class="bg-dark-750 hover:bg-dark-700 text-slate-300 border border-slate-700 px-2 py-1 rounded-lg text-[10px] font-bold">
+                    حفظ 📝
                   </button>
-                  <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'refund_both')" class="flex-1 bg-purple-600 hover:bg-purple-500 py-1.5 rounded-lg text-white font-bold text-[11px]">
-                    استرجاع 🔄
+                </div>
+
+                <!-- Execution Action Buttons -->
+                <div class="grid grid-cols-3 gap-1.5 pt-1 border-t border-slate-700/60">
+                  <button @click="openDeliverOrderModal(ord)" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 py-2 rounded-xl text-white font-black text-xs shadow flex items-center justify-center gap-1">
+                    <span>🚀</span>
+                    <span>تسليم وإرسال</span>
                   </button>
-                  <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'reject')" class="flex-1 bg-rose-600 hover:bg-rose-500 py-1.5 rounded-lg text-white font-bold text-[11px]">
-                    رفض ❌
+                  <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'refund_both')" class="bg-purple-600 hover:bg-purple-500 py-2 rounded-xl text-white font-bold text-xs shadow flex items-center justify-center gap-1">
+                    <span>🔄</span>
+                    <span>استرجاع</span>
+                  </button>
+                  <button @click="openRejectOrderModal(ord)" class="bg-rose-600 hover:bg-rose-500 py-2 rounded-xl text-white font-bold text-xs shadow flex items-center justify-center gap-1">
+                    <span>❌</span>
+                    <span>إلغاء ورفض</span>
                   </button>
                 </div>
               </div>
             </div>
-            <div v-else class="text-center py-6 text-xs text-slate-500 bg-dark-800/30 rounded-xl">
-              لا توجد طلبات يدوية معلقة حالياً
+            <div v-else class="text-center py-8 text-xs text-slate-500 bg-dark-800/30 rounded-2xl border border-slate-800">
+              لا توجد طلبات تطابق معايير الفلترة المحددة
+            </div>
+          </div>
+
+          <!-- ── SUB-TAB 5: TEMPLATES CUSTOMIZATION (إدارة وتعديل القوالب الأربعة) ── -->
+          <div v-if="adminActiveSubTab === 'templates'" class="space-y-3.5">
+            <div class="flex items-center justify-between border-b border-rose-900/40 pb-2">
+              <div>
+                <h4 class="font-black text-xs text-white flex items-center gap-1.5">
+                  <span>🎨</span> إدارة وتخصيص القوالب الأربعة للمنصة
+                </h4>
+                <p class="text-[10px] text-slate-400">تعديل الاسم، الوصف، رسائل الترحيب، ونسب الربح لكل قالب تنزل فورياً للبائعين</p>
+              </div>
+              <button @click="loadAdminTemplates" class="text-[10px] bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 px-2 py-1 rounded-lg font-bold">
+                تحديث 🔄
+              </button>
+            </div>
+
+            <div class="space-y-3">
+              <div v-for="tpl in adminTemplates" :key="tpl.key" class="bg-dark-800 border border-slate-700 p-4 rounded-2xl space-y-3 shadow-md">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">{{ tpl.emoji || '📦' }}</span>
+                    <div>
+                      <h5 class="font-black text-xs text-white">{{ tpl.name }}</h5>
+                      <span class="text-[10px] text-sky-400 font-mono font-bold">{{ tpl.key }}</span>
+                    </div>
+                  </div>
+                  <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold" :class="tpl.is_active ? 'text-emerald-400' : 'text-slate-400'">
+                    <input type="checkbox" v-model="tpl.is_active" class="accent-emerald-500 rounded">
+                    <span>{{ tpl.is_active ? 'قالب نشط' : 'قالب معطل' }}</span>
+                  </label>
+                </div>
+
+                <div class="space-y-2 text-xs">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-300 mb-1">اسم القالب المعروض:</label>
+                    <input v-model="tpl.name" type="text" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold">
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-300 mb-1">الوصف العام للقالب:</label>
+                    <input v-model="tpl.description" type="text" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-300 mb-1">رسالة الترحيب في بوتات هذا القالب:</label>
+                    <textarea v-model="tpl.welcome_text" rows="2" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white"></textarea>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-300 mb-1">لون الهوية البصرية:</label>
+                      <div class="flex items-center gap-2">
+                        <input v-model="tpl.theme_color" type="color" class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0">
+                        <span class="font-mono text-xs text-slate-300">{{ tpl.theme_color }}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-300 mb-1">نسبة الربح الافتراضية (%):</label>
+                      <input v-model.number="tpl.default_margin_pct" type="number" min="0" max="100" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-emerald-400 font-mono font-bold">
+                    </div>
+                  </div>
+                </div>
+
+                <button @click="saveAdminTemplateConfig(tpl)" class="w-full bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-black text-xs py-2 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+                  <span>💾</span>
+                  <span>حفظ وتطبيق تعديلات القالب فورياً</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1928,14 +2173,16 @@ HTML_SHELL = """<!DOCTYPE html>
             <button @click="showMasterModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
           </div>
 
-          <!-- Margin selector -->
+          <!-- Margin selector (Direct Numeric Input as requested by user) -->
           <div class="bg-dark-800 p-3 rounded-xl border border-slate-700 space-y-2">
             <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-300 font-bold">نسبة هامش الربح المضافة:</span>
-              <span class="text-emerald-400 font-mono font-black">+{{ importMarginPercent }}%</span>
+              <span class="text-slate-300 font-bold">نسبة هامش الربح المضافة (%):</span>
+              <div class="flex items-center gap-1.5">
+                <input type="number" min="0" max="500" step="1" v-model.number="importMarginPercent" class="w-20 bg-dark-900 border border-slate-600 rounded-lg px-2 py-1 text-xs text-emerald-400 font-mono font-black text-center focus:border-emerald-500 focus:outline-none">
+                <span class="text-emerald-400 font-mono font-black">%</span>
+              </div>
             </div>
-            <input type="range" min="5" max="50" step="5" v-model="importMarginPercent" class="w-full accent-emerald-500">
-            <div class="text-[10px] text-slate-400">يتم احتساب سعر بيع المنتجات تلقائياً بناءً على سعر التكلفة مضافاً إليه نسبة الربح.</div>
+            <div class="text-[10px] text-slate-400">أدخل النسبة كرقم مباشر (مثال: 15 أو 25 أو 50)، ويتم احتساب أسعار بيع المنتجات تلقائياً بناءً على سعر التكلفة مضافاً إليه نسبة الربح.</div>
           </div>
 
           <!-- Select All & List -->
@@ -2235,22 +2482,34 @@ HTML_SHELL = """<!DOCTYPE html>
                 <p class="text-[10px] text-slate-400 mt-0.5">البيانات التي سيطلبها المتجر من العميل عند الشراء (لا يمكن للبائعين تعديلها)</p>
               </div>
 
-              <!-- Quick Presets -->
+              <!-- Quick Presets (All requested variants: Email+Password, User+Pass, Pass, ID, Phone, URL, etc.) -->
               <div class="flex items-center gap-1.5 flex-wrap">
+                <button type="button" @click="addAdminRequirementPreset('email_password')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold">
+                  + الإيميل + كلمة السر 🔑
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('username_password')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold">
+                  + اليوزر + كلمة السر 👤🔑
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('password')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + كلمة السر 🔒
+                </button>
                 <button type="button" @click="addAdminRequirementPreset('player_id')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
-                  + آيدي اللاعب (Player ID)
-                </button>
-                <button type="button" @click="addAdminRequirementPreset('email')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
-                  + البريد الإلكتروني (Email)
-                </button>
-                <button type="button" @click="addAdminRequirementPreset('username')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
-                  + اسم المستخدم (Username)
-                </button>
-                <button type="button" @click="addAdminRequirementPreset('url')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
-                  + رابط حساب/منشور (URL)
+                  + آيدي اللاعب (Player ID) 🎮
                 </button>
                 <button type="button" @click="addAdminRequirementPreset('phone')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
-                  + رقم الهاتف (Phone)
+                  + رقم الهاتف 📱
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('url')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + رابط الحساب/المنشور 🔗
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('email')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + البريد الإلكتروني 📧
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('username')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + اسم المستخدم @
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('notes')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + ملاحظات العميل 📝
                 </button>
               </div>
 
@@ -2274,6 +2533,88 @@ HTML_SHELL = """<!DOCTYPE html>
             <span v-if="savingAdminProduct">جاري الحفظ والنشر... ⏳</span>
             <span v-else>حفظ ونشر للمنصة ولكافة المتاجر 🚀</span>
           </button>
+        </div>
+      </div>
+
+      <!-- F.1 ADMIN ORDER DELIVERY MODAL (نافذة تسليم الطلب وإرسال البيانات للعميل في تيليجرام) -->
+      <div v-if="showDeliveryModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-md rounded-3xl border border-emerald-500/40 p-5 space-y-4 my-auto shadow-2xl">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🚀</span>
+              <div>
+                <h3 class="font-black text-xs text-white">تسليم الطلب وإشعار المشتري في تيليجرام</h3>
+                <span class="text-[10px] text-emerald-400 font-mono">#{{ deliveryTargetOrder?.order_ref || deliveryTargetOrder?.order_id }}</span>
+              </div>
+            </div>
+            <button @click="showDeliveryModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <!-- Order Summary Badge -->
+          <div class="bg-dark-900 p-2.5 rounded-xl border border-slate-800 text-xs space-y-1">
+            <div class="font-bold text-white flex items-center justify-between">
+              <span>{{ deliveryTargetOrder?.service_name || deliveryTargetOrder?.product_name }}</span>
+              <span class="text-emerald-400 font-mono">{{ formatPrice(deliveryTargetOrder?.seller_price_usd || deliveryTargetOrder?.price_user_usd || 0) }}</span>
+            </div>
+            <div class="text-[10px] text-slate-400">
+              المشتري: <strong class="text-sky-300">@{{ deliveryTargetOrder?.buyer_username || deliveryTargetOrder?.user_id }}</strong>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-200 mb-1">
+                بيانات التسليم (الكود / الحساب / التفعيل):
+              </label>
+              <textarea v-model="deliveryForm.text" rows="4" placeholder="أدخل كود البطاقة، أو بيانات الحساب المسلم، أو رابط التفعيل هنا..." class="w-full bg-dark-900 border border-slate-700 rounded-xl p-3 text-xs text-emerald-300 font-mono leading-relaxed focus:border-emerald-500 focus:outline-none"></textarea>
+              <span class="text-[10px] text-slate-400 block mt-0.5">سيتم إرسال هذا النص فورياً في رسالة خاصة للمشتري داخل محادثة تيليجرام!</span>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-200 mb-1">
+                رابط إثبات التسليم (اختياري):
+              </label>
+              <input v-model="deliveryForm.proof" type="text" placeholder="https://... رابط صورة تأكيد الشحن أو لقطة الشاشة" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+          </div>
+
+          <button @click="submitDeliveryFulfillment" :disabled="deliveringOrder || !deliveryForm.text.trim()" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow flex items-center justify-center gap-2">
+            <span v-if="deliveringOrder">جاري التسليم وإرسال الإشعار... ⏳</span>
+            <span v-else>🚀 تأكيد التسليم وإرسال الرسالة للمشتري الآن</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- F.2 ADMIN ORDER REJECTION MODAL (نافذة إلغاء ورفض الطلب) -->
+      <div v-if="showRejectModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-md rounded-3xl border border-rose-500/40 p-5 space-y-4 my-auto shadow-2xl">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">❌</span>
+              <div>
+                <h3 class="font-black text-xs text-white">إلغاء ورفض الطلب وإشعار المشتري</h3>
+                <span class="text-[10px] text-rose-400 font-mono">#{{ rejectTargetOrder?.order_ref || rejectTargetOrder?.order_id }}</span>
+              </div>
+            </div>
+            <button @click="showRejectModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-200 mb-1">سبب الإلغاء والرفض:</label>
+            <textarea v-model="rejectReason" rows="3" placeholder="مثال: بيانات الحساب المدخلة غير صحيحة، يرجى إعادة الطلب مع التأكد من كلمة المرور..." class="w-full bg-dark-900 border border-slate-700 rounded-xl p-3 text-xs text-white leading-relaxed focus:border-rose-500 focus:outline-none"></textarea>
+            <span class="text-[10px] text-slate-400 block mt-0.5">سيتم إرسال هذا السبب للعميل في تيليجرام.</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button @click="submitOrderRejection" :disabled="rejectingOrder || !rejectReason.trim()" class="flex-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+              <span v-if="rejectingOrder">جاري المعالجة... ⏳</span>
+              <span v-else>تأكيد الرفض والإلغاء ❌</span>
+            </button>
+            <button @click="handleAdminOrderAction(rejectTargetOrder?.order_ref || rejectTargetOrder?.order_id, 'refund_both')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs py-3 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+              <span>🔄</span>
+              <span>استرجاع الرصيد وإلغاء</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2624,11 +2965,21 @@ HTML_SHELL = """<!DOCTYPE html>
         };
 
 
-        watch(currentLang, (newLang) => {
+        watch(currentLang, async (newLang) => {
           try {
             localStorage.setItem('botforge_lang', newLang);
             document.documentElement.lang = newLang;
             document.documentElement.dir = (newLang === 'ar' || newLang === 'fa') ? 'rtl' : 'ltr';
+            const initData = tg?.initData || '';
+            fetch('/api/miniapp/user/language', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({ lang: newLang })
+            }).catch(() => {});
           } catch {}
         }, { immediate: true });
 
@@ -2648,8 +2999,21 @@ HTML_SHELL = """<!DOCTYPE html>
         const enteredCouponCode = ref('');
         const appliedCoupon = ref(null);
         const sellerCoupons = ref([]);
-        const newCouponForm = ref({ code: '', type: 'percent', val: 10, max_uses: 100, expires: '' });
+        const newCouponForm = ref({ code: '', type: 'percent', val: 20, duration_type: 'days', duration_value: 7, max_uses: 100 });
         const creatingCoupon = ref(false);
+
+        // Admin Fulfillment & Templates State
+        const adminOrdersSearchQuery = ref('');
+        const adminOrdersStatusFilter = ref('all');
+        const showDeliveryModal = ref(false);
+        const deliveryTargetOrder = ref(null);
+        const deliveryForm = ref({ text: '', proof: '' });
+        const deliveringOrder = ref(false);
+        const showRejectModal = ref(false);
+        const rejectTargetOrder = ref(null);
+        const rejectReason = ref('');
+        const rejectingOrder = ref(false);
+        const adminTemplates = ref([]);
 
         // Manual Payments
         const activeDepositTab = ref('manual');
@@ -3308,9 +3672,222 @@ HTML_SHELL = """<!DOCTYPE html>
           }
         };
 
+        const filteredAdminOrdersList = computed(() => {
+          let list = adminOrders.value || [];
+          if (adminOrdersStatusFilter.value !== 'all') {
+            if (adminOrdersStatusFilter.value === 'pending') {
+              list = list.filter(o => o.status === 'pending' || o.status === 'processing');
+            } else if (adminOrdersStatusFilter.value === 'completed') {
+              list = list.filter(o => o.status === 'completed');
+            } else if (adminOrdersStatusFilter.value === 'canceled') {
+              list = list.filter(o => o.status === 'canceled' || o.status === 'refunded' || o.status === 'rejected');
+            }
+          }
+          if (adminOrdersSearchQuery.value && adminOrdersSearchQuery.value.trim()) {
+            const q = adminOrdersSearchQuery.value.trim().toLowerCase();
+            list = list.filter(o => {
+              const ref = String(o.order_ref || o.order_id || '').toLowerCase();
+              const buyer = String(o.buyer_username || o.user_id || '').toLowerCase();
+              const seller = String(o.seller_username || o.seller_id || '').toLowerCase();
+              const bot = String(o.bot_username || o.bot_id || '').toLowerCase();
+              const prod = String(o.service_name || o.product_name || '').toLowerCase();
+              return ref.includes(q) || buyer.includes(q) || seller.includes(q) || bot.includes(q) || prod.includes(q);
+            });
+          }
+          return list;
+        });
+
+        const openDeliverOrderModal = (ord) => {
+          deliveryTargetOrder.value = ord;
+          deliveryForm.value = { text: ord.delivery_text || '', proof: ord.delivery_proof || '' };
+          showDeliveryModal.value = true;
+        };
+
+        const submitDeliveryFulfillment = async () => {
+          if (!deliveryTargetOrder.value || !deliveryForm.value.text.trim()) return;
+          deliveringOrder.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/orders/action', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({
+                orderRef: deliveryTargetOrder.value.order_ref || deliveryTargetOrder.value.order_id,
+                action: 'deliver',
+                deliveryData: deliveryForm.value.text.trim(),
+                deliveryProof: deliveryForm.value.proof.trim()
+              })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم تسليم الطلب وإرسال الرسالة إلى تيليجرام المشتري بنجاح! 🚀');
+              showDeliveryModal.value = false;
+              await loadAdminOrders();
+              await loadAdminOverview();
+            } else {
+              alert(json.message || json.error || 'تعذر تسليم الطلب');
+            }
+          } catch {
+            alert('حدث خطأ أثناء الاتصال بالسيرفر');
+          } finally {
+            deliveringOrder.value = false;
+          }
+        };
+
+        const openRejectOrderModal = (ord) => {
+          rejectTargetOrder.value = ord;
+          rejectReason.value = ord.refund_reason || '';
+          showRejectModal.value = true;
+        };
+
+        const submitOrderRejection = async () => {
+          if (!rejectTargetOrder.value || !rejectReason.value.trim()) return;
+          rejectingOrder.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/orders/action', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({
+                orderRef: rejectTargetOrder.value.order_ref || rejectTargetOrder.value.order_id,
+                action: 'reject',
+                rejectionReason: rejectReason.value.trim()
+              })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم إلغاء الطلب وإشعار المشتري بنجاح ❌');
+              showRejectModal.value = false;
+              await loadAdminOrders();
+              await loadAdminOverview();
+            } else {
+              alert(json.message || json.error || 'فشل إلغاء الطلب');
+            }
+          } catch {
+            alert('حدث خطأ في الاتصال');
+          } finally {
+            rejectingOrder.value = false;
+          }
+        };
+
+        const saveOrderAdminNotes = async (ord) => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/orders/action', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({
+                orderRef: ord.order_ref || ord.order_id,
+                action: 'save_notes',
+                adminNotes: ord.admin_notes || ''
+              })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert('تم حفظ الملاحظة الإدارية بنجاح 📝');
+            }
+          } catch {
+            alert('تعذر حفظ الملاحظة');
+          }
+        };
+
+        const exportOrdersCsv = () => {
+          const list = adminOrders.value || [];
+          if (!list.length) {
+            alert('لا توجد طلبات لتصديرها');
+            return;
+          }
+          let csv = 'OrderRef,Date,Status,Bot,Seller,Buyer,Product,CostUSD,SellingUSD,ProfitUSD,TargetCredentials,DeliveryText\n';
+          list.forEach(o => {
+            const row = [
+              o.order_ref || o.order_id,
+              o.created_at || o.created || '',
+              o.status || '',
+              o.bot_username || o.bot_id || '',
+              o.seller_username || o.seller_id || '',
+              o.buyer_username || o.user_id || '',
+              (o.service_name || o.product_name || '').replace(/,/g, ' '),
+              o.cost_price_usd || o.cost_price || 0,
+              o.seller_price_usd || o.price_user_usd || o.total_price || 0,
+              o.profit_seller_usd || 0,
+              String(o.target || o.customer_credentials || '').replace(/[,\n]/g, ' '),
+              String(o.delivery_text || '').replace(/[,\n]/g, ' ')
+            ];
+            csv += row.join(',') + '\n';
+          });
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `orders_export_${Date.now()}.csv`;
+          a.click();
+        };
+
+        const loadAdminTemplates = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/templates', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              adminTemplates.value = json.templates || json.data || [];
+            }
+          } catch (e) {
+            console.warn('Error loading admin templates:', e);
+          }
+        };
+
+        const saveAdminTemplateConfig = async (tpl) => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/templates/save', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify(tpl)
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم حفظ وتطبيق تعديلات القالب بنجاح! 🎨');
+            } else {
+              alert(json.error || 'فشل حفظ القالب');
+            }
+          } catch {
+            alert('حدث خطأ أثناء حفظ القالب');
+          }
+        };
+
         const handleAdminOrderAction = async (orderRef, action) => {
-          const note = prompt(action === 'deliver' ? 'أدخل بيانات التسليم والكود للعميل:' : 'أدخل سبب الإجراء:');
-          if (note === null) return;
+          if (action === 'deliver') {
+            const ord = adminOrders.value.find(o => (o.order_ref || o.order_id) === orderRef);
+            if (ord) return openDeliverOrderModal(ord);
+          }
+          if (action === 'reject') {
+            const ord = adminOrders.value.find(o => (o.order_ref || o.order_id) === orderRef);
+            if (ord) return openRejectOrderModal(ord);
+          }
+          if (action === 'refund_both') {
+            if (!confirm('هل تريد استرجاع المبلغ فورياً إلى محفظة المشتري وإلغاء الطلب؟')) return;
+          }
           try {
             const initData = tg?.initData || '';
             const res = await fetch('/api/miniapp/admin/orders/action', {
@@ -3322,9 +3899,7 @@ HTML_SHELL = """<!DOCTYPE html>
               },
               body: JSON.stringify({
                 orderRef,
-                action,
-                deliveryData: action === 'deliver' ? note : undefined,
-                rejectionReason: action !== 'deliver' ? note : undefined
+                action
               })
             });
             const json = await res.json();
@@ -3716,7 +4291,8 @@ HTML_SHELL = """<!DOCTYPE html>
             loadAdminOverview(),
             loadAdminOrders(),
             loadAdminProducts(),
-            loadAdminBots()
+            loadAdminBots(),
+            loadAdminTemplates()
           ]);
         };
 
@@ -3760,11 +4336,15 @@ HTML_SHELL = """<!DOCTYPE html>
         const addAdminRequirementPreset = (presetType) => {
           if (!adminProductForm.value.requirements) adminProductForm.value.requirements = [];
           const presets = {
+            email_password: { name: 'email_password', label: 'البريد الإلكتروني + كلمة المرور (Email + Password)', type: 'text', placeholder: 'user@domain.com : password' },
+            username_password: { name: 'username_password', label: 'اسم المستخدم + كلمة المرور (Username + Password)', type: 'text', placeholder: 'username : password' },
+            password: { name: 'password', label: 'كلمة المرور (Password)', type: 'password', placeholder: '********' },
             player_id: { name: 'player_id', label: 'آيدي اللاعب (Player ID)', type: 'text', placeholder: 'مثال: 5123456789' },
             email: { name: 'email', label: 'البريد الإلكتروني (Email)', type: 'email', placeholder: 'example@gmail.com' },
             username: { name: 'username', label: 'اسم المستخدم (Username)', type: 'text', placeholder: '@username' },
             url: { name: 'target_url', label: 'رابط الحساب أو المنشور (URL)', type: 'url', placeholder: 'https://...' },
-            phone: { name: 'phone', label: 'رقم الهاتف (Phone Number)', type: 'text', placeholder: '+9647...' }
+            phone: { name: 'phone', label: 'رقم الهاتف (Phone Number)', type: 'text', placeholder: '+9647...' },
+            notes: { name: 'buyer_notes', label: 'ملاحظات إضافية من المشتري (Notes)', type: 'text', placeholder: 'أي تعليمات أو ملاحظات...' }
           };
           const p = presets[presetType];
           if (p && !adminProductForm.value.requirements.some(r => r.name === p.name)) {
@@ -4146,12 +4726,18 @@ HTML_SHELL = """<!DOCTYPE html>
                 'x-telegram-init-data': initData,
                 'x-store-id': store.value?.botId || 'default'
               },
-              body: JSON.stringify(newCouponForm.value)
+              body: JSON.stringify({
+                code: newCouponForm.value.code,
+                discount_percent: Number(newCouponForm.value.val) || 20,
+                duration_type: newCouponForm.value.duration_type || 'days',
+                duration_value: Number(newCouponForm.value.duration_value) || 7,
+                max_uses: Number(newCouponForm.value.max_uses) || 100
+              })
             });
             const json = await res.json();
             if (json.ok || json.success) {
-              alert(`تم حفظ كود الخصم (${newCouponForm.value.code}) بنجاح! ✅`);
-              newCouponForm.value = { code: '', type: 'percent', val: 10, max_uses: 100, expires: '' };
+              alert(json.message || `تم حفظ وتفعيل كود الخصم (${newCouponForm.value.code}) بنجاح! ✅`);
+              newCouponForm.value = { code: '', type: 'percent', val: 20, duration_type: 'days', duration_value: 7, max_uses: 100 };
               await loadSellerCoupons();
             } else {
               alert(json.message || 'فشل حفظ الكود');
@@ -4161,6 +4747,25 @@ HTML_SHELL = """<!DOCTYPE html>
           } finally {
             creatingCoupon.value = false;
           }
+        };
+
+        const toggleCoupon = async (code) => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/coupons/toggle', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({ code })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              await loadSellerCoupons();
+            }
+          } catch {}
         };
 
         const deleteCoupon = async (code) => {
@@ -4490,6 +5095,7 @@ HTML_SHELL = """<!DOCTYPE html>
           creatingCoupon,
           loadSellerCoupons,
           saveNewCoupon,
+          toggleCoupon,
           deleteCoupon,
           activeDepositTab,
           manualPaymentMethods,
@@ -4555,7 +5161,29 @@ HTML_SHELL = """<!DOCTYPE html>
           deleteAdminProduct,
           sendAdminBroadcast,
           isBrowserPreview,
-          switchRole
+          switchRole,
+          // Master Orders Fulfillment & Templates Center
+          adminOrdersSearchQuery,
+          adminOrdersStatusFilter,
+          showDeliveryModal,
+          deliveryTargetOrder,
+          deliveryForm,
+          deliveringOrder,
+          showRejectModal,
+          rejectTargetOrder,
+          rejectReason,
+          rejectingOrder,
+          adminTemplates,
+          filteredAdminOrdersList,
+          openDeliverOrderModal,
+          submitDeliveryFulfillment,
+          openRejectOrderModal,
+          submitOrderRejection,
+          saveOrderAdminNotes,
+          exportOrdersCsv,
+          loadAdminTemplates,
+          saveAdminTemplateConfig
+
         };
       }
 

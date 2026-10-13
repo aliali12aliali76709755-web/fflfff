@@ -64,8 +64,11 @@ async def touch(c: Ctx, *, start: bool = False, count: bool = True, source: str 
                     row = db.BUser(bot_id=c.bot_id, user_id=u.id, source=source[:32])
                     s.add(row)
                 row.name = (u.full_name or "")[:128]
-                row.username = u.username or ""
-                row.lang = (u.language_code or "")[:8]
+                if not row.lang:
+                    row.lang = (u.language_code or "")[:8]
+                elif c.x and hasattr(c.x, "user_data") and c.x.user_data is not None:
+                    c.x.user_data["lang"] = row.lang
+                    c.lang = norm(row.lang)
                 row.premium = bool(u.is_premium)
                 row.last_seen = db.now()
                 row.blocked = False

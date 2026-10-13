@@ -2586,47 +2586,130 @@ async def get_admin_overview(req: web.Request) -> web.Response:
 
 
 async def get_admin_orders(req: web.Request) -> web.Response:
-    """يعيد قائمة الطلبات اليدوية والخدمات مع أزرار التحكم للأدمن."""
+    """يعيد قائمة كافة الطلبات الواردة من جميع البوتات مع تفاصيل وبيانات كاملة (20+ خاصية)."""
     ctx = await authenticate_admin_request(req)
 
     async with db.Session() as s:
         orders = (await s.execute(
             select(db.ServiceOrder)
             .order_by(desc(db.ServiceOrder.created))
-            .limit(100)
+            .limit(200)
         )).scalars().all()
 
-    formatted = [
-        {
+        bot_ids = list({o.bot_id for o in orders if o.bot_id})
+        bots_map = {}
+        users_map = {}
+        if bot_ids:
+            brows = (await s.execute(select(db.Bot).where(db.Bot.id.in_(bot_ids)))).scalars().all()
+            bots_map = {b.id: b for b in brows}
+
+        seller_ids = list({b.owner_id for b in bots_map.values() if b.owner_id})
+        buyer_ids = list({o.user_id for o in orders if o.user_id})
+        all_uids = list(set(seller_ids + buyer_ids))
+        if all_uids:
+            urows = (await s.execute(select(db.MUser).where(db.MUser.user_id.in_(all_uids)))).scalars().all()
+            for u in urows:
+                users_map[u.user_id] = {"username": u.username or "", "name": u.name or f"User {u.user_id}"}
+
+    formatted = []
+    for o in orders:
+        bot = bots_map.get(o.bot_id)
+        bot_username = bot.username if bot else f"bot_{o.bot_id}"
+        bot_name = bot.name if bot else "متجر المنصة"
+        seller_id = bot.owner_id if bot else (o.seller_id or 0)
+        seller_info = users_map.get(seller_id, {"username": "", "name": f"البائع #{seller_id}" if seller_id else "المنصة الرئيسية"})
+        buyer_info = users_map.get(o.user_id, {"username": "", "name": f"المشتري #{o.user_id}"})
+
+        user_inputs = {}
+        if o.target:
+            try:
+                parsed = json.loads(o.target)
+                if isinstance(parsed, dict):
+                    user_inputs = parsed
+                else:
+                    user_inputs = {"البيانات": str(parsed)}
+            except Exception:
+                user_inputs = {"البيانات": o.target}
+        elif isinstance(o.details, dict) and o.details.get("userInputs"):
+            user_inputs = o.details["userInputs"]
+
+        admin_cost = float(o.cost_platform_usd or o.cost_provider_usd or 0.0)
+        seller_price = float(o.price_user_usd or 0.0)
+        seller_profit = max(0.0, round(seller_price - admin_cost, 2))
+        
+        details_obj = o.details if isinstance(o.details, dict) else {}
+        deliv_text = o.delivery_text or details_obj.get("delivery_text", "")
+        deliv_proof = o.delivery_proof or details_obj.get("delivery_proof", "")
+        adm_notes = o.admin_notes or details_obj.get("admin_notes", "")
+        disc_code = o.discount_code or details_obj.get("discount_code", "")
+        disc_amount = float(o.discount_amount or details_obj.get("discount_amount", 0.0))
+
+        formatted.append({
             "id": o.id,
             "order_id": o.order_id,
             "order_ref": o.order_id,
+            "timestamp": o.created.strftime("%Y-%m-%d %H:%M:%S") if o.created else "",
+            "created_at": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
+            
+            # بيانات البوت والمتجر
             "bot_id": o.bot_id,
+            "bot_username": bot_username,
+            "bot_name": bot_name,
+            "tpl_key": o.tpl_key or "digital",
+            
+            # بيانات البائع صاحب البوت
+            "seller_id": seller_id,
+            "seller_username": seller_info["username"],
+            "seller_name": seller_info["name"],
+            
+            # بيانات المشتري
+            "buyer_id": o.user_id,
             "user_id": o.user_id,
-            "user_telegram_id": o.user_id,
+            "buyer_username": buyer_info["username"],
+            "buyer_name": buyer_info["name"],
+            
+            # تفاصيل المنتج
+            "service_id": o.service_id,
             "service_name": o.service_name,
             "product_name": o.service_name,
+            "quantity": o.quantity or 1,
+            "currency": o.currency or "USD",
+            
+            # الحسابات المالية المفصلة
+            "admin_cost_usd": admin_cost,
+            "seller_price_usd": seller_price,
+            "seller_profit_usd": seller_profit,
+            "price_usd": seller_price,
+            "total_price": seller_price,
+            "discount_code": disc_code,
+            "discount_amount": disc_amount,
+            
+            # المتطلبات والبيانات المدخلة
             "target": o.target,
-            "userInputs": {"البيانات": o.target} if o.target else {},
-            "price_usd": o.price_user_usd,
-            "total_price": o.price_user_usd,
-            "status": "pending" if o.status == "queued" else o.status,
-            "created": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
-            "created_at": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
-        }
-        for o in orders
-    ]
+            "user_inputs": user_inputs,
+            "userInputs": user_inputs,
+            
+            # حالة الطلب والتسليم
+            "status": "pending" if o.status in ("queued", "pending") else o.status,
+            "raw_status": o.status,
+            "delivery_text": deliv_text,
+            "delivery_proof": deliv_proof,
+            "admin_notes": adm_notes,
+            "refund_reason": o.refund_reason or "",
+            "is_dual_refunded": o.is_dual_refunded,
+        })
 
     return web.json_response({
         "ok": True,
         "success": True,
         "orders": formatted,
         "data": formatted,
+        "total": len(formatted),
     })
 
 
 async def admin_order_action(req: web.Request) -> web.Response:
-    """ينفذ إجراءات الأدمن على الطلبات: تسليم، استرجاع مزدوج ذري، أو رفض."""
+    """ينفذ إجراءات الأدمن على الطلبات: تسليم مع إشعار تيليجرام فوري، أو رفض واسترجاع، أو حفظ ملاحظات."""
     ctx = await authenticate_admin_request(req)
 
     try:
@@ -2636,7 +2719,9 @@ async def admin_order_action(req: web.Request) -> web.Response:
 
     order_ref = str(body.get("orderRef") or body.get("order_id") or body.get("order_ref") or "").strip()
     action = str(body.get("action") or "").strip()
-    delivery_data = str(body.get("deliveryData") or body.get("delivery_data") or "تم التسليم بنجاح").strip()
+    delivery_data = str(body.get("deliveryData") or body.get("delivery_text") or "تم التسليم بنجاح").strip()
+    delivery_proof = str(body.get("deliveryProof") or body.get("delivery_proof") or "").strip()
+    admin_notes = str(body.get("adminNotes") or body.get("admin_notes") or "").strip()
     rejection_reason = str(body.get("rejectionReason") or body.get("reason") or "تم الإلغاء من الإدارة").strip()
 
     if not order_ref:
@@ -2655,10 +2740,33 @@ async def admin_order_action(req: web.Request) -> web.Response:
             ord_up = await s.get(db.ServiceOrder, order.id)
             if ord_up:
                 ord_up.status = "completed"
-                details = ord_up.details or {}
+                ord_up.delivery_text = delivery_data
+                ord_up.delivery_proof = delivery_proof
+                if admin_notes:
+                    ord_up.admin_notes = admin_notes
+                details = ord_up.details if isinstance(ord_up.details, dict) else {}
                 details["delivery_text"] = delivery_data
+                details["delivery_proof"] = delivery_proof
                 ord_up.details = details
                 await s.commit()
+
+        # إشعار تيليجرام مباشر وفوري للمشتري
+        try:
+            from ..runtime import manager
+            bot_app = manager.apps.get(order.bot_id) or manager.maker
+            if bot_app and bot_app.bot:
+                tg_msg = (
+                    f"🎉 <b>تم تسليم طلبك بنجاح!</b>\n\n"
+                    f"📦 <b>المنتج:</b> {order.service_name}\n"
+                    f"🔢 <b>رقم الطلب:</b> <code>#{order.order_id}</code>\n\n"
+                    f"🔑 <b>بيانات ومحتوى التسليم:</b>\n<code>{delivery_data}</code>\n"
+                )
+                if delivery_proof:
+                    tg_msg += f"\n📎 <b>إثبات التسليم:</b> <a href=\"{delivery_proof}\">عرض الرابط</a>\n"
+                tg_msg += "\n⭐ شكراً لتسوقك معنا!"
+                await bot_app.bot.send_message(chat_id=order.user_id, text=tg_msg, parse_mode="HTML")
+        except Exception as e:
+            log.warning("Delivery telegram dispatch error: %s", e)
 
         await log_audit(
             bot_id=order.bot_id,
@@ -2669,7 +2777,7 @@ async def admin_order_action(req: web.Request) -> web.Response:
             target_id=order_ref,
             details=f"Order delivered: {delivery_data}",
         )
-        return web.json_response({"ok": True, "success": True, "message": "تم تأكيد تسليم الطلب وإشعار المشتري بنجاح ✅"})
+        return web.json_response({"ok": True, "success": True, "message": "تم تأكيد تسليم الطلب وإشعار المشتري في تيليجرام بنجاح ✅"})
 
     elif action == "reject":
         async with db.Session() as s:
@@ -2678,6 +2786,21 @@ async def admin_order_action(req: web.Request) -> web.Response:
                 ord_up.status = "canceled"
                 ord_up.refund_reason = rejection_reason
                 await s.commit()
+
+        # إشعار المشتري بالإلغاء
+        try:
+            from ..runtime import manager
+            bot_app = manager.apps.get(order.bot_id) or manager.maker
+            if bot_app and bot_app.bot:
+                tg_msg = (
+                    f"⚠️ <b>تنبيه بخصوص طلبك #{order.order_id}:</b>\n\n"
+                    f"المنتج: {order.service_name}\n"
+                    f"الحالة: تم إلغاء الطلب ❌\n"
+                    f"السبب: {rejection_reason}\n"
+                )
+                await bot_app.bot.send_message(chat_id=order.user_id, text=tg_msg, parse_mode="HTML")
+        except Exception as e:
+            pass
 
         await log_audit(
             bot_id=order.bot_id,
@@ -2688,7 +2811,7 @@ async def admin_order_action(req: web.Request) -> web.Response:
             target_id=order_ref,
             details=f"Order rejected: {rejection_reason}",
         )
-        return web.json_response({"ok": True, "success": True, "message": "تم رفض الطلب بنجاح ❌"})
+        return web.json_response({"ok": True, "success": True, "message": "تم رفض وإلغاء الطلب بنجاح ❌"})
 
     elif action in ("refund_both", "refund"):
         ok, msg, res = await ledger.atomic_dual_refund(order_ref, reason=rejection_reason)
@@ -2710,6 +2833,14 @@ async def admin_order_action(req: web.Request) -> web.Response:
             "message": f"تم استرجاع المبلغ (${order.price_user_usd}) إلى رصيد المشتري فورياً وإلغاء الطلب بنجاح 🔄",
             "details": res
         })
+
+    elif action == "save_notes":
+        async with db.Session() as s:
+            ord_up = await s.get(db.ServiceOrder, order.id)
+            if ord_up:
+                ord_up.admin_notes = admin_notes
+                await s.commit()
+        return web.json_response({"ok": True, "success": True, "message": "تم حفظ الملاحظات الإدارية السرية بنجاح 📝"})
 
     return web.json_response({"ok": False, "success": False, "error": "إجراء غير معروف"}, status=400)
 
@@ -2974,46 +3105,120 @@ async def admin_broadcast_message(req: web.Request) -> web.Response:
 # 6. إدارة أكواد الخصم والعروض (Coupons & Promo Codes)
 # ─────────────────────────────────────────────────────────────
 
+async def set_user_language_endpoint(req: web.Request) -> web.Response:
+    """يحفظ لغة المستخدم المختارة في قاعدة البيانات وجلسة البوت فورياً لضمان التزامن 100%."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    lang = str(body.get("lang") or "ar").strip().lower()[:2]
+    if lang not in ("ar", "en", "ru", "fa", "tr"):
+        lang = "ar"
+
+    async with db.Session() as s:
+        buser = (await s.execute(
+            select(db.BUser).where(db.BUser.bot_id == ctx.bot.id, db.BUser.user_id == ctx.uid)
+        )).scalars().first()
+        if buser:
+            buser.lang = lang
+        muser = await s.get(db.MUser, ctx.uid)
+        if muser:
+            muser.lang = lang
+        await s.commit()
+
+    try:
+        from ..runtime import manager
+        bot_app = manager.apps.get(ctx.bot.id) or manager.maker
+        if bot_app and hasattr(bot_app, "user_data") and ctx.uid in bot_app.user_data:
+            bot_app.user_data[ctx.uid]["lang"] = lang
+    except Exception:
+        pass
+
+    return web.json_response({"ok": True, "success": True, "lang": lang, "message": "تم حفظ وتحديث اللغة بنجاح"})
+
+
+# ─────────────────────────────────────────────────────────────
+# 6. إدارة وتتبع أكواد الخصم والعروض (Discount Codes & Tracking Center)
+# ─────────────────────────────────────────────────────────────
+
 async def get_seller_coupons(req: web.Request) -> web.Response:
-    """يجلب قائمة أكواد الخصم النشطة للبوت مع إحصائيات الاستخدام والعملاء وإجمالي المبالغ المخصومة."""
+    """يجلب قائمة كافة أكواد الخصم للبوت مع التتبع الدقيق (مرات الاستخدام، المبالغ المخصومة، الأرباح المحققة، والمدة)."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
-    promos = await promo.get_bot_promos(ctx.bot.id)
+
+    now_t = db.now()
     items = []
-    for code, info in promos.items():
-        users_dict = info.get("users", {})
-        used_count = int(info.get("used_count", 0))
-        max_uses = int(info.get("max_uses", 100))
-        is_active = True
-        if max_uses > 0 and used_count >= max_uses:
-            is_active = False
-        if info.get("expires"):
-            try:
-                exp_date = dt.datetime.strptime(info["expires"], "%Y-%m-%d").date()
-                if db.now().date() > exp_date:
-                    is_active = False
-            except Exception:
-                pass
-        items.append({
-            "code": code,
-            "type": info.get("type", "percent"),
-            "discount_type": info.get("type", "percent"),
-            "val": float(info.get("val", 10.0)),
-            "discount_value": float(info.get("val", 10.0)),
-            "max_uses": max_uses,
-            "used_count": used_count,
-            "unique_users_count": len(users_dict),
-            "total_discount_usd": float(info.get("total_discount_usd", 0.0)),
-            "per_user": int(info.get("per_user", 1)),
-            "min_order": float(info.get("min_order", 0.0)),
-            "expires": str(info.get("expires", "")),
-            "active": is_active,
-        })
-    return web.json_response({"ok": True, "success": True, "coupons": items, "data": items})
+    total_disc_sum = 0.0
+    total_rev_sum = 0.0
+    total_uses_sum = 0
+
+    async with db.Session() as s:
+        db_codes = (await s.execute(
+            select(db.DiscountCode)
+            .where(db.DiscountCode.bot_id == ctx.bot.id)
+            .order_by(desc(db.DiscountCode.created))
+        )).scalars().all()
+
+        for d in db_codes:
+            is_expired = bool(d.expires_at and d.expires_at < now_t)
+            is_act = bool(d.is_active and not is_expired)
+
+            remaining_str = "دائم وغير محدود ♾️"
+            if d.expires_at:
+                if is_expired:
+                    remaining_str = "منتهي الصلاحية ⏳"
+                else:
+                    diff = d.expires_at - now_t
+                    days = diff.days
+                    hours = diff.seconds // 3600
+                    if days > 0:
+                        remaining_str = f"باقي {days} يوم و {hours} س"
+                    else:
+                        remaining_str = f"باقي {max(1, hours)} ساعة"
+
+            items.append({
+                "id": d.id,
+                "code": d.code,
+                "discount_percent": d.discount_percent,
+                "val": d.discount_percent,
+                "type": "percent",
+                "duration_type": d.duration_type or "days",
+                "duration_value": d.duration_value or 7,
+                "duration_str": remaining_str,
+                "expires_at": d.expires_at.strftime("%Y-%m-%d %H:%M") if d.expires_at else "",
+                "is_expired": is_expired,
+                "is_active": d.is_active,
+                "active": is_act,
+                "max_uses": d.max_uses,
+                "used_count": d.used_count,
+                "total_discount_usd": round(d.total_discounted, 2),
+                "total_revenue_usd": round(d.total_revenue, 2),
+            })
+            total_disc_sum += d.total_discounted
+            total_rev_sum += d.total_revenue
+            total_uses_sum += d.used_count
+
+    stats = {
+        "total_codes": len(items),
+        "active_codes": sum(1 for it in items if it["active"]),
+        "total_uses": total_uses_sum,
+        "total_discounted": round(total_disc_sum, 2),
+        "total_revenue": round(total_rev_sum, 2),
+    }
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "coupons": items,
+        "data": items,
+        "stats": stats,
+    })
 
 
 async def save_seller_coupon(req: web.Request) -> web.Response:
-    """ينشئ أو يعدل كود خصم للبوت مع التحقق."""
+    """ينشئ كود خصم جديد للبائع مع تحديد النسبة المئوية والمدة بالساعات أو الأيام وإعدادات التتبع."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
     try:
@@ -3023,37 +3228,103 @@ async def save_seller_coupon(req: web.Request) -> web.Response:
 
     code = str(body.get("code") or "").strip().upper()
     if not code:
-        return web.json_response({"ok": False, "error": "missing_code", "message": "يرجى كتابة كود الخصم"}, status=400)
+        return web.json_response({"ok": False, "error": "missing_code", "message": "يرجى كتابة رمز كود الخصم"}, status=400)
 
-    disc_type = str(body.get("type") or body.get("discount_type") or "percent")
-    val = float(body.get("val") or body.get("value") or 10.0)
-    max_uses = int(body.get("max_uses") or body.get("maxUses") or 100)
-    expires = str(body.get("expires") or body.get("expires_at") or "")
-    min_order = float(body.get("min_order") or body.get("minOrder") or 0.0)
+    disc_pct = float(body.get("discount_percent") or body.get("val") or body.get("value") or 10.0)
+    dur_type = str(body.get("duration_type") or "days").strip().lower()
+    dur_val = int(body.get("duration_value") or body.get("duration") or 7)
+    max_uses = int(body.get("max_uses") or body.get("maxUses") or 0)
 
-    ok = await promo.save_bot_promo(
-        ctx.bot.id,
-        code,
-        discount_type=disc_type,
-        value=val,
-        max_uses=max_uses,
-        expires_at=expires,
-        min_order_usd=min_order,
-    )
-    return web.json_response({"ok": ok, "success": ok, "code": code})
+    now_t = db.now()
+    expires_at = None
+    if dur_type == "hours":
+        expires_at = now_t + dt.timedelta(hours=max(1, dur_val))
+    elif dur_type == "days":
+        expires_at = now_t + dt.timedelta(days=max(1, dur_val))
+
+    async with db.Session() as s:
+        existing = (await s.execute(
+            select(db.DiscountCode).where(
+                db.DiscountCode.bot_id == ctx.bot.id,
+                func.upper(db.DiscountCode.code) == code,
+            )
+        )).scalars().first()
+
+        if existing:
+            existing.discount_percent = disc_pct
+            existing.duration_type = dur_type
+            existing.duration_value = dur_val
+            existing.expires_at = expires_at
+            existing.max_uses = max_uses
+            existing.is_active = True
+        else:
+            new_code = db.DiscountCode(
+                bot_id=ctx.bot.id,
+                code=code,
+                discount_percent=disc_pct,
+                duration_type=dur_type,
+                duration_value=dur_val,
+                expires_at=expires_at,
+                max_uses=max_uses,
+                is_active=True,
+            )
+            s.add(new_code)
+        await s.commit()
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": f"تم إنشاء وتفعيل كود الخصم {code} بنجاح! 🎉",
+        "code": code,
+    })
+
+
+async def toggle_seller_coupon(req: web.Request) -> web.Response:
+    """يوقف أو يفعل كود الخصم في أي وقت."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    code = str(body.get("code") or "").strip().upper()
+    async with db.Session() as s:
+        d = (await s.execute(
+            select(db.DiscountCode).where(
+                db.DiscountCode.bot_id == ctx.bot.id,
+                func.upper(db.DiscountCode.code) == code,
+            )
+        )).scalars().first()
+        if d:
+            d.is_active = not d.is_active
+            st = d.is_active
+            await s.commit()
+            msg = "تم تفعيل كود الخصم بنجاح ✅" if st else "تم إيقاف كود الخصم بنجاح ⏸️"
+            return web.json_response({"ok": True, "success": True, "active": st, "message": msg})
+    return web.json_response({"ok": False, "error": "not_found", "message": "الكود غير موجود"}, status=404)
 
 
 async def delete_seller_coupon(req: web.Request) -> web.Response:
-    """يحذف كود خصم للبوت."""
+    """يحذف كود الخصم للبوت."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
-    code = req.match_info.get("code") or req.query.get("code") or ""
-    ok = await promo.delete_bot_promo(ctx.bot.id, code)
-    return web.json_response({"ok": ok, "success": ok})
+    code = str(req.match_info.get("code") or req.query.get("code") or "").strip().upper()
+    async with db.Session() as s:
+        d = (await s.execute(
+            select(db.DiscountCode).where(
+                db.DiscountCode.bot_id == ctx.bot.id,
+                func.upper(db.DiscountCode.code) == code,
+            )
+        )).scalars().first()
+        if d:
+            await s.delete(d)
+            await s.commit()
+    await promo.delete_bot_promo(ctx.bot.id, code)
+    return web.json_response({"ok": True, "success": True, "message": "تم حذف الكود بنجاح 🗑️"})
 
 
 async def validate_coupon_endpoint(req: web.Request) -> web.Response:
-    """يتحقق من صلاحية كود الخصم في السلة أو صفحة المنتج."""
+    """يتحقق من كود الخصم في السلة ويحسب المبلغ المخصوم والإجمالي الجديد بدقة."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
     try:
@@ -3061,20 +3332,123 @@ async def validate_coupon_endpoint(req: web.Request) -> web.Response:
     except Exception:
         return web.json_response({"ok": False, "error": "bad_json"}, status=400)
 
-    code = str(body.get("code") or "").strip()
+    code = str(body.get("code") or "").strip().upper()
     amount = float(body.get("amount") or body.get("order_amount") or 0.0)
-    service_id = str(body.get("product_id") or "")
+    if not code:
+        return web.json_response({"ok": False, "valid": False, "message": "يرجى إدخال الكود"}, status=400)
 
-    valid, discount_usd, msg = await promo.validate_promo(ctx.bot.id, ctx.uid, code, amount, service_id)
+    async with db.Session() as s:
+        d = (await s.execute(
+            select(db.DiscountCode).where(
+                db.DiscountCode.bot_id == ctx.bot.id,
+                func.upper(db.DiscountCode.code) == code,
+            )
+        )).scalars().first()
+
+        if d:
+            if not d.is_active:
+                return web.json_response({"ok": False, "valid": False, "message": "هذا الكود معطل حالياً ❌"})
+            now_t = db.now()
+            if d.expires_at and d.expires_at < now_t:
+                return web.json_response({"ok": False, "valid": False, "message": "انتهت صلاحية كود الخصم ⏳"})
+            if d.max_uses > 0 and d.used_count >= d.max_uses:
+                return web.json_response({"ok": False, "valid": False, "message": "وصل الكود للحد الأقصى للاستخدام ❌"})
+
+            if d.discount_percent > 0:
+                disc_val = round(amount * (d.discount_percent / 100.0), 2)
+                pct_str = f"{d.discount_percent}%"
+            else:
+                disc_val = min(amount, d.discount_fixed)
+                pct_str = f"${d.discount_fixed}"
+
+            new_total = max(0.0, round(amount - disc_val, 2))
+            return web.json_response({
+                "ok": True,
+                "valid": True,
+                "success": True,
+                "code": code,
+                "discount_percent": d.discount_percent,
+                "discount_usd": disc_val,
+                "new_total_usd": new_total,
+                "message": f"تم تطبيق الخصم بنجاح ({pct_str})! 🎉",
+            })
+
+    valid, discount_usd, msg = await promo.validate_promo(ctx.bot.id, ctx.uid, code, amount)
     new_total = max(0.0, round(amount - discount_usd, 2))
     return web.json_response({
         "ok": valid,
         "valid": valid,
         "success": valid,
-        "code": code.upper(),
+        "code": code,
         "discount_usd": discount_usd,
         "new_total_usd": new_total,
         "message": msg,
+    })
+
+
+# ─────────────────────────────────────────────────────────────
+# 6.5 تعديل وإدارة القوالب الأربعة من لوحة الأدمن
+# ─────────────────────────────────────────────────────────────
+
+async def admin_get_templates(req: web.Request) -> web.Response:
+    """يعيد إعدادات وتخصيصات القوالب الأربعة لمدير المنصة (digital, sms, smm, tgstars)."""
+    ctx = await authenticate_admin_request(req)
+
+    tpl_keys = ["digital", "sms", "smm", "tgstars"]
+    tpl_names = {
+        "digital": "متجر المنتجات الرقمية والاشتراكات وشحن الألعاب",
+        "sms": "متجر أرقام التفعيل وتأكيد الحسابات",
+        "smm": "متجر خدمات السوشيال ميديا والتفاعل",
+        "tgstars": "متجر نجوم وتليجرام بريميوم والهدايا",
+    }
+    tpl_emojis = {"digital": "🎮", "sms": "📱", "smm": "🚀", "tgstars": "⭐"}
+    tpl_colors = {"digital": "#3b82f6", "sms": "#10b981", "smm": "#f59e0b", "tgstars": "#8b5cf6"}
+
+    results = []
+    for k in tpl_keys:
+        custom = await db.kv_get(0, f"tpl_cfg:{k}", {}) or {}
+        results.append({
+            "key": k,
+            "name": custom.get("name") or tpl_names.get(k, k),
+            "description": custom.get("description") or f"قالب متكامل لإدارة مبيعات {tpl_names.get(k, k)}",
+            "emoji": custom.get("emoji") or tpl_emojis.get(k, "📦"),
+            "theme_color": custom.get("theme_color") or tpl_colors.get(k, "#3b82f6"),
+            "is_active": custom.get("is_active", True),
+            "welcome_text": custom.get("welcome_text") or f"أهلاً بك في متجر {tpl_names.get(k, k)}! تصفح خدماتنا المميزة الآن.",
+            "default_margin_pct": float(custom.get("default_margin_pct", 15.0)),
+        })
+
+    return web.json_response({"ok": True, "success": True, "templates": results, "data": results})
+
+
+async def admin_save_template(req: web.Request) -> web.Response:
+    """يحفظ تخصيصات القالب الأربعة المحدثة من قبل الآدمن."""
+    ctx = await authenticate_admin_request(req)
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    key = str(body.get("key") or "").strip().lower()
+    if key not in ("digital", "sms", "smm", "tgstars"):
+        return web.json_response({"ok": False, "error": "invalid_template_key"}, status=400)
+
+    custom = {
+        "name": str(body.get("name") or "").strip(),
+        "description": str(body.get("description") or "").strip(),
+        "emoji": str(body.get("emoji") or "").strip() or "📦",
+        "theme_color": str(body.get("theme_color") or "#3b82f6").strip(),
+        "is_active": bool(body.get("is_active", True)),
+        "welcome_text": str(body.get("welcome_text") or "").strip(),
+        "default_margin_pct": float(body.get("default_margin_pct") or 15.0),
+    }
+
+    await db.kv_set(0, f"tpl_cfg:{key}", custom)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": f"تم حفظ وتطبيق تعديلات القالب ({key}) على كافة المتاجر بنجاح! 🎨",
+        "template": custom,
     })
 
 
@@ -3497,10 +3871,18 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get(f"/api/miniapp/{u}/seller/coupons", get_seller_coupons)
     app.router.add_post("/api/miniapp/seller/coupons", save_seller_coupon)
     app.router.add_post(f"/api/miniapp/{u}/seller/coupons", save_seller_coupon)
+    app.router.add_post("/api/miniapp/seller/coupons/toggle", toggle_seller_coupon)
+    app.router.add_post(f"/api/miniapp/{u}/seller/coupons/toggle", toggle_seller_coupon)
     app.router.add_delete("/api/miniapp/seller/coupons/{code}", delete_seller_coupon)
     app.router.add_delete(f"/api/miniapp/{u}/seller/coupons/{{code}}", delete_seller_coupon)
     app.router.add_post("/api/miniapp/coupon/validate", validate_coupon_endpoint)
     app.router.add_post(f"/api/miniapp/{u}/coupon/validate", validate_coupon_endpoint)
+
+    # 4.5 حفظ اللغة وقوالب الأدمن
+    app.router.add_post("/api/miniapp/user/language", set_user_language_endpoint)
+    app.router.add_post(f"/api/miniapp/{u}/user/language", set_user_language_endpoint)
+    app.router.add_get("/api/miniapp/admin/templates", admin_get_templates)
+    app.router.add_post("/api/miniapp/admin/templates/save", admin_save_template)
 
     # 5. الدفع اليدوي وإشعارات الإيداع (Manual Payments & Receipts)
     app.router.add_get("/api/miniapp/payment-methods", get_payment_methods)

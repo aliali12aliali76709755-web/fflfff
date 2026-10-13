@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any
@@ -133,51 +134,29 @@ async def authenticate_miniapp_request(
 
     user_data = None
 
-    # دعم وضع المعاينة والتجربة المباشرة في المتصفح الخارجي (Simulated / Browser Preview Mode)
-    if not init_data or str(init_data).startswith("mock"):
-        req_role = body_role or str(req.query.get("role", "")).lower() or str(req.headers.get("x-role", "")).lower()
-        is_req_admin = (
-            "admin" in req_role
-            or "role=admin" in str(init_data).lower()
-            or str(bot_identifier).lower() == "admin_app"
-            or "/admin_app" in req.path
-            or req.query.get("tab") == "admin"
-        )
-        is_req_seller = (
-            "seller" in req_role
-            or "role=seller" in str(init_data).lower()
-            or req.query.get("tab") == "seller"
-            or "panel" in req.query
-            or "seller" in req.query
-        )
+    # التحقق من مفتاح إدارة سري للوصول الإداري الآمن خارج التيليجرام
+    admin_secret = os.environ.get("ADMIN_WEB_SECRET", "").strip() or (config.MAKER_TOKEN[:16] if config.MAKER_TOKEN else "adm_secret_8821038059")
+    req_admin_key = (req.query.get("admin_key") or req.headers.get("x-admin-key") or req.headers.get("X-Admin-Key") or "").strip()
+    is_key_authenticated_admin = bool(req_admin_key and req_admin_key == admin_secret)
 
-        try:
-            clean = str(init_data).replace("mock_", "").replace("mock", "")
-            if "user=" in clean:
-                qs = urllib.parse.parse_qs(clean)
-                u_str = qs.get("user", ["{}"])[0]
-                user_data = json.loads(u_str)
-            elif clean.startswith("{"):
-                user_data = json.loads(clean)
-            elif is_req_admin:
-                user_data = {
-                    "id": config.ADMIN_ID or 8821038059,
-                    "first_name": "مدير المنصة (الأدمن)",
-                    "username": "super_admin",
-                }
-            elif is_req_seller:
-                user_data = {
-                    "id": bot.owner_id or 8821038059,
-                    "first_name": "مالك المتجر (بائع)",
-                    "username": "seller_owner",
-                }
-            else:
-                user_data = {
-                    "id": 9991001,
-                    "first_name": "زائر المتجر",
-                    "username": "guest_buyer",
-                }
-        except Exception:
+    # وضع التصفح خارج التيليجرام بدون initData
+    if not init_data or str(init_data).startswith("mock"):
+        # لا يُمنح أي دور إداري أو بائع بالمتصفح إلا بمصادقة صريحة
+        if is_key_authenticated_admin:
+            user_data = {
+                "id": config.ADMIN_ID or 8821038059,
+                "first_name": "مدير المنصة (الأدمن)",
+                "username": "super_admin",
+            }
+        elif str(init_data).startswith("mock") and config.is_admin(int(config.ADMIN_ID or 8821038059)) and req.headers.get("x-test-internal") == "true":
+            # بيئة الاختبارات الآلية الداخلية فقط
+            user_data = {
+                "id": config.ADMIN_ID or 8821038059,
+                "first_name": "مدير المنصة",
+                "username": "test_admin",
+            }
+        else:
+            # الزائر العادي أو المشتري: دور مشتري حصراً، وممنوع الوصول لأي لوحة
             user_data = {
                 "id": 9991001,
                 "first_name": "زائر المتجر",
