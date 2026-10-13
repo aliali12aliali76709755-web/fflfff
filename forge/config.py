@@ -32,7 +32,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 TMP_DIR = DATA_DIR / "tmp"
 TMP_DIR.mkdir(exist_ok=True)
 
-MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "")
+MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "").strip()
+
 ADMIN_ID = _int("ADMIN_ID", 8821038059)
 ADMIN_IDS: set[int] = {6641619062, 8821038059, 8471597348}
 if ADMIN_ID:

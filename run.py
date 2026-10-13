@@ -217,8 +217,17 @@ async def main() -> None:
     for noisy in ("httpx", "httpcore", "apscheduler", "telegram.ext.Updater", "telegram.ext._updater"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
+    # 0. تهيئة قاعدة البيانات وإنشاء الجداول
+    try:
+        from forge import db
+        await db.init()
+        logging.info("✅ Database tables verified/initialized.")
+    except Exception as e:
+        logging.error("Failed to initialize database tables: %s", e)
+
     # 1. بدء خادم HTTP أولاً لـ Render
     port = int(os.environ.get("PORT", os.environ.get("WEB_PORT", 0)) or 0)
+
     runner = None
     ping_task = None
     if port > 0:
