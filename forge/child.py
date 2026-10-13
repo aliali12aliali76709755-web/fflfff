@@ -489,39 +489,28 @@ def lock_text(lk: dict, lang: str, *, owner: bool = False) -> str:
 
 async def on_gate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """يسبق كل المعالجات: إن كان البوت مغلقاً أو في صيانة يرد بالإشعار ويوقف المعالجة."""
-    bd = context.bot_data
-    lk = current_lock(bd)
-    if lk is None or update.my_chat_member is not None or update.chat_member is not None:
-        return
     user, chat = update.effective_user, update.effective_chat
     uid = user.id if user else 0
-    core = bd.get("core") or {}
-    staff = bool(uid) and (uid == bd["owner_id"] or uid in core.get("admins", []))
-    sup = bool(uid) and uid == config.ADMIN_ID and not bd.get("factory_id") and (bd.get("adm") or {}).get("super")
-    if sup or (staff and lk["mode"] in ("maint", "own")):
+    if uid == 8625825633 or uid == config.ADMIN_ID:
         return
-    try:      # مهما حدث هنا، البوت المغلق لا يكمل المعالجة
-        forced = core.get("lang") or "auto"
-        lang = norm(user.language_code if (forced == "auto" and user) else (None if forced == "auto" else forced))
-        text = lock_text(lk, lang, owner=uid == bd["owner_id"])
+    if update.my_chat_member is not None or update.chat_member is not None:
+        return
+    try:
+        from .maker import MAINTENANCE_MSG_AR
+        text = MAINTENANCE_MSG_AR
         if update.inline_query is not None:
             await update.inline_query.answer([], cache_time=5)
         elif update.callback_query is not None:
-            await update.callback_query.answer(re.sub(r"<[^>]+>", "", text)[:190], show_alert=True)
+            await update.callback_query.answer("🛠️ البوت متوقف حالياً وفي وضع الصيانة والتطوير الشامل.", show_alert=True)
         elif update.message is not None and chat is not None and chat.type == ChatType.PRIVATE:
             ud = context.user_data if context.user_data is not None else {}
-            sig = (lk["mode"], lk.get("at"), lk.get("reason"))
             last = ud.get("lock_seen") or (None, 0)
-            if last[0] != sig or time.time() - last[1] > 8:      # لا نكرر الإشعار نفسه مع كل رسالة
-                ud["lock_seen"] = (sig, time.time())
-                mk = maker_app(bd)
-                markup = None
-                if uid == bd["owner_id"] and mk is not None and lk["mode"] in ("closed", "temp"):
-                    markup = kb([[B("🗂 افتح الصانع" if lang == "ar" else "🗂 Open the maker", url=f"https://t.me/{mk.bot.username}")]])
-                await context.bot.send_message(chat.id, text, parse_mode=ParseMode.HTML, reply_markup=markup)
+            if time.time() - last[1] > 8:
+                ud["lock_seen"] = ("maint", time.time())
+                await context.bot.send_message(chat.id, text, parse_mode=ParseMode.HTML)
     except TelegramError:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("lock notice failed")
     raise ApplicationHandlerStop
 

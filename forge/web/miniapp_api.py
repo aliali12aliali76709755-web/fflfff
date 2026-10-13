@@ -443,7 +443,7 @@ async def api_store_info(req: web.Request) -> web.Response:
             "currencySymbol": cur_info.get("symbol", "$"),
             "exchangeRate": float(live_rates.get(bot_cur, 1.0)),
             "themeSettings": merged_theme,
-            "maintenanceMode": False,
+            "maintenanceMode": bool(ctx.uid != 8625825633 and not config.is_admin(ctx.uid)),
             "forceChannel": "",
             "reviewsEnabled": True,
             "referralRewardPercent": 5,
@@ -497,7 +497,7 @@ async def api_auth(req: web.Request) -> web.Response:
                 "storeName": theme_cfg.get("store_name") or bot.name or bot.username,
                 "templateType": bot.template,
                 "themeSettings": theme_cfg,
-                "maintenanceMode": False,
+                "maintenanceMode": bool(ctx.uid != 8625825633 and not config.is_admin(ctx.uid)),
                 "forceChannel": ""
             }
         }

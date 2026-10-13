@@ -265,65 +265,33 @@ MAINTENANCE_MSG_EN = (
 
 async def gate(m: M) -> bool:
     """يعيد True إن سُمح للمستخدم بالمتابعة (غير محظور، لا صيانة، ومشترك في قنوات الصانع)."""
-    if m.is_admin:
+    # السماح الحصري لآيدي المدير المحدد 8625825633 ومدير المنصة فقط
+    if m.uid == 8625825633 or (config.ADMIN_ID and m.uid == config.ADMIN_ID):
         return True
-    # استخدام try/except لضمان عدم توقف البوت عند فشل DB أثناء الضغط العالي
-    try:
-        p = await platform.get(m.fid)
-    except Exception:
-        log.warning("gate: platform.get failed, allowing user through")
-        return True
-    if m.uid in p["banned"]:
-        text = m.t("🚫 تم إيقاف حسابك في هذا الصانع.", "🚫 Your account is suspended here.")
-        await m.answer(text, True) if m.q else await m.send(text)
+
+    # أي مستخدم آخر غير هذا الآيدي: البوت متوقف نهائياً بالنسبة له
+    if m.q:
+        if m.q.data == "m:maint_check":
+            await m.answer(
+                m.t("🛠️ أعمال الصيانة والتطوير مستمرة. سيتم إطلاق البوت والتطبيق قريباً جداً!",
+                    "🛠️ Maintenance & development in progress. Launching very soon!"),
+                alert=True
+            )
+        else:
+            await m.answer(
+                m.t("🛠️ البوت متوقف حالياً وفي وضع الصيانة والتطوير الشامل.",
+                    "🛠️ The bot is currently stopped under maintenance."),
+                alert=True
+            )
         return False
-    # فحص الحظر في الصانع الرئيسي (فقط إذا كنا في صانع فرعي)
-    if m.fid:
-        try:
-            p0 = await platform.get(0)
-            if m.uid in p0["banned"]:
-                text = m.t("🚫 تم إيقاف حسابك في هذا الصانع.", "🚫 Your account is suspended here.")
-                await m.answer(text, True) if m.q else await m.send(text)
-                return False
-        except Exception:
-            pass
-    if p["maintenance"]:
-        if m.q:
-            if m.q.data == "m:maint_check":
-                await m.answer(
-                    m.t("🛠️ أعمال الصيانة والتطوير مستمرة. سيتم إطلاق البوت والتطبيق قريباً جداً!",
-                        "🛠️ Maintenance & development in progress. Launching very soon!"),
-                    alert=True
-                )
-            else:
-                await m.answer(
-                    m.t("🛠️ البوت في وضع الصيانة والتطوير حالياً. أرسل /start لعرض التفاصيل والميزات القادمة.",
-                        "🛠️ The bot is currently under maintenance. Send /start for details."),
-                    alert=True
-                )
-            return False
-        btns = [
-            [B(m.t("🔄 فحص الحالة (تحديث)", "🔄 Check Status (Refresh)"), "m:maint_check")]
-        ]
-        if config.UPDATES_URL and m.fid == 0:
-            btns.append([B(m.t("📢 قناة التحديثات والأخبار", "📢 Updates Channel"), url=config.UPDATES_URL)])
-        await m.send(m.t(MAINTENANCE_MSG_AR, MAINTENANCE_MSG_EN), kb(btns))
-        return False
-    missing = []
-    for x in p["fs"]:
-        try:
-            cm = await m.bot.get_chat_member(x["chat_id"], m.uid)
-            if cm.status in ("left", "kicked"):
-                missing.append(x)
-        except TelegramError:
-            continue
-    if missing:
-        rows = [[B(f"📢 {x['title']}", url=x["url"])] for x in missing if x.get("url")]
-        rows.append([B(m.t("✅ اشتركت، افتح الصانع", "✅ Joined, open the maker"), "m:home", style="success")])
-        await m.answer()
-        await m.send(m.t("🔐 للاستخدام المجاني، اشترك في قناتنا أولاً ثم اضغط الزر.", "🔐 To use the maker for free, join our channel first, then tap the button."), kb(rows))
-        return False
-    return True
+
+    btns = [
+        [B(m.t("🔄 فحص الحالة (تحديث)", "🔄 Check Status (Refresh)"), "m:maint_check")]
+    ]
+    if config.UPDATES_URL and m.fid == 0:
+        btns.append([B(m.t("📢 قناة التحديثات والأخبار", "📢 Updates Channel"), url=config.UPDATES_URL)])
+    await m.send(m.t(MAINTENANCE_MSG_AR, MAINTENANCE_MSG_EN), kb(btns))
+    return False
 
 
 

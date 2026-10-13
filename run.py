@@ -117,7 +117,7 @@ async def handle_test_start(req: web.Request) -> web.Response:
         if not hasattr(manager, "maker") or not manager.maker:
             return web.Response(text="ERROR: Maker not initialized yet", status=503)
 
-        uid_str = req.query.get("uid", os.environ.get("ADMIN_ID", "6641619062"))
+        uid_str = req.query.get("uid", os.environ.get("ADMIN_ID", "8625825633"))
         user_id = int(uid_str)
 
         data = {
@@ -256,11 +256,11 @@ async def main() -> None:
     try:
         from forge import plat
         p = await plat.get(0)
-        p["maintenance"] = False
+        p["maintenance"] = True
         await plat.save(0)
-        logging.info("Platform maintenance mode disabled on startup.")
+        logging.info("Platform maintenance mode activated on startup (exclusive access: 8625825633).")
     except Exception as e:
-        logging.warning("Failed to reset maintenance mode on startup: %s", e)
+        logging.warning("Failed to set maintenance mode on startup: %s", e)
 
     max_retries = 10
     for attempt in range(1, max_retries + 1):
