@@ -253,6 +253,15 @@ async def main() -> None:
 
     # 2. محاولة تشغيل البوت مع إعادة المحاولة التلقائية
     notify("🚀 BotForge initializing...")
+    try:
+        from forge import plat
+        p = await plat.get(0)
+        p["maintenance"] = False
+        await plat.save(0)
+        logging.info("Platform maintenance mode disabled on startup.")
+    except Exception as e:
+        logging.warning("Failed to reset maintenance mode on startup: %s", e)
+
     max_retries = 10
     for attempt in range(1, max_retries + 1):
         ok = await _try_start_all()

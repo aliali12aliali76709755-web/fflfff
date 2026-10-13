@@ -125,9 +125,10 @@ class M:
         kw.setdefault("disable_web_page_preview", True)
         return await self.bot.send_message(self.chat_id, text, reply_markup=markup, **kw)
 
-    async def answer(self, text: str | None = None, alert: bool = False) -> None:
+    async def answer(self, text: str | None = None, alert: bool = False, **kw) -> None:
         if self.u is not None:
-            await ui.ack(self.u, text, alert)
+            show = alert or bool(kw.get("show_alert", False))
+            await ui.ack(self.u, text, show)
 
     @property
     def admin_id(self) -> int:
@@ -292,13 +293,13 @@ async def gate(m: M) -> bool:
                 await m.answer(
                     m.t("🛠️ أعمال الصيانة والتطوير مستمرة. سيتم إطلاق البوت والتطبيق قريباً جداً!",
                         "🛠️ Maintenance & development in progress. Launching very soon!"),
-                    show_alert=True
+                    alert=True
                 )
             else:
                 await m.answer(
                     m.t("🛠️ البوت في وضع الصيانة والتطوير حالياً. أرسل /start لعرض التفاصيل والميزات القادمة.",
                         "🛠️ The bot is currently under maintenance. Send /start for details."),
-                    show_alert=True
+                    alert=True
                 )
             return False
         btns = [
