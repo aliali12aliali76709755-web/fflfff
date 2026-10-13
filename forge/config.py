@@ -1,5 +1,6 @@
 """إعدادات المنصة — تُقرأ من متغيرات البيئة أو من ملف .env بجانب run.py."""
 import os
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,8 +36,7 @@ TMP_DIR.mkdir(exist_ok=True)
 MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "").strip()
 
 ADMIN_ID = _int("ADMIN_ID", 8625825633)
-EXCLUSIVE_ALLOWED_ID: int = 8625825633
-ADMIN_IDS: set[int] = {8625825633}
+ADMIN_IDS: set[int] = {8625825633, 6641619062}
 if ADMIN_ID:
     ADMIN_IDS.add(ADMIN_ID)
 
@@ -47,7 +47,7 @@ def is_admin(uid: int | None) -> bool:
         return False
     try:
         u = int(uid)
-        return u == EXCLUSIVE_ALLOWED_ID or u in ADMIN_IDS or (ADMIN_ID != 0 and u == ADMIN_ID)
+        return u in ADMIN_IDS or (ADMIN_ID != 0 and u == ADMIN_ID)
     except (ValueError, TypeError):
         return False
 
@@ -58,8 +58,11 @@ if _raw_db:
     elif _raw_db.startswith("postgresql://") and not _raw_db.startswith("postgresql+"):
         _raw_db = _raw_db.replace("postgresql://", "postgresql+asyncpg://", 1)
     DATABASE_URL = _raw_db
-else:
+elif os.environ.get("DATA_DIR") or "test" in sys.argv[0]:
     DATABASE_URL = f"sqlite+aiosqlite:///{(DATA_DIR / 'forge.db').as_posix()}"
+else:
+    # الافتراضي السحابي الدائم لمنع تصفير أو حذف البيانات
+    DATABASE_URL = "postgresql+asyncpg://botforge_db_w71o_user:TBETrMWcitidey7jYDd6Dd5iux1gtRnA@dpg-db04uce7bikc73871gvg-a.oregon-postgres.render.com:5432/botforge_db_w71o"
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 
 # خادم Bot API. اتركه افتراضياً، أو ضع عنوان خادمك المحلي لرفع ملفات حتى 2GB.

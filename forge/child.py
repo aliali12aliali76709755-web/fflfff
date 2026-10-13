@@ -491,7 +491,7 @@ async def on_gate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """يسبق كل المعالجات: إن كان البوت مغلقاً أو في صيانة يرد بالإشعار ويوقف المعالجة."""
     user, chat = update.effective_user, update.effective_chat
     uid = user.id if user else 0
-    if uid == 8625825633 or uid == config.ADMIN_ID:
+    if uid in config.ADMIN_IDS or (config.ADMIN_ID and uid == config.ADMIN_ID):
         return
     if update.my_chat_member is not None or update.chat_member is not None:
         return

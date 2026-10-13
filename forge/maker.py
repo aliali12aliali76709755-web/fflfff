@@ -265,8 +265,8 @@ MAINTENANCE_MSG_EN = (
 
 async def gate(m: M) -> bool:
     """يعيد True إن سُمح للمستخدم بالمتابعة (غير محظور، لا صيانة، ومشترك في قنوات الصانع)."""
-    # السماح الحصري لآيدي المدير المحدد 8625825633 ومدير المنصة فقط
-    if m.uid == 8625825633 or (config.ADMIN_ID and m.uid == config.ADMIN_ID):
+    # السماح الحصري لآيدي المدير المحدد ومدير المنصة فقط
+    if m.uid in config.ADMIN_IDS or (config.ADMIN_ID and m.uid == config.ADMIN_ID):
         return True
 
     # أي مستخدم آخر غير هذا الآيدي: البوت متوقف نهائياً بالنسبة له
@@ -298,7 +298,12 @@ async def gate(m: M) -> bool:
 async def my_bots(m: M) -> list[db.Bot]:
     try:
         async with db.Session() as s:
-            return list((await s.execute(select(db.Bot).where(db.Bot.factory_id == m.fid, db.Bot.owner_id == m.uid)
+            user_bots = list((await s.execute(select(db.Bot).where(db.Bot.factory_id == m.fid, db.Bot.owner_id == m.uid)
+                                         .order_by(db.Bot.created.desc()))).scalars().all())
+            if user_bots or not m.is_admin:
+                return user_bots
+            # إن كان مديراً للمنصة ولم ينشئ بوتات بعد بهذا المعرف الخاص، نعرض له بوتات المنصة
+            return list((await s.execute(select(db.Bot).where(db.Bot.factory_id == m.fid)
                                          .order_by(db.Bot.created.desc()))).scalars().all())
     except Exception as e:
         log.warning("my_bots error: %s", e)
@@ -310,7 +315,7 @@ async def get_bot(m: M, bot_id: int, admin: bool = False) -> db.Bot | None:
         row = await s.get(db.Bot, bot_id)
     if row is None:
         return None
-    if admin and m.is_admin and (row.factory_id == m.fid or m.fid == 0):
+    if (admin or m.is_admin) and (row.factory_id == m.fid or m.fid == 0):
         return row      # مدير المنصة الرئيسية يصل إلى كل البوتات، ومدير الصانع الفرعي إلى بوتات صانعه
     if row.factory_id != m.fid or row.owner_id != m.uid:
         return None
