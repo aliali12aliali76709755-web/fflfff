@@ -183,27 +183,29 @@ HTML_SHELL = """<!DOCTYPE html>
             <h1 class="font-black text-sm text-slate-100 leading-tight">{{ store.storeName || 'متجر الخدمات الرقمية' }}</h1>
             <span class="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              متصل الآن
+              {{ t('online') }}
             </span>
           </div>
         </div>
 
         <div class="flex items-center gap-1.5 sm:gap-2">
-          <!-- Language Selector -->
+          <!-- Language Selector (5 Languages) -->
           <div class="relative">
             <select v-model="currentLang" class="bg-dark-800/90 border border-slate-700/60 text-[10px] font-bold text-slate-200 rounded-xl px-1.5 py-1.5 focus:outline-none cursor-pointer shadow-inner">
-              <option value="ar">🇸🇦 عربي</option>
-              <option value="en">🇬🇧 EN</option>
-              <option value="ku">☀️ کوردی</option>
+              <option value="ar">🇸🇦 العربية</option>
+              <option value="en">🇬🇧 English</option>
+              <option value="ru">🇷🇺 Русский</option>
+              <option value="fa">🇮🇷 فارسی</option>
+              <option value="tr">🇹🇷 Türkçe</option>
             </select>
           </div>
 
-          <!-- Currency Selector -->
+          <!-- Currency Selector (All Currencies) -->
           <div class="relative">
-            <select v-model="currentCurrency" class="bg-dark-800/90 border border-slate-700/60 text-[10px] font-bold text-amber-300 rounded-xl px-1.5 py-1.5 focus:outline-none cursor-pointer shadow-inner">
-              <option value="USD">$ USD</option>
-              <option value="IQD">د.ع IQD</option>
-              <option value="STARS">⭐ Stars</option>
+            <select v-model="currentCurrency" class="bg-dark-800/90 border border-slate-700/60 text-[10px] font-bold text-amber-300 rounded-xl px-1.5 py-1.5 focus:outline-none cursor-pointer shadow-inner max-w-[85px]">
+              <option v-for="c in currencyOptions" :key="c.code" :value="c.code">
+                {{ c.symbol }} {{ c.code }}
+              </option>
             </select>
           </div>
 
@@ -221,9 +223,9 @@ HTML_SHELL = """<!DOCTYPE html>
             <span class="text-xs font-black tracking-tight text-slate-100">{{ formatPrice(user.balance || 0) }}</span>
           </div>
           <!-- Quick Recharge Button -->
-          <button @click="showDepositModal = true" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1 transition active:scale-95">
+          <button @click="showDepositModal = true" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs px-2.5 py-1.5 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1 transition active:scale-95">
             <span>+</span>
-            <span>شحن</span>
+            <span>{{ t('recharge') }}</span>
           </button>
         </div>
       </header>
@@ -381,10 +383,10 @@ HTML_SHELL = """<!DOCTYPE html>
                 <div class="flex items-center justify-between pt-1 border-t border-slate-700/40">
                   <div>
                     <div v-if="prod.discountPercent > 0" class="text-[9px] text-slate-400 line-through">
-                      ${{ getOriginalPrice(prod) }}
+                      {{ formatPrice(getOriginalPrice(prod)) }}
                     </div>
-                    <div class="text-xs font-black text-emerald-400">
-                      ${{ getEffectivePrice(prod) }}
+                    <div class="text-xs font-black text-emerald-400 font-mono">
+                      {{ formatPrice(getEffectivePrice(prod)) }}
                     </div>
                   </div>
                   <button @click.stop="addToCart(prod)" class="bg-brand-600/30 text-brand-400 border border-brand-500/30 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs hover:bg-brand-600 hover:text-white transition active:scale-95 shadow-sm" title="أضف إلى السلة">
@@ -478,157 +480,195 @@ HTML_SHELL = """<!DOCTYPE html>
         </div>
 
         <!-- ──────────────────────────────────────────────────────────────── -->
-        <!-- TAB 3: MY ACCOUNT (👤 حسابي) - المشتري والإحالة والدعم والضمان     -->
+        <!-- TAB 3: MY ACCOUNT (👤 حسابي) - تصميم أنيق ومرتب بـ 4 أقسام رئيسية   -->
         <!-- ──────────────────────────────────────────────────────────────── -->
         <div v-if="currentTab === 'account'" class="space-y-4">
 
-          <!-- User Profile Card -->
+          <!-- القسم 1: بطاقة الهوية والملف الشخصي VIP Identity Card -->
           <div class="bg-gradient-to-br from-dark-800 via-dark-850 to-dark-800 border border-slate-700/80 rounded-2xl p-4 shadow-lg flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-xl font-black text-white shadow-md shadow-brand-600/30 ring-2 ring-white/10">
-                {{ (user.firstName || 'U')[0] }}
+              <div class="relative">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 flex items-center justify-center text-xl font-black text-white shadow-lg shadow-brand-600/30 ring-2 ring-white/10">
+                  {{ (user.firstName || 'U')[0] }}
+                </div>
+                <span class="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-dark-850 rounded-full flex items-center justify-center text-[9px] text-white">✓</span>
               </div>
-              <div>
-                <h3 class="font-black text-sm text-white">{{ user.firstName || 'عميل المتجر' }}</h3>
+              <div class="space-y-0.5">
+                <div class="flex items-center gap-1.5">
+                  <h3 class="font-black text-sm text-white">{{ user.firstName || 'عميل المتجر' }}</h3>
+                  <span class="text-[10px] text-amber-400">⭐</span>
+                </div>
                 <div class="text-[11px] text-slate-400 font-mono">@{{ user.username || 'user' }}</div>
-                <div class="text-[10px] text-slate-500 font-mono">ID: {{ user.telegramId || '0' }}</div>
+                <div class="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                  <span>ID:</span>
+                  <span class="bg-dark-900 px-1.5 py-0.5 rounded text-slate-400">{{ user.telegramId || '0' }}</span>
+                </div>
               </div>
             </div>
 
-            <span :class="['text-[10px] font-bold px-2.5 py-1 rounded-full border',
+            <span :class="['text-[10px] font-bold px-3 py-1.5 rounded-xl border shadow-sm',
                            role === 'admin' ? 'bg-rose-950/60 text-rose-300 border-rose-500/40' :
                            role === 'seller' ? 'bg-amber-950/60 text-amber-300 border-amber-500/40' :
                            'bg-blue-950/60 text-blue-300 border-blue-500/40']">
-              {{ role === 'admin' ? 'مدير المنصة 🛡️' : (role === 'seller' ? 'مالك المتجر 👑' : 'مشتري معتمد ⭐') }}
+              {{ role === 'admin' ? t('role_admin') : (role === 'seller' ? t('role_seller') : t('role_buyer')) }}
             </span>
           </div>
 
-          <!-- Quick Balance & Top-up Card -->
-          <div class="bg-dark-800/90 border border-slate-700/60 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-            <div>
-              <span class="text-xs text-slate-400">رصيدك المتاح الحالي:</span>
-              <div class="text-2xl font-black text-emerald-400">${{ (user.balance || 0).toFixed(2) }}</div>
+          <!-- القسم 2: مركز المحفظة والرصيد Digital Wallet & Balance Hub -->
+          <div class="bg-gradient-to-br from-emerald-950/60 via-dark-850 to-teal-950/50 border border-emerald-500/30 rounded-2xl p-4 shadow-md space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs text-emerald-300/80 font-medium flex items-center gap-1">
+                  <span>💳</span> {{ t('available_balance') }}
+                </span>
+                <div class="text-3xl font-black text-emerald-400 tracking-tight font-mono mt-0.5">
+                  {{ formatPrice(user.balance || 0) }}
+                </div>
+                <div v-if="currentCurrency !== 'USD'" class="text-[10px] text-slate-400 font-mono mt-0.5">
+                  ≈ ${{ (user.balance || 0).toFixed(2) }} USD
+                </div>
+              </div>
+              <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-2xl shadow-inner">
+                💰
+              </div>
             </div>
-            <button @click="showDepositModal = true" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition active:scale-95">
-              <span>➕</span>
-              <span>شحن المحفظة</span>
+
+            <div class="grid grid-cols-2 gap-2.5 pt-1 border-t border-slate-700/40">
+              <button @click="showDepositModal = true" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs py-2.5 px-3 rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition active:scale-95">
+                <span>➕</span>
+                <span>{{ t('wallet_topup') }}</span>
+              </button>
+              <button @click="scrollToStatement" class="bg-dark-800 hover:bg-dark-750 border border-slate-700 text-slate-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95">
+                <span>📜</span>
+                <span>{{ t('statement') }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- القسم 3: شبكة الخدمات السريعة والمساعدة Quick Services 4-Grid -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <!-- البطاقة 1: طلباتي السابقة -->
+            <button @click="currentTab = 'orders'" class="bg-dark-800/90 hover:bg-dark-750 border border-slate-700/70 p-3.5 rounded-2xl text-right transition active:scale-95 flex flex-col justify-between space-y-2 shadow-sm">
+              <div class="flex items-center justify-between w-full">
+                <span class="text-2xl">📦</span>
+                <span class="text-[10px] bg-brand-500/20 text-brand-300 font-mono font-bold px-2 py-0.5 rounded-full">
+                  {{ (userOrders || []).length }}
+                </span>
+              </div>
+              <div>
+                <div class="font-black text-xs text-white">{{ t('my_orders') }}</div>
+                <div class="text-[10px] text-slate-400 mt-0.5">متابعة الطلبات السابقة</div>
+              </div>
+            </button>
+
+            <!-- البطاقة 2: الدعم الفني VIP -->
+            <a :href="store.supportUrl || ('https://t.me/' + (store.botUsername || 'bot'))" target="_blank" class="bg-dark-800/90 hover:bg-dark-750 border border-slate-700/70 p-3.5 rounded-2xl text-right transition active:scale-95 flex flex-col justify-between space-y-2 shadow-sm">
+              <div class="flex items-center justify-between w-full">
+                <span class="text-2xl">💬</span>
+                <span class="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full">
+                  {{ t('support_available') }}
+                </span>
+              </div>
+              <div>
+                <div class="font-black text-xs text-white">{{ t('vip_support') }}</div>
+                <div class="text-[10px] text-slate-400 mt-0.5">خدمة عملاء فورية 24/7</div>
+              </div>
+            </a>
+
+            <!-- البطاقة 3: الضمان الذهبي وسياسة الاستخدام -->
+            <button @click="showGuaranteeModal = true" class="bg-dark-800/90 hover:bg-dark-750 border border-slate-700/70 p-3.5 rounded-2xl text-right transition active:scale-95 flex flex-col justify-between space-y-2 shadow-sm">
+              <div class="flex items-center justify-between w-full">
+                <span class="text-2xl">🛡️</span>
+                <span class="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full">
+                  ضمان 100%
+                </span>
+              </div>
+              <div>
+                <div class="font-black text-xs text-white">{{ t('golden_guarantee') }}</div>
+                <div class="text-[10px] text-slate-400 mt-0.5">حماية كاملة واسترجاع</div>
+              </div>
+            </button>
+
+            <!-- البطاقة 4: عجلة الحظ اليومية -->
+            <button @click="openWheelModal" class="bg-dark-800/90 hover:bg-dark-750 border border-slate-700/70 p-3.5 rounded-2xl text-right transition active:scale-95 flex flex-col justify-between space-y-2 shadow-sm">
+              <div class="flex items-center justify-between w-full">
+                <span class="text-2xl">🎡</span>
+                <span class="text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-full">
+                  {{ store.wheelEnabled ? 'متاح الآن' : 'اربح' }}
+                </span>
+              </div>
+              <div>
+                <div class="font-black text-xs text-white">{{ t('lucky_wheel') }}</div>
+                <div class="text-[10px] text-slate-400 mt-0.5">جوائز وهدايا فورية</div>
+              </div>
             </button>
           </div>
 
-          <!-- Referral System Box -->
-          <div class="bg-gradient-to-br from-indigo-950/70 via-dark-850 to-purple-950/60 border border-indigo-500/30 rounded-2xl p-4 space-y-3">
-            <div class="flex items-center gap-2">
-              <span class="text-2xl">🎁</span>
-              <div>
-                <h4 class="font-black text-xs text-white">نظام الإحالة والمكافآت المالية</h4>
-                <p class="text-[10px] text-indigo-200">احصل على نسبة 5% رصيد فوري في محفظتك عن كل طلب يقوم به أصدقاؤك!</p>
-              </div>
-            </div>
-
-            <div class="bg-dark-900/90 border border-slate-700/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
-              <span class="text-xs font-mono text-slate-300 truncate max-w-[200px]">
-                {{ getReferralLink() }}
-              </span>
-              <button @click="copyToClipboard(getReferralLink())" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow whitespace-nowrap active:scale-95 transition">
-                نسخ الرابط 📋
-              </button>
-            </div>
-          </div>
-
-          <!-- 💳 Financial Statement & Transaction History Card -->
-          <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-md">
-            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+          <!-- القسم 4: برنامج الإحالة وسجل العمليات المالية Referral & Financial Hub -->
+          <div class="space-y-3">
+            <!-- 4A: صندوق الإحالة والعمولات -->
+            <div class="bg-gradient-to-br from-indigo-950/70 via-dark-850 to-purple-950/60 border border-indigo-500/30 rounded-2xl p-4 space-y-3 shadow-md">
               <div class="flex items-center gap-2">
-                <span class="text-lg">💳</span>
-                <h4 class="font-black text-xs text-white">كشف الحساب وسجل العمليات المالية</h4>
+                <span class="text-2xl">🎁</span>
+                <div>
+                  <h4 class="font-black text-xs text-white">{{ t('referral_program') }}</h4>
+                  <p class="text-[10px] text-indigo-200">{{ t('referral_desc') }}</p>
+                </div>
               </div>
-              <span class="text-[10px] text-slate-400 font-mono">{{ (userTransactions || []).length }} عمليات</span>
+
+              <!-- رابط الإحالة مع زر النسخ -->
+              <div class="bg-dark-900/90 border border-slate-700/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                <span class="text-xs font-mono text-slate-300 truncate max-w-[200px]">
+                  {{ getReferralLink() }}
+                </span>
+                <button @click="copyToClipboard(getReferralLink())" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow whitespace-nowrap active:scale-95 transition">
+                  {{ t('copy_link') }}
+                </button>
+              </div>
+
+              <!-- إحصائيات الإحالة -->
+              <div class="grid grid-cols-2 gap-2 text-center text-xs">
+                <div class="bg-dark-900/70 border border-indigo-500/20 rounded-xl p-2">
+                  <div class="text-[10px] text-slate-400">{{ t('invited') }}</div>
+                  <div class="font-black text-indigo-300 font-mono">{{ accountData?.invited_count || 0 }}</div>
+                </div>
+                <div class="bg-dark-900/70 border border-indigo-500/20 rounded-xl p-2">
+                  <div class="text-[10px] text-slate-400">{{ t('earned') }}</div>
+                  <div class="font-black text-emerald-400 font-mono">{{ formatPrice(accountData?.earned_usd || 0) }}</div>
+                </div>
+              </div>
             </div>
 
-            <div v-if="(userTransactions || []).length" class="space-y-2 max-h-56 overflow-y-auto pr-1">
-              <div v-for="tx in userTransactions" :key="tx.id" class="bg-dark-900/80 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs">
+            <!-- 4B: كشف الحساب وسجل العمليات المالية -->
+            <div id="financial-statement-card" class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-md">
+              <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
                 <div class="flex items-center gap-2">
-                  <span class="text-base">{{ tx.direction === 'credit' ? '🟢' : '🔴' }}</span>
-                  <div>
-                    <div class="font-bold text-white text-[11px]">{{ tx.description || tx.kind }}</div>
-                    <div class="text-[9px] text-slate-500 font-mono">{{ tx.created }}</div>
+                  <span class="text-lg">💳</span>
+                  <h4 class="font-black text-xs text-white">{{ t('financial_statement') }}</h4>
+                </div>
+                <span class="text-[10px] text-slate-400 font-mono">{{ (userTransactions || []).length }} {{ t('transactions_count') }}</span>
+              </div>
+
+              <div v-if="(userTransactions || []).length" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                <div v-for="tx in userTransactions" :key="tx.id" class="bg-dark-900/80 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="text-base">{{ tx.direction === 'credit' ? '🟢' : '🔴' }}</span>
+                    <div>
+                      <div class="font-bold text-white text-[11px]">{{ tx.description || tx.kind }}</div>
+                      <div class="text-[9px] text-slate-500 font-mono">{{ tx.created }}</div>
+                    </div>
+                  </div>
+                  <div class="text-left font-mono">
+                    <div :class="['font-black text-xs', tx.direction === 'credit' ? 'text-emerald-400' : 'text-rose-400']">
+                      {{ tx.direction === 'credit' ? '+' : '-' }}{{ formatPrice(tx.amount_usd) }}
+                    </div>
+                    <div class="text-[9px] text-slate-400">{{ t('balance') }}: {{ formatPrice(tx.balance_after_usd) }}</div>
                   </div>
                 </div>
-                <div class="text-left font-mono">
-                  <div :class="['font-black text-xs', tx.direction === 'credit' ? 'text-emerald-400' : 'text-rose-400']">
-                    {{ tx.direction === 'credit' ? '+' : '-' }}{{ formatPrice(tx.amount_usd) }}
-                  </div>
-                  <div class="text-[9px] text-slate-400">الرصيد: {{ formatPrice(tx.balance_after_usd) }}</div>
-                </div>
               </div>
-            </div>
-            <div v-else class="text-center py-4 text-xs text-slate-500">
-              لا توجد حركات مالية مسجلة حتى الآن في محفظتك.
-            </div>
-          </div>
-
-          <!-- Technical Support VIP Card -->
-          <div class="bg-gradient-to-br from-emerald-950/60 via-dark-850 to-teal-950/50 border border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="text-2xl">💬</span>
-                <div>
-                  <h4 class="font-black text-xs text-white">مركز خدمة العملاء والدعم الفني</h4>
-                  <p class="text-[10px] text-slate-300">متواجدون على مدار الساعة لخدمتكم فورياً</p>
-                </div>
+              <div v-else class="text-center py-4 text-xs text-slate-500">
+                {{ t('no_transactions') }}
               </div>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                24/7 متاح الآن
-              </span>
-            </div>
-
-            <p class="text-[11px] text-slate-300 leading-relaxed">
-              إذا كان لديك أي استفسار أو واجهت أي مشكلة في طلبك، فريق الدعم الفني جاهز لمساعدتك والرد خلال دقائق معدودة.
-            </p>
-
-            <div class="grid grid-cols-2 gap-2 pt-1">
-              <a :href="store.supportUrl || ('https://t.me/' + (store.botUsername || 'bot'))" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2 px-3 rounded-xl shadow text-center flex items-center justify-center gap-1 transition">
-                <span>تواصل مع الدعم</span>
-                <span>↗️</span>
-              </a>
-              <button @click="copyToClipboard(store.supportUrl || ('@' + (store.botUsername || 'bot')))" class="bg-dark-800 hover:bg-dark-750 border border-emerald-500/30 text-emerald-300 font-bold text-xs py-2 px-3 rounded-xl transition text-center">
-                نسخ معرف الدعم 📋
-              </button>
-            </div>
-          </div>
-
-          <!-- Store Terms & Golden Guarantee Card -->
-          <div class="bg-dark-800/90 border border-amber-500/30 rounded-2xl p-4 space-y-3 shadow-sm">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="text-2xl">🛡️</span>
-                <div>
-                  <h4 class="font-black text-xs text-amber-300">الضمان الذهبي وسياسة الاستخدام</h4>
-                  <p class="text-[10px] text-slate-400">حماية كاملة وحقوق مضمونة 100%</p>
-                </div>
-              </div>
-              <span class="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
-                ضمان ذهبي ⭐
-              </span>
-            </div>
-
-            <!-- Guarantee Policy -->
-            <div class="bg-dark-900/80 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-200 leading-relaxed">
-              <div class="font-bold mb-1 text-amber-300 flex items-center gap-1">
-                <span>✅</span> سياسة الاسترجاع الفوري:
-              </div>
-              <p class="text-[11px] text-slate-300">
-                {{ store.policyText || 'في حال تعذر تنفيذ أي طلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت دون أي خصومات.' }}
-              </p>
-            </div>
-
-            <!-- Terms -->
-            <div class="text-[11px] text-slate-400 space-y-1">
-              <div class="font-bold text-slate-300">شروط تقديم الخدمة:</div>
-              <p class="leading-relaxed">
-                {{ store.termsText || 'جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.' }}
-              </p>
             </div>
           </div>
 
@@ -653,11 +693,11 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
             <div class="bg-dark-800/90 border border-slate-700/60 p-3 rounded-xl">
               <span class="text-[10px] text-slate-400">المبيعات الكلية</span>
-              <div class="text-xl font-black text-emerald-400">${{ (sellerStats.totalSales || 0).toFixed(2) }}</div>
+              <div class="text-xl font-black text-emerald-400 font-mono">{{ formatPrice(sellerStats.totalSales || 0) }}</div>
             </div>
             <div class="bg-dark-800/90 border border-slate-700/60 p-3 rounded-xl">
               <span class="text-[10px] text-slate-400">صافي الأرباح</span>
-              <div class="text-xl font-black text-teal-400">${{ (sellerStats.totalProfit || 0).toFixed(2) }}</div>
+              <div class="text-xl font-black text-teal-400 font-mono">{{ formatPrice(sellerStats.totalProfit || 0) }}</div>
             </div>
             <div class="bg-dark-800/90 border border-slate-700/60 p-3 rounded-xl">
               <span class="text-[10px] text-slate-400">طلبات بانتظار التسليم</span>
@@ -938,6 +978,17 @@ HTML_SHELL = """<!DOCTYPE html>
               <span>⚙️</span> تعديل روابط الدعم الفني وشروط المتجر وقناة الإشعارات
             </h4>
 
+            <!-- Store Default Currency Setting -->
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-slate-300">{{ t('store_currency') }} (تُطبق على البوت والموقع):</label>
+              <select v-model="sellerSettingsForm.currency" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-none">
+                <option v-for="c in currencyOptions" :key="c.code" :value="c.code">
+                  {{ c.symbol }} {{ c.name }} ({{ c.code }})
+                </option>
+              </select>
+              <p class="text-[10px] text-slate-400">تغيير العملة سيقوم بتحديث جميع الأسعار تلقائياً في منيو وقوائم البوت والمتجر المصغر.</p>
+            </div>
+
             <div class="space-y-1">
               <label class="text-[11px] font-bold text-slate-300">رابط أو معرف الدعم الفني للعملاء:</label>
               <input v-model="sellerSettingsForm.support_url" type="text" placeholder="https://t.me/support_user أو @support_channel" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
@@ -984,9 +1035,9 @@ HTML_SHELL = """<!DOCTYPE html>
                   <div>
                     <div class="font-bold text-white">{{ prod.nameAr || prod.name }}</div>
                     <div class="text-[10px] text-slate-400">
-                      التكلفة: ${{ prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0 }} | البيع: ${{ prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0 }}
-                      <span class="text-emerald-400 font-bold mr-1">
-                        (ربح: +${{ (((prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0) - (prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0))).toFixed(2) }})
+                      التكلفة: {{ formatPrice(prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0) }} | البيع: {{ formatPrice(prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0) }}
+                      <span class="text-emerald-400 font-bold mr-1 font-mono">
+                        (ربح: +{{ formatPrice(((prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0) - (prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0))) }})
                       </span>
                     </div>
                   </div>
@@ -1027,7 +1078,7 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
             <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
               <span class="text-[10px] text-slate-400">حجم تعاملات المنصة</span>
-              <div class="text-xl font-black text-emerald-400">${{ (adminOverview.totalPlatformVolume || 0).toFixed(2) }}</div>
+              <div class="text-xl font-black text-emerald-400 font-mono">{{ formatPrice(adminOverview.totalPlatformVolume || 0) }}</div>
             </div>
             <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
               <span class="text-[10px] text-slate-400">إجمالي طلبات المنصة</span>
@@ -1046,7 +1097,7 @@ HTML_SHELL = """<!DOCTYPE html>
               <div v-for="ord in adminOrders" :key="ord.id" class="bg-dark-800 border border-slate-700 p-3 rounded-xl space-y-2 text-xs">
                 <div class="flex items-center justify-between">
                   <span class="font-bold text-white">{{ ord.service_name || ord.product_name }}</span>
-                  <span class="font-mono text-emerald-400">${{ ord.total_price || ord.price_usd }}</span>
+                  <span class="font-mono text-emerald-400">{{ formatPrice(ord.total_price || ord.price_usd) }}</span>
                 </div>
                 <div class="text-[11px] text-slate-400">
                   العميل: {{ ord.user_id || ord.user_telegram_id }} | المرجع: {{ ord.order_ref || ord.order_id }}
@@ -1084,27 +1135,27 @@ HTML_SHELL = """<!DOCTYPE html>
           <!-- Store Tab -->
           <button @click="currentTab = 'store'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'store' ? 'text-brand-400' : 'text-slate-400']">
             <span class="text-base">🛍️</span>
-            <span>المتجر</span>
+            <span>{{ t('nav_store') }}</span>
           </button>
           <!-- Orders Tab -->
           <button @click="currentTab = 'orders'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'orders' ? 'text-brand-400' : 'text-slate-400']">
             <span class="text-base">📦</span>
-            <span>طلباتي</span>
+            <span>{{ t('nav_orders') }}</span>
           </button>
           <!-- My Account Tab -->
           <button @click="currentTab = 'account'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'account' ? 'text-brand-400' : 'text-slate-400']">
             <span class="text-base">👤</span>
-            <span>حسابي</span>
+            <span>{{ t('nav_account') }}</span>
           </button>
           <!-- Seller Tab (Owner/Admin only) -->
           <button v-if="role === 'seller' || role === 'admin'" @click="currentTab = 'seller'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'seller' ? 'text-brand-400' : 'text-slate-400']">
             <span class="text-base">⚙️</span>
-            <span>إدارتي</span>
+            <span>{{ t('nav_seller') }}</span>
           </button>
           <!-- Admin Tab (Admin only) -->
           <button v-if="role === 'admin'" @click="currentTab = 'admin'" :class="['flex flex-col items-center gap-1 text-[10px] font-bold transition', currentTab === 'admin' ? 'text-rose-400' : 'text-slate-400']">
             <span class="text-base">👑</span>
-            <span>الأدمن</span>
+            <span>{{ t('nav_admin') }}</span>
           </button>
         </div>
       </nav>
@@ -1153,10 +1204,10 @@ HTML_SHELL = """<!DOCTYPE html>
               <h2 class="text-base font-black text-white leading-snug">{{ activeProduct.nameAr || activeProduct.name }}</h2>
               <div class="text-left shrink-0">
                 <div v-if="activeProduct.discountPercent > 0" class="text-[11px] text-slate-400 line-through">
-                  ${{ getOriginalPrice(activeProduct) }}
+                  {{ formatPrice(getOriginalPrice(activeProduct)) }}
                 </div>
                 <div class="text-lg font-black text-emerald-400 font-mono">
-                  ${{ getCalculatedTotal() }}
+                  {{ formatPrice(getCalculatedTotal()) }}
                 </div>
               </div>
             </div>
@@ -1197,7 +1248,7 @@ HTML_SHELL = """<!DOCTYPE html>
                       :class="['p-3 rounded-xl border text-xs font-bold transition flex flex-col justify-between items-start',
                               selectedPriceOption?.id === opt.id ? 'border-brand-500 bg-brand-900/30 text-white ring-1 ring-brand-500' : 'border-slate-700 bg-dark-800 text-slate-300']">
                 <span>{{ opt.label }}</span>
-                <span class="text-emerald-400 font-mono mt-1 text-sm">${{ opt.userPrice || opt.price }}</span>
+                <span class="text-emerald-400 font-mono mt-1 text-sm">{{ formatPrice(opt.userPrice || opt.price) }}</span>
               </button>
             </div>
           </div>
@@ -1324,7 +1375,7 @@ HTML_SHELL = """<!DOCTYPE html>
                     :disabled="isSubmitting"
                     class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black py-3 px-3 rounded-xl shadow-lg transition flex items-center justify-center gap-1.5 text-xs active:scale-95">
               <span v-if="isSubmitting">جاري الدفع... ⏳</span>
-              <span v-else>⚡ شراء فوري ${{ getCalculatedTotal() }}</span>
+              <span v-else>⚡ {{ t('instant_buy') }} {{ formatPrice(getCalculatedTotal()) }}</span>
             </button>
           </div>
         </div>
@@ -1360,7 +1411,7 @@ HTML_SHELL = """<!DOCTYPE html>
               </div>
               <div class="flex-1 min-w-0">
                 <h4 class="font-bold text-xs text-white truncate">{{ it.nameAr || it.name }}</h4>
-                <div class="text-[11px] font-black text-emerald-400 font-mono mt-0.5">${{ (it.price * it.quantity).toFixed(2) }} <span class="text-[9px] text-slate-400 font-normal">(${{ it.price }}/قطعة)</span></div>
+                <div class="text-[11px] font-black text-emerald-400 font-mono mt-0.5">{{ formatPrice(it.price * it.quantity) }} <span class="text-[9px] text-slate-400 font-normal">({{ formatPrice(it.price) }}/{{ t('unit') }})</span></div>
               </div>
               <!-- Quantity Stepper -->
               <div class="flex items-center gap-1.5 bg-dark-900 border border-slate-700/60 rounded-xl p-1 shrink-0">
@@ -1377,15 +1428,15 @@ HTML_SHELL = """<!DOCTYPE html>
           <div v-if="cartItems.length" class="border-t border-slate-700/60 pt-3 space-y-3">
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-400">إجمالي السلة:</span>
-              <span class="text-lg font-black text-emerald-400 font-mono">${{ cartTotalPrice.toFixed(2) }}</span>
+              <span class="text-lg font-black text-emerald-400 font-mono">{{ formatPrice(cartTotalPrice) }}</span>
             </div>
             <div class="flex items-center justify-between text-[11px] text-slate-400">
               <span>رصيد محفظتك:</span>
-              <span class="font-bold font-mono text-slate-200">${{ (user.balance || 0).toFixed(2) }}</span>
+              <span class="font-bold font-mono text-slate-200">{{ formatPrice(user.balance || 0) }}</span>
             </div>
             <button @click="checkoutCart" :disabled="isCheckingOutCart" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black py-3 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-xs active:scale-95">
               <span v-if="isCheckingOutCart">جاري الشراء... ⏳</span>
-              <span v-else>إتمام وشراء السلة (${{ cartTotalPrice.toFixed(2) }}) 💳</span>
+              <span v-else>{{ t('checkout_cart') }} ({{ formatPrice(cartTotalPrice) }}) 💳</span>
             </button>
           </div>
         </div>
@@ -1646,7 +1697,7 @@ HTML_SHELL = """<!DOCTYPE html>
                   <input type="checkbox" :value="item.id" v-model="selectedMasterIds" class="accent-emerald-500 rounded">
                   <div>
                     <div class="font-bold text-xs text-white">{{ item.name_ar || item.name }}</div>
-                    <div class="text-[10px] text-slate-400">التكلفة: ${{ item.price_options?.[0]?.costPrice || 0 }} | مقترح: ${{ ((item.price_options?.[0]?.costPrice || 0) * (1 + importMarginPercent/100)).toFixed(2) }}</div>
+                    <div class="text-[10px] text-slate-400">التكلفة: {{ formatPrice(item.price_options?.[0]?.costPrice || 0) }} | مقترح: {{ formatPrice(((item.price_options?.[0]?.costPrice || 0) * (1 + importMarginPercent/100))) }}</div>
                   </div>
                 </div>
                 <span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">{{ item.template_type }}</span>
@@ -1905,7 +1956,7 @@ HTML_SHELL = """<!DOCTYPE html>
               <div class="max-h-36 overflow-y-auto space-y-1 border border-slate-800 rounded-xl p-2 bg-dark-900/60">
                 <div v-for="(it, i) in parsedBulkItems" :key="i" class="flex items-center justify-between text-[11px] border-b border-slate-800/60 pb-1">
                   <span class="text-white font-bold">{{ it.name }}</span>
-                  <span class="text-slate-400 font-mono">تكلفة: ${{ it.costPrice }} | بيع: ${{ it.userPrice }}</span>
+                  <span class="text-slate-400 font-mono">تكلفة: {{ formatPrice(it.costPrice) }} | بيع: {{ formatPrice(it.userPrice) }}</span>
                 </div>
               </div>
             </div>
@@ -1918,6 +1969,43 @@ HTML_SHELL = """<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- MODAL: GOLDEN GUARANTEE & TERMS -->
+      <div v-if="showGuaranteeModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-dark-850 w-full max-w-md rounded-3xl border border-slate-700/80 p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+          <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🛡️</span>
+              <h3 class="font-black text-sm text-white">{{ t('golden_guarantee_title') }}</h3>
+            </div>
+            <button @click="showGuaranteeModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <!-- Refund Policy -->
+          <div class="bg-dark-900/80 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-200 leading-relaxed space-y-1.5">
+            <div class="font-bold text-amber-300 flex items-center gap-1.5">
+              <span>✅</span> {{ t('refund_policy') }}:
+            </div>
+            <p class="text-[11px] text-slate-300">
+              {{ store.policyText || 'في حال تعذر تنفيذ أي طلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت دون أي خصومات.' }}
+            </p>
+          </div>
+
+          <!-- Terms -->
+          <div class="bg-dark-900/80 border border-slate-700 rounded-xl p-3 text-xs text-slate-300 leading-relaxed space-y-1.5">
+            <div class="font-bold text-slate-200 flex items-center gap-1.5">
+              <span>📜</span> {{ t('terms_of_service') }}:
+            </div>
+            <p class="text-[11px] text-slate-400">
+              {{ store.termsText || 'جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.' }}
+            </p>
+          </div>
+
+          <button @click="showGuaranteeModal = false" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs py-2.5 rounded-xl shadow transition">
+            فهمت وموافق ✓
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1925,16 +2013,173 @@ HTML_SHELL = """<!DOCTYPE html>
   <!-- 5. VUE APPLICATION LOGIC                                              -->
   <!-- ══════════════════════════════════════════════════════════════════════ -->
   <script>
-    const { createApp, ref, computed, onMounted } = Vue;
+    const { createApp, ref, computed, onMounted, watch } = Vue;
+
+    // Comprehensive Currency Definitions (22 Arab Countries + Major + Digital)
+    const currencyOptions = [
+      { code: 'USD', name: 'دولار أمريكي', symbol: '$', decimals: 2 },
+      { code: 'EUR', name: 'يورو', symbol: '€', decimals: 2 },
+      { code: 'RUB', name: 'روبل روسي', symbol: '₽', decimals: 1 },
+      { code: 'TRY', name: 'ليرة تركية', symbol: '₺', decimals: 1 },
+      { code: 'IRR', name: 'ريال إيراني', symbol: '﷼', decimals: 0 },
+      { code: 'USDT', name: 'تيثر رقمي (USDT)', symbol: '₮', decimals: 2 },
+      { code: 'STARS', name: 'نجوم تليجرام', symbol: '⭐', decimals: 0 },
+      // 22 Arab Currencies
+      { code: 'IQD', name: 'دينار عراقي', symbol: 'د.ع', decimals: 0 },
+      { code: 'SAR', name: 'ريال سعودي', symbol: 'ر.س', decimals: 2 },
+      { code: 'AED', name: 'درهم إماراتي', symbol: 'د.إ', decimals: 2 },
+      { code: 'KWD', name: 'دينار كويتي', symbol: 'د.ك', decimals: 3 },
+      { code: 'QAR', name: 'ريال قطري', symbol: 'ر.ق', decimals: 2 },
+      { code: 'BHD', name: 'دينار بحريني', symbol: 'د.ب', decimals: 3 },
+      { code: 'OMR', name: 'ريال عماني', symbol: 'ر.ع', decimals: 3 },
+      { code: 'EGP', name: 'جنيه مصري', symbol: 'ج.م', decimals: 2 },
+      { code: 'JOD', name: 'دينار أردني', symbol: 'د.أ', decimals: 2 },
+      { code: 'SYP', name: 'ليرة سورية', symbol: 'ل.س', decimals: 0 },
+      { code: 'LBP', name: 'ليرة لبنانية', symbol: 'ل.ل', decimals: 0 },
+      { code: 'LYD', name: 'دينار ليبي', symbol: 'د.ل', decimals: 2 },
+      { code: 'TND', name: 'دينار تونسي', symbol: 'د.ت', decimals: 2 },
+      { code: 'DZD', name: 'دينار جزائري', symbol: 'د.ج', decimals: 1 },
+      { code: 'MAD', name: 'درهم مغربي', symbol: 'د.م', decimals: 2 },
+      { code: 'SDG', name: 'جنيه سوداني', symbol: 'ج.س', decimals: 0 },
+      { code: 'YER', name: 'ريال يمني', symbol: 'ر.ي', decimals: 0 },
+      { code: 'SOS', name: 'شلن صومالي', symbol: 'ش.ص', decimals: 0 },
+      { code: 'MRU', name: 'أوقية موريتانية', symbol: 'أ.م', decimals: 1 },
+      { code: 'DJF', name: 'فرنك جيبوتي', symbol: 'ف.ج', decimals: 0 },
+      { code: 'KMF', name: 'فرنك قمري', symbol: 'ف.ق', decimals: 0 },
+      { code: 'ILS', name: 'شيكل', symbol: '₪', decimals: 2 }
+    ];
+
+    const DEFAULT_RATES = {
+      USD: 1.0, EUR: 0.92, RUB: 92.0, TRY: 32.5, IRR: 600000.0, USDT: 1.0, STARS: 50.0,
+      IQD: 1500.0, SAR: 3.75, AED: 3.67, KWD: 0.31, QAR: 3.64, BHD: 0.38, OMR: 0.385,
+      EGP: 48.5, JOD: 0.71, SYP: 14500.0, LBP: 89500.0, LYD: 4.85, TND: 3.12,
+      DZD: 134.5, MAD: 10.05, SDG: 2000.0, YER: 1600.0, SOS: 570.0, MRU: 39.5,
+      DJF: 178.0, KMF: 455.0, ILS: 3.70, POINTS: 10000.0
+    };
+
+    // Full 5 Languages Translation Dictionary
+    const I18N = {
+      ar: {
+        online: "متصل الآن", recharge: "شحن", cart: "السلة", empty_cart: "سلتك فارغة",
+        cart_total: "إجمالي السلة", checkout_cart: "إتمام وشراء السلة", instant_buy: "شراء فوري",
+        add_to_cart: "أضف للسلة", available_balance: "رصيدك المتاح الحالي", wallet_topup: "شحن المحفظة",
+        statement: "كشف الحساب", my_orders: "طلباتي السابقة", vip_support: "الدعم الفني VIP",
+        golden_guarantee: "الضمان الذهبي والشروط", lucky_wheel: "عجلة الحظ اليومية",
+        referral_program: "نظام الإحالة والمكافآت المالية",
+        referral_desc: "احصل على نسبة 5% رصيد فوري في محفظتك عن كل طلب يقوم به أصدقاؤك!",
+        copy_link: "نسخ الرابط 📋", financial_statement: "كشف الحساب وسجل العمليات المالية",
+        no_transactions: "لا توجد حركات مالية مسجلة حتى الآن في محفظتك.",
+        support_available: "24/7 متاح الآن", golden_guarantee_title: "الضمان الذهبي وسياسة الاستخدام",
+        refund_policy: "سياسة الاسترجاع الفوري", terms_of_service: "شروط تقديم الخدمة",
+        unit: "قطعة", store_currency: "عملة المتجر الافتراضية", role_admin: "مدير المنصة 🛡️",
+        role_seller: "مالك المتجر 👑", role_buyer: "مشتري معتمد ⭐",
+        nav_store: "المتجر", nav_orders: "طلباتي", nav_account: "حسابي", nav_seller: "إدارتي", nav_admin: "الأدمن",
+        balance: "الرصيد", invited: "المدعوون", earned: "الأرباح", transactions_count: "عمليات"
+      },
+      en: {
+        online: "Online", recharge: "Top Up", cart: "Cart", empty_cart: "Your cart is empty",
+        cart_total: "Cart Total", checkout_cart: "Checkout Cart", instant_buy: "Instant Buy",
+        add_to_cart: "Add to Cart", available_balance: "Available Balance", wallet_topup: "Top Up Wallet",
+        statement: "Statement", my_orders: "My Orders", vip_support: "VIP Support",
+        golden_guarantee: "Guarantee & Terms", lucky_wheel: "Lucky Wheel",
+        referral_program: "Referral & Rewards",
+        referral_desc: "Get 5% instant cashback in your wallet on every order from friends!",
+        copy_link: "Copy Link 📋", financial_statement: "Financial Statement & History",
+        no_transactions: "No financial transactions recorded yet.",
+        support_available: "24/7 Active Now", golden_guarantee_title: "Golden Guarantee & Terms",
+        refund_policy: "Instant Refund Policy", terms_of_service: "Terms of Service",
+        unit: "item", store_currency: "Default Store Currency", role_admin: "Platform Admin 🛡️",
+        role_seller: "Store Owner 👑", role_buyer: "Verified Buyer ⭐",
+        nav_store: "Store", nav_orders: "Orders", nav_account: "Account", nav_seller: "Seller", nav_admin: "Admin",
+        balance: "Balance", invited: "Invited", earned: "Earned", transactions_count: "txs"
+      },
+      ru: {
+        online: "В сети", recharge: "Пополнить", cart: "Корзина", empty_cart: "Корзина пуста",
+        cart_total: "Итого к оплате", checkout_cart: "Оформить корзину", instant_buy: "Купить сейчас",
+        add_to_cart: "В корзину", available_balance: "Доступный баланс", wallet_topup: "Пополнить баланс",
+        statement: "Выписка", my_orders: "Мои заказы", vip_support: "VIP Поддержка",
+        golden_guarantee: "Гарантия и правила", lucky_wheel: "Колесо фортуны",
+        referral_program: "Реферальная программа",
+        referral_desc: "Получайте 5% мгновенно на свой баланс с каждого заказа друзей!",
+        copy_link: "Копировать ссылку 📋", financial_statement: "История финансовых операций",
+        no_transactions: "В вашем кошельке пока нет операций.",
+        support_available: "24/7 На связи", golden_guarantee_title: "Золотая гарантия и условия",
+        refund_policy: "Политика возврата средств", terms_of_service: "Условия обслуживания",
+        unit: "шт", store_currency: "Основная валюта магазина", role_admin: "Администратор 🛡️",
+        role_seller: "Владелец магазина 👑", role_buyer: "Покупатель ⭐",
+        nav_store: "Магазин", nav_orders: "Заказы", nav_account: "Аккаунт", nav_seller: "Управление", nav_admin: "Админ",
+        balance: "Баланс", invited: "Приглашено", earned: "Заработано", transactions_count: "операций"
+      },
+      fa: {
+        online: "آنلاین", recharge: "شارژ", cart: "سبد خرید", empty_cart: "سبد خرید خالی است",
+        cart_total: "مجموع سبد خرید", checkout_cart: "تکمیل و پرداخت سبد", instant_buy: "خرید فوری",
+        add_to_cart: "افزودن به سبد", available_balance: "موجودی قابل استفاده", wallet_topup: "شارژ کیف پول",
+        statement: "صورتحساب", my_orders: "سفارش‌های من", vip_support: "پشتیبانی VIP",
+        golden_guarantee: "ضمانت طلایی و قوانین", lucky_wheel: "گردونه شانس روزانه",
+        referral_program: "سیستم دعوت و پاداش",
+        referral_desc: "با هر خرید دوستانتان ۵٪ پاداش نقدی فوری در کیف پول خود دریافت کنید!",
+        copy_link: "کپی لینک 📋", financial_statement: "صورتحساب و تاریخچه تراکنش‌ها",
+        no_transactions: "هنوز هیچ تراکنش مالی در کیف پول شما ثبت نشده است.",
+        support_available: "۲۴/۷ فعال", golden_guarantee_title: "ضمانت طلایی و شرایط استفاده",
+        refund_policy: "سیاست بازگشت وجه فوری", terms_of_service: "شرایط ارائه خدمات",
+        unit: "عدد", store_currency: "ارز پیش‌فرض فروشگاه", role_admin: "مدیر ارشد پلتفرم 🛡️",
+        role_seller: "مالک فروشگاه 👑", role_buyer: "خریدار تایید شده ⭐",
+        nav_store: "فروشگاه", nav_orders: "سفارش‌ها", nav_account: "حساب من", nav_seller: "مدیریت", nav_admin: "ادمین",
+        balance: "موجودی", invited: "دعوت شده‌ها", earned: "پاداش کسب شده", transactions_count: "تراکنش"
+      },
+      tr: {
+        online: "Çevrimiçi", recharge: "Yükle", cart: "Sepet", empty_cart: "Sepetiniz boş",
+        cart_total: "Sepet Toplamı", checkout_cart: "Sepeti Onayla", instant_buy: "Hemen Al",
+        add_to_cart: "Sepete Ekle", available_balance: "Kullanılabilir Bakiye", wallet_topup: "Cüzdanı Yükle",
+        statement: "Hesap Özeti", my_orders: "Siparişlerim", vip_support: "VIP Destek",
+        golden_guarantee: "Garanti ve Koşullar", lucky_wheel: "Günlük Şans Çarkı",
+        referral_program: "Referans ve Ödüller",
+        referral_desc: "Arkadaşlarınızın her siparişinden anında %5 cüzdan bakiyesi kazanın!",
+        copy_link: "Linki Kopyala 📋", financial_statement: "Hesap Hareketleri ve İşlem Geçmişi",
+        no_transactions: "Cüzdanınızda henüz kayıtlı işlem bulunmuyor.",
+        support_available: "7/24 Aktif", golden_guarantee_title: "Altın Garanti ve Kullanım Koşulları",
+        refund_policy: "Anında İade Politikası", terms_of_service: "Hizmet Şartları",
+        unit: "adet", store_currency: "Varsayılan Mağaza Para Birimi", role_admin: "Platform Yöneticisi 🛡️",
+        role_seller: "Mağaza Sahibi 👑", role_buyer: "Onaylı Müşteri ⭐",
+        nav_store: "Mağaza", nav_orders: "Siparişler", nav_account: "Hesabım", nav_seller: "Yönetim", nav_admin: "Yönetici",
+        balance: "Bakiye", invited: "Davet Edilenler", earned: "Kazanılan", transactions_count: "işlem"
+      }
+    };
 
     createApp({
       setup() {
         const loading = ref(true);
         const currentTab = ref('store');
         // Multi-currency, multi-language & marketing state
-        const currentCurrency = ref('USD');
-        const currentLang = ref('ar');
-        const exchangeRates = ref({ USD: 1.0, IQD: 1500.0, STARS: 50.0 });
+        const currentCurrency = ref(localStorage.getItem('botforge_currency') || 'USD');
+        const currentLang = ref(localStorage.getItem('botforge_lang') || 'ar');
+        const exchangeRates = ref({ ...DEFAULT_RATES });
+        const showGuaranteeModal = ref(false);
+        const accountData = ref({});
+
+        const t = (key) => {
+          const l = currentLang.value || 'ar';
+          return I18N[l]?.[key] || I18N['ar']?.[key] || I18N['en']?.[key] || key;
+        };
+
+        const scrollToStatement = () => {
+          const el = document.getElementById('financial-statement-card');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        };
+
+        watch(currentLang, (newLang) => {
+          try {
+            localStorage.setItem('botforge_lang', newLang);
+            document.documentElement.lang = newLang;
+            document.documentElement.dir = (newLang === 'ar' || newLang === 'fa') ? 'rtl' : 'ltr';
+          } catch {}
+        }, { immediate: true });
+
+        watch(currentCurrency, (newCur) => {
+          try {
+            localStorage.setItem('botforge_currency', newCur);
+          } catch {}
+        });
 
         // Wheel of Fortune
         const showWheelModal = ref(false);
@@ -2028,7 +2273,8 @@ HTML_SHELL = """<!DOCTYPE html>
           support_url: '',
           terms_text: '',
           policy_text: '',
-          order_channel: ''
+          order_channel: '',
+          currency: 'USD'
         });
 
         const editingProduct = ref({
@@ -2106,6 +2352,15 @@ HTML_SHELL = """<!DOCTYPE html>
               if (storeJson.success && storeJson.data) {
                 store.value = storeJson.data;
                 themeSettings.value = storeJson.data.themeSettings || {};
+                if (storeJson.data.exchangeRates) {
+                  exchangeRates.value = { ...DEFAULT_RATES, ...storeJson.data.exchangeRates };
+                }
+                if (storeJson.data.currency) {
+                  sellerSettingsForm.value.currency = storeJson.data.currency;
+                  if (!localStorage.getItem('botforge_currency')) {
+                    currentCurrency.value = storeJson.data.currency;
+                  }
+                }
                 sellerSettingsForm.value.support_url = storeJson.data.supportUrl || '';
                 sellerSettingsForm.value.terms_text = storeJson.data.termsText || '';
                 sellerSettingsForm.value.policy_text = storeJson.data.policyText || '';
@@ -2631,6 +2886,10 @@ HTML_SHELL = """<!DOCTYPE html>
               store.value.supportUrl = sellerSettingsForm.value.support_url;
               store.value.termsText = sellerSettingsForm.value.terms_text;
               store.value.policyText = sellerSettingsForm.value.policy_text;
+              if (sellerSettingsForm.value.currency) {
+                store.value.currency = sellerSettingsForm.value.currency;
+                currentCurrency.value = sellerSettingsForm.value.currency;
+              }
               alert(json.message || 'تم حفظ الإعدادات والشروط بنجاح ✅');
             } else {
               alert(json.error || 'فشل حفظ الإعدادات');
@@ -2876,6 +3135,9 @@ HTML_SHELL = """<!DOCTYPE html>
               sellerSettingsForm.value.terms_text = json.data.terms_text || '';
               sellerSettingsForm.value.policy_text = json.data.policy_text || '';
               sellerSettingsForm.value.order_channel = json.data.order_channel || '';
+              if (json.data.currency) {
+                sellerSettingsForm.value.currency = json.data.currency;
+              }
             }
           } catch {}
         };
@@ -2996,15 +3258,23 @@ HTML_SHELL = """<!DOCTYPE html>
         
         const formatPrice = (usdAmount) => {
           const val = Number(usdAmount || 0);
-          if (currentCurrency.value === 'IQD') {
-            const iqd = Math.round(val * (exchangeRates.value?.IQD || 1500));
-            return `${iqd.toLocaleString()} د.ع`;
+          const cur = currentCurrency.value || 'USD';
+          const cMeta = currencyOptions.find(c => c.code === cur) || { symbol: cur, decimals: 2 };
+          const rate = Number(exchangeRates.value?.[cur] || DEFAULT_RATES[cur] || 1.0);
+          const converted = val * rate;
+          let formatted = '';
+          if (cMeta.decimals === 0) {
+            formatted = Math.round(converted).toLocaleString();
+          } else {
+            formatted = converted.toLocaleString(undefined, {
+              minimumFractionDigits: cMeta.decimals,
+              maximumFractionDigits: cMeta.decimals
+            });
           }
-          if (currentCurrency.value === 'STARS') {
-            const stars = Math.round(val * (exchangeRates.value?.STARS || 50));
-            return `${stars} ⭐`;
+          if (cMeta.symbol === '$') {
+            return `$${formatted}`;
           }
-          return `$${val.toFixed(2)}`;
+          return `${formatted} ${cMeta.symbol}`;
         };
 
         const openWheelModal = () => {
@@ -3483,7 +3753,12 @@ HTML_SHELL = """<!DOCTYPE html>
           submittingReview,
           submitProductReview,
           abandonedCartBroadcasting,
-          broadcastAbandonedCart
+          broadcastAbandonedCart,
+          t,
+          currencyOptions,
+          showGuaranteeModal,
+          scrollToStatement,
+          accountData
         };
       }
     }).mount('#app');

@@ -361,7 +361,20 @@ async def api_store_info(req: web.Request) -> web.Response:
         "show_reviews": True,
         "contact_url": seller_settings.get("support_url") or f"https://t.me/{bot.username}",
     }
-    merged_theme = {**default_theme, **theme_cfg}
+    bot_cur = await currency.get_bot_currency(bot.id)
+    cur_info = currency.CURRENCIES.get(bot_cur, currency.CURRENCIES["USD"])
+    live_rates = await currency.fetch_live_rates()
+    cur_list = [
+        {
+            "code": c_code,
+            "name_ar": c_data.get("name_ar", c_code),
+            "name_en": c_data.get("name_en", c_code),
+            "symbol": c_data.get("symbol", c_code),
+            "rate": float(live_rates.get(c_code, c_data.get("default_rate", 1.0))),
+            "decimals": c_data.get("decimals", 2),
+        }
+        for c_code, c_data in currency.CURRENCIES.items()
+    ]
 
     return web.json_response({
         "success": True,
@@ -374,9 +387,9 @@ async def api_store_info(req: web.Request) -> web.Response:
             "logoUrl": merged_theme.get("logo_url") or "",
             "heroBannerUrl": merged_theme.get("banner_url") or "",
             "templateType": bot.template or "store",
-            "currency": "USD",
-            "currencySymbol": "$",
-            "exchangeRate": 1.0,
+            "currency": bot_cur,
+            "currencySymbol": cur_info.get("symbol", "$"),
+            "exchangeRate": float(live_rates.get(bot_cur, 1.0)),
             "themeSettings": merged_theme,
             "maintenanceMode": False,
             "forceChannel": "",
@@ -387,7 +400,8 @@ async def api_store_info(req: web.Request) -> web.Response:
             "policyText": seller_settings.get("policy_text") or "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت.",
             "wheelEnabled": bool(seller_settings.get("wheel_enabled", False)),
             "wheelPrizes": seller_settings.get("wheel_prizes", []),
-            "exchangeRates": {"USD": 1.0, "IQD": 1500.0, "STARS": 50.0},
+            "exchangeRates": live_rates,
+            "allCurrencies": cur_list,
             "manualPayments": await db.kv_get(bot.id, "store:manual_payments", [
                 {"id": "zain_cash", "name": "زين كاش (ZainCash)", "account": "07801234567", "instructions": "يرجى تحويل المبلغ المطلوب إلى رقم المحفظة، ثم إرفاق صورة الإشعار أو رقم العملية.", "icon": "💳", "active": True},
                 {"id": "asiacell", "name": "آسيا حوالة / كاش (AsiaCell)", "account": "07701234567", "instructions": "يرجى التحويل إلى الرقم الموضح وإرفاق رقم الإشعار لتأكيد الشحن فوراً.", "icon": "📱", "active": True},
@@ -1768,13 +1782,16 @@ async def get_seller_settings(req: web.Request) -> web.Response:
     settings = await db.kv_get(ctx.bot.id, "store:settings", {}) or {}
     chan_cfg = await db.kv_get(ctx.bot.id, "store:order_channel", {}) or {}
     chan_val = settings.get("order_channel") or chan_cfg.get("username") or chan_cfg.get("id") or ""
+    bot_cur = await currency.get_bot_currency(ctx.bot.id)
     defaults = {
         "support_url": f"https://t.me/{ctx.bot.username}",
         "terms_text": "جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.",
         "policy_text": "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت.",
         "order_channel": str(chan_val),
+        "currency": bot_cur,
     }
     merged = {**defaults, **settings}
+    merged["currency"] = bot_cur
     if not merged.get("order_channel") and chan_val:
         merged["order_channel"] = str(chan_val)
     return web.json_response({
@@ -1786,7 +1803,7 @@ async def get_seller_settings(req: web.Request) -> web.Response:
 
 
 async def save_seller_settings(req: web.Request) -> web.Response:
-    """يحفظ إعدادات المتجر والدعم والشروط والسياسات وقناة إشعارات الطلبات."""
+    """يحفظ إعدادات المتجر والدعم والشروط والسياسات وعملة المتجر وقناة إشعارات الطلبات."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
@@ -1806,6 +1823,12 @@ async def save_seller_settings(req: web.Request) -> web.Response:
         "wheel_enabled": bool(body.get("wheel_enabled", body.get("wheelEnabled", prev_settings.get("wheel_enabled", False)))),
         "wheel_prizes": body.get("wheel_prizes", body.get("wheelPrizes", prev_settings.get("wheel_prizes", []))),
     }
+
+    cur_code = str(body.get("currency") or body.get("storeCurrency") or "").strip().upper()
+    if cur_code and cur_code in currency.CURRENCIES:
+        await currency.set_bot_currency(ctx.bot.id, cur_code)
+        settings["currency"] = cur_code
+
     if "manual_payments" in body or "manualPayments" in body:
         manual_list = body.get("manual_payments") or body.get("manualPayments") or []
         await db.kv_set(ctx.bot.id, "store:manual_payments", manual_list)

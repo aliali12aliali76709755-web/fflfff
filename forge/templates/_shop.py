@@ -94,10 +94,22 @@ class Shop(Tpl):
     def cart(self, c: Ctx) -> dict:
         return c.x.user_data.setdefault(f"cart_{self.ns}", {})
 
+    async def format_item_price(self, c: Ctx, item: dict) -> str:
+        from ..modules import currency
+        p_str = str(item.get("price", ""))
+        num = price_num(p_str)
+        if num > 0:
+            bot_cur = await currency.get_bot_currency(c.bot_id)
+            if bot_cur != "USD" or "$" in p_str or p_str.replace(".", "", 1).isdigit():
+                return await currency.format_price_for_bot(c.bot_id, num)
+        return p_str
+
     async def lines_of(self, c, cart: dict) -> tuple[list[dict], float, str]:
         """يحوّل سلة {رقم الصنف: الكمية} إلى سطور مع الإجمالي. يتجاهل ما حُذف أو أُخفي."""
+        from ..modules import currency
         items = {x["id"]: x for x in await self.visible(c)}
-        lines, total, unit = [], 0.0, ""
+        lines, total_usd = [], 0.0
+        bot_cur = await currency.get_bot_currency(c.bot_id)
         for sid, q in list(cart.items())[:60]:
             sid, q = str(sid), str(q)
             it = items.get(int(sid)) if sid.isascii() and sid.isdecimal() else None
@@ -105,10 +117,18 @@ class Shop(Tpl):
             if it is None or q <= 0:
                 continue
             q = min(q, 99)
-            unit = unit or price_unit(it.get("price", ""))
-            total += price_num(it.get("price", "")) * q
-            lines.append({"id": it["id"], "name": it["name"], "price": it.get("price", ""), "qty": q})
-        return lines, total, unit
+            num = price_num(it.get("price", ""))
+            total_usd += num * q
+            p_disp = await self.format_item_price(c, it)
+            lines.append({"id": it["id"], "name": it["name"], "price": p_disp, "qty": q})
+
+        if bot_cur != "USD":
+            conv_total = await currency.usd_to_currency(total_usd, bot_cur, c.bot_id)
+            info = currency.CURRENCIES.get(bot_cur, {})
+            unit = info.get("symbol", bot_cur)
+            return lines, conv_total, unit
+
+        return lines, total_usd, "$"
 
     async def place_order(self, c, lines: list[dict], total: float, unit: str, note: str, name: str, src: str = "bot") -> tuple[int, dict]:
         """ينشئ الطلب ويبلغ المالك. يعمل من البوت ومن موقع الويب."""
@@ -163,7 +183,8 @@ class Shop(Tpl):
         rows = []
         for x in shown[page * PER:(page + 1) * PER]:
             q = cart.get(str(x["id"]), 0)
-            rows.append([B((f"🛒{q} · " if q else "") + f"{x['name']} — {x.get('price', '')}"[:58], f"t:it:{x['id']}")])
+            p_disp = await self.format_item_price(c, x)
+            rows.append([B((f"🛒{q} · " if q else "") + f"{x['name']} — {p_disp}"[:58], f"t:it:{x['id']}")])
         if pages > 1:
             rows.append([B("‹", f"t:pg:{key}:{page - 1}") if page else None, B(f"{page + 1} / {pages}", "noop"), B("›", f"t:pg:{key}:{page + 1}") if page < pages - 1 else None])
         n = sum(cart.values())
@@ -180,7 +201,8 @@ class Shop(Tpl):
             await self.menu(c)
             return
         q = self.cart(c).get(str(iid), 0)
-        text = (f"<b>{esc(it['name'])}</b>" + (f"\n🏷 {esc(it['cat'])}" if it.get("cat") else "") + f"\n💵 <b>{esc(it.get('price', ''))}</b>"
+        p_disp = await self.format_item_price(c, it)
+        text = (f"<b>{esc(it['name'])}</b>" + (f"\n🏷 {esc(it['cat'])}" if it.get("cat") else "") + f"\n💵 <b>{esc(p_disp)}</b>"
                 + (f"\n\n{esc(it['desc'])}" if it.get("desc") else "") + (t(f"\n\n🛒 في سلتك: <b>{q}</b>", f"\n\n🛒 In your cart: <b>{q}</b>") if q else ""))
         back = c.x.user_data.get(f"back_{self.ns}", "t:menu")
         qty_row = ([B("➖", f"t:sub:{iid}"), B(f"× {q}", "noop"), B("➕", f"t:add:{iid}")] if q

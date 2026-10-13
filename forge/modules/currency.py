@@ -49,6 +49,10 @@ CURRENCIES: dict[str, dict[str, Any]] = {
     "KMF": {"name_ar": "فرنك قمري", "name_en": "Comorian Franc", "symbol": "ف.ق", "decimals": 0, "default_rate": 455.0},
     "ILS": {"name_ar": "شيكل", "name_en": "Shekel", "symbol": "₪", "decimals": 2, "default_rate": 3.70},
 
+    # العملات الرقمية والنجوم
+    "USDT": {"name_ar": "تيثر رقمي", "name_en": "Tether USDT", "symbol": "₮", "decimals": 2, "default_rate": 1.0},
+    "STARS": {"name_ar": "نجوم تليجرام", "name_en": "Telegram Stars", "symbol": "⭐", "decimals": 0, "default_rate": 50.0},
+
     # نظام النقاط الافتراضي
     "POINTS": {"name_ar": "نقاط", "name_en": "Points", "symbol": "نقطة", "decimals": 0, "default_rate": 10000.0},
 }
