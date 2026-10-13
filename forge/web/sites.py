@@ -48,7 +48,13 @@ async def landing(req, mgr):
         bots = int((await s.execute(select(func.count()).select_from(db.Bot).where(db.Bot.status == "active"))).scalar() or 0)
         members = int((await s.execute(select(func.count()).select_from(db.BUser))).scalar() or 0)
     tpls = templates.load()
-    maker = f"https://t.me/{mgr.maker.bot.username}" if mgr.maker is not None else "#"
+    maker = "#"
+    if mgr.maker is not None:
+        try:
+            if getattr(mgr.maker, "bot", None) and getattr(mgr.maker.bot, "username", None):
+                maker = f"https://t.me/{mgr.maker.bot.username}"
+        except Exception:
+            pass
     brand = render.brand(lang)
     cats = ""
     for key, emoji, ar, en in templates.CATEGORIES:
