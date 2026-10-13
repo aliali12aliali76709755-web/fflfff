@@ -361,6 +361,7 @@ async def api_store_info(req: web.Request) -> web.Response:
         "show_reviews": True,
         "contact_url": seller_settings.get("support_url") or f"https://t.me/{bot.username}",
     }
+    merged_theme = {**default_theme, **theme_cfg}
     bot_cur = await currency.get_bot_currency(bot.id)
     cur_info = currency.CURRENCIES.get(bot_cur, currency.CURRENCIES["USD"])
     live_rates = await currency.fetch_live_rates()
