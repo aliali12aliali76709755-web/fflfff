@@ -24,7 +24,7 @@ DEFAULT = {
     "max_bots": None,    # None = من .env
     "limits": {},        # حد بوتات خاص بمستخدم: {"<user_id>": n}
     "blocked_bots": [],  # بوتات محظورة نهائياً من التسجيل
-    "maintenance": False,
+    "maintenance": True, # وضع الصيانة والتطوير مفعّل
     "promo": PROMO_DEFAULT,
     "notify": {"user": True, "bot": True, "daily": True},   # إشعارات المدير
 }

@@ -201,6 +201,67 @@ async def ensure_user(m: M, ref: int = 0) -> bool:
     return True
 
 
+MAINTENANCE_MSG_AR = (
+    "🛠️ <b>البوت حالياً في وضع الصيانة والتطوير الشامل 🚀</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━━\n"
+    "أهلاً بك عزيزي المستخدم! نود إعلامك بأننا نقوم حالياً بأعمال تطوير وتحديثات جذرية لإطلاق <b>الإصدار الجديد كلياً والتطبيق المصغر المتطور (Telegram Mini App)</b> لتقديم أفضل تجربة متكاملة وأعلى مستويات السرعة والأمان.\n\n"
+    "🌟 <b>أبرز الميزات والخدمات الجديدة التي ستتوفر قريباً جداً:</b>\n\n"
+    "🛍️ <b>تطبيق المتجر المصغر الفائق (Telegram Mini App):</b>\n"
+    "• متجر رقمي متكامل فائق السرعة يعمل مباشرة من داخل تيليجرام دون الحاجة لأي مواقع خارجية.\n"
+    "• تصفح كتالوج المنتجات، الأقسام، وسلة المشتريات وتتبع الطلبات بضغطة زر واحدة.\n\n"
+    "⚡ <b>تسليم وشحن فوري وتلقائي:</b>\n"
+    "• شحن فوري للألعاب (شدات ببجي، جواهر فري فاير وغيرها).\n"
+    "• تفعيل آلي للاشتراكات الرقمية (Netflix, Spotify, YouTube Premium).\n"
+    "• تسليم وشحن تيليجرام بريميوم ونجوم تيليجرام تلقائياً بأفضل الأسعار.\n\n"
+    "💳 <b>بوابات دفع إلكترونية متعددة ومحفظة ذكية:</b>\n"
+    "• دعم بوابات دفع تلقائية بالعملات الرقمية (Crypto / USDT) مع تأكيد لحظي.\n"
+    "• دعم الدفع اليدوي ورفع إيصالات التحويل ومراجعتها فورياً.\n"
+    "• محفظة إلكترونية لكل عميل مع كشف حساب وسجل عمليات دقيق.\n\n"
+    "👑 <b>لوحة تحكم حصرية واحترافية للبائعين (إدارة المتاجر):</b>\n"
+    "• إمكانية إنشاء متجرك الخاص، وتحديد أسعارك ونسب أرباحك الصافية برقم مباشر.\n"
+    "• إدارة الكتالوج وإخفاء أو استعادة المنتجات الأصلية بنقرة زر.\n"
+    "• ربط قنوات الإشعارات لتلقي تنبيهات الطلبات الجديدة لحظة بلحظة.\n\n"
+    "🎟️ <b>مركز أكواد الخصم والعروض التسويقية:</b>\n"
+    "• إنشاء أكواد خصم مرنة (بالساعات أو الأيام) مع تتبع كامل للمبيعات والأرباح.\n"
+    "• عجلة حظ يومية وبرنامج إحالة لمكافأة الأعضاء برصيد فوري.\n\n"
+    "🛡️ <b>ضمان ذهبي ودعم فني على مدار الساعة (24/7):</b>\n"
+    "• تتبع مسار كل طلب بدقة مع إثباتات التسليم وسياسة استرجاع فورية.\n"
+    "• نظام تذاكر دعم فني متكامل VIP لمتابعة كافة الاستفسارات.\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━\n"
+    "⏳ <b>موعد الإطلاق:</b> سنعود للعمل بكامل طاقتنا في القريب العاجل فور اكتمال التجهيزات النهائية.\n"
+    "🙏 <i>نشكركم جزيل الشكر على تفهمكم وصبركم ودعمكم المستمر!</i>"
+)
+
+MAINTENANCE_MSG_EN = (
+    "🛠️ <b>Bot is Currently Under Maintenance & Development 🚀</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━━\n"
+    "Welcome! We are performing extensive system upgrades to launch our <b>Brand New Platform & Telegram Mini App</b> for an ultra-fast, seamless experience.\n\n"
+    "🌟 <b>Upcoming Features & Services Coming Very Soon:</b>\n\n"
+    "🛍️ <b>High-Speed Telegram Mini App:</b>\n"
+    "• Full-fledged digital marketplace built directly inside Telegram.\n"
+    "• Smooth catalog browsing, category filtering, and instant checkout.\n\n"
+    "⚡ <b>Instant Automated Fulfillment:</b>\n"
+    "• Instant top-ups for gaming (PUBG, Free Fire, etc.).\n"
+    "• Automated digital subscriptions (Netflix, Spotify, YouTube Premium).\n"
+    "• Telegram Stars and Telegram Premium automated delivery.\n\n"
+    "💳 <b>Smart Wallet & Multi-Payment Gateways:</b>\n"
+    "• Automated crypto payments (USDT) with zero waiting time.\n"
+    "• Manual payment options with receipt verification.\n"
+    "• Real-time wallet balance and transaction statements.\n\n"
+    "👑 <b>Dedicated Seller Control Panel:</b>\n"
+    "• Launch your own bot store, define your profit margins, and manage inventory.\n"
+    "• Connect order channels to receive instant purchase alerts.\n\n"
+    "🎟️ <b>Promo Codes & Marketing Suite:</b>\n"
+    "• Flexible discount codes with hourly/daily timers and revenue analytics.\n"
+    "• Daily lucky spin wheel and affiliate rewards.\n\n"
+    "🛡️ <b>Golden Guarantee & 24/7 Support:</b>\n"
+    "• Full buyer protection, verified order proofs, and round-the-clock VIP support.\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━\n"
+    "⏳ <b>Launch Date:</b> We will be back online very soon once the final touches are completed.\n"
+    "🙏 <i>Thank you for your patience and trust!</i>"
+)
+
+
 async def gate(m: M) -> bool:
     """يعيد True إن سُمح للمستخدم بالمتابعة (غير محظور، لا صيانة، ومشترك في قنوات الصانع)."""
     if m.is_admin:
@@ -226,8 +287,26 @@ async def gate(m: M) -> bool:
         except Exception:
             pass
     if p["maintenance"]:
-        text = m.t("🛠 الصانع في صيانة قصيرة ويعود بعد قليل. بوتاتك تعمل كالمعتاد.", "🛠 The maker is under brief maintenance. Your bots keep running.")
-        await m.answer(text, True) if m.q else await m.send(text)
+        if m.q:
+            if m.q.data == "m:maint_check":
+                await m.answer(
+                    m.t("🛠️ أعمال الصيانة والتطوير مستمرة. سيتم إطلاق البوت والتطبيق قريباً جداً!",
+                        "🛠️ Maintenance & development in progress. Launching very soon!"),
+                    show_alert=True
+                )
+            else:
+                await m.answer(
+                    m.t("🛠️ البوت في وضع الصيانة والتطوير حالياً. أرسل /start لعرض التفاصيل والميزات القادمة.",
+                        "🛠️ The bot is currently under maintenance. Send /start for details."),
+                    show_alert=True
+                )
+            return False
+        btns = [
+            [B(m.t("🔄 فحص الحالة (تحديث)", "🔄 Check Status (Refresh)"), "m:maint_check")]
+        ]
+        if config.UPDATES_URL and m.fid == 0:
+            btns.append([B(m.t("📢 قناة التحديثات والأخبار", "📢 Updates Channel"), url=config.UPDATES_URL)])
+        await m.send(m.t(MAINTENANCE_MSG_AR, MAINTENANCE_MSG_EN), kb(btns))
         return False
     missing = []
     for x in p["fs"]:
@@ -348,7 +427,12 @@ async def home(m: M, *, new: bool = False) -> None:
     m.clear_state()
     T = m.t
     bots = await my_bots(m)
+    p_info = await platform.get(m.fid)
+    is_maint = bool(p_info.get("maintenance"))
     head = f"⚡ <b>{esc(m.brand())}</b>\n{T('أهلاً', 'Hi')} {esc(m.user.first_name)} 👋\n{ui.LINE}\n"
+    if m.is_admin and is_maint:
+        head += T("⚠️ <b>تنبيه الإدارة: وضع الصيانة والتطوير مفعّل حالياً للمستخدمين.</b>\n" + ui.LINE + "\n",
+                  "⚠️ <b>Admin Notice: Maintenance & Development mode is currently active for users.</b>\n" + ui.LINE + "\n")
     if bots:
         a = await _agg([b.id for b in bots])
         run = sum(1 for b in bots if b.status == "active")
@@ -380,6 +464,9 @@ async def home(m: M, *, new: bool = False) -> None:
             [
                 B(T("🛡️ تطبيق الأدمن المصغر", "🛡️ Admin Mini App"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/admin_app", style="primary") if config.PUBLIC_URL else None,
                 B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home", style="primary"),
+            ] if m.is_admin else None,
+            [
+                B(T("🛠️ إيقاف الصيانة (فتح للجميع)", "🛠️ Turn Off Maintenance") if is_maint else T("🛠️ تفعيل وضع الصيانة", "🛠️ Turn On Maintenance"), "m:adm:sm")
             ] if m.is_admin else None,
         ]), new=new)
     except Exception as err:

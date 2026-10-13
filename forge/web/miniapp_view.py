@@ -158,15 +158,22 @@ HTML_SHELL = """<!DOCTYPE html>
     <!-- 2. MAINTENANCE MODE STATE                                            -->
     <!-- ══════════════════════════════════════════════════════════════════════ -->
     <div v-else-if="store?.maintenanceMode && role !== 'admin' && role !== 'seller'" class="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-      <div class="w-20 h-20 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mb-4 text-3xl">
+      <div class="w-20 h-20 bg-amber-500/20 text-amber-400 rounded-3xl flex items-center justify-center mb-4 text-4xl shadow-inner border border-amber-500/30 animate-pulse">
         🛠️
       </div>
-      <h2 class="text-2xl font-bold mb-2">المتجر في وضع الصيانة</h2>
-      <p class="text-slate-400 text-sm max-w-xs mb-6">
-        نقوم حالياً بإجراء تحديثات وتحسينات لخدمتكم بشكل أفضل، يرجى المحاولة بعد قليل.
+      <h2 class="text-xl font-black text-white mb-2">المتجر في وضع الصيانة والتطوير 🚀</h2>
+      <p class="text-slate-300 text-xs max-w-sm mb-4 leading-relaxed">
+        نقوم حالياً بإجراء تحديثات كبرى لإطلاق الجيل الجديد من التطبيق المصغر بميزات متطورة تشمل الشحن الفوري التلقائي، بوابات دفع بالعملات الرقمية، كشف حساب دقيق، وأكواد خصم حصرية!
       </p>
-      <button @click="initApp" class="px-6 py-2.5 bg-brand-600 rounded-xl font-bold text-sm shadow-lg shadow-brand-600/30">
-        إعادة المحاولة 🔄
+      <div class="bg-dark-800/90 border border-slate-700/80 p-3.5 rounded-2xl max-w-xs text-start text-[11px] space-y-1.5 text-slate-300 mb-6 font-medium shadow">
+        <div class="flex items-center gap-2"><span>⚡</span> <span>تسليم وشحن فوري للألعاب والاشتراكات</span></div>
+        <div class="flex items-center gap-2"><span>💳</span> <span>دفع إلكتروني ومحفظة متطورة بالكريبتو</span></div>
+        <div class="flex items-center gap-2"><span>👑</span> <span>لوحة تحكم كاملة للمتاجر والبائعين</span></div>
+        <div class="flex items-center gap-2"><span>🎟️</span> <span>أكواد خصم وعروض وعجلة الحظ</span></div>
+        <div class="flex items-center gap-2"><span>🛡️</span> <span>أمان وضمان ذهبي مع دعم فني 24/7</span></div>
+      </div>
+      <button @click="initApp" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 rounded-xl font-bold text-xs shadow-lg shadow-brand-600/30 text-white transition active:scale-95">
+        إعادة المحاولة وفحص الحالة 🔄
       </button>
     </div>
 

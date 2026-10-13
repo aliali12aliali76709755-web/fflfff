@@ -468,11 +468,11 @@ def lock_text(lk: dict, lang: str, *, owner: bool = False) -> str:
     ar = lang == "ar"
     mode = lk["mode"]
     reason = (lk.get("reason") if ar else (lk.get("reason_en") or lk.get("reason"))) or ""
-    if mode == "own":
-        return reason or ("🛠 <b>البوت في صيانة</b>\nنعود قريباً، شكراً لصبرك." if ar else "🛠 <b>Under maintenance</b>\nWe'll be back soon, thanks for your patience.")
-    if mode == "maint":
-        s = ("🛠 <b>البوت في صيانة</b>\nأوقفته إدارة المنصة مؤقتاً للصيانة ويعود قريباً." if ar
-             else "🛠 <b>Under maintenance</b>\nThe platform paused this bot for maintenance. It will be back soon.")
+    if mode in ("own", "maint"):
+        if reason:
+            return reason
+        from .maker import MAINTENANCE_MSG_AR, MAINTENANCE_MSG_EN
+        return MAINTENANCE_MSG_AR if ar else MAINTENANCE_MSG_EN
     elif mode == "temp" and lk.get("until"):
         left = ui.dur(max(60, lk["until"] - time.time()), lang)
         s = (f"⏳ <b>البوت مغلق مؤقتاً</b>\nأغلقته إدارة المنصة.\n🔓 يعود للعمل بعد: <b>{left}</b>" if ar
