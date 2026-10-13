@@ -3123,9 +3123,13 @@ async def set_user_language_endpoint(req: web.Request) -> web.Response:
         )).scalars().first()
         if buser:
             buser.lang = lang
-        muser = await s.get(db.MUser, ctx.uid)
+        muser = await s.get(db.MUser, (getattr(ctx.bot, 'factory_id', 0) or 0, ctx.uid))
         if muser:
             muser.lang = lang
+        if getattr(ctx.bot, 'factory_id', 0) != 0:
+            m0 = await s.get(db.MUser, (0, ctx.uid))
+            if m0:
+                m0.lang = lang
         await s.commit()
 
     try:

@@ -252,6 +252,7 @@ class Ctx:
         if self.core.get("share", False) and self.chat is not None and self.chat.type == "private":
             text = self.t("جرّب هذا البوت 👇", "Try this bot 👇")
             row.append(ui.B(self.t("📤 شارك البوت", "📤 Share the bot"), url=f"https://t.me/share/url?url={quote(self.link())}&text={quote(text)}"))
+        row.append(ui.B(self.t("🌐 اللغة", "🌐 Language"), "u:lang"))
         if self.is_owner:
             row.append(ui.B(self.t("🎛 غرفة التحكم", "🎛 Control room"), "o:home"))
         return row

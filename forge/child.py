@@ -767,6 +767,11 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     text = c.text
     if text.startswith("/"):
         cmd = text.split()[0][1:].split("@")[0].lower()
+        if cmd in ("lang", "language"):
+            cur = c.lang
+            btns = [B(("• " if code == cur else "") + name, f"u:setlang:{code}") for code, name in LANGS]
+            await c.send(c.t("🌐 <b>اختر لغة البوت:</b>", "🌐 <b>Choose bot language:</b>"), kb(ui.grid(btns, 2) + [c.home_row()]))
+            return
         for s in c.core.get("shortcuts", []):
             if s["cmd"] == cmd:
                 await c.send(s["v"])
@@ -822,6 +827,25 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 await _enter(c, context.user_data.pop("pending_start", ""))
             else:
                 await c.answer(c.t("لم يكتمل الاشتراك بعد.", "You haven't joined yet."), True)
+        elif data.startswith("u:setlang:"):
+            code = data.split(":")[2]
+            if code in LANG_NAMES:
+                async with db.Session() as s:
+                    row = await s.get(db.BUser, (c.bot_id, c.uid))
+                    if row is not None:
+                        row.lang = code
+                        await s.commit()
+                if c.x and hasattr(c.x, "user_data") and c.x.user_data is not None:
+                    c.x.user_data["lang"] = code
+                c.lang = norm(code)
+                await c.answer(c.t("✅ تم حفظ اللغة بنجاح.", "✅ Language updated successfully."))
+                await user_home(c)
+                return
+        elif data == "u:lang":
+            cur = c.lang
+            btns = [B(("• " if code == cur else "") + name, f"u:setlang:{code}") for code, name in LANGS]
+            await c.send(c.t("🌐 <b>اختر لغة البوت:</b>", "🌐 <b>Choose bot language:</b>"), kb(ui.grid(btns, 2) + [c.home_row()]))
+            return
         elif data.startswith("sf:"):
             from .modules.store_front import StoreFront
             parts = data.split(":")[1:]
