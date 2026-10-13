@@ -188,7 +188,25 @@ HTML_SHELL = """<!DOCTYPE html>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 sm:gap-2">
+          <!-- Language Selector -->
+          <div class="relative">
+            <select v-model="currentLang" class="bg-dark-800/90 border border-slate-700/60 text-[10px] font-bold text-slate-200 rounded-xl px-1.5 py-1.5 focus:outline-none cursor-pointer shadow-inner">
+              <option value="ar">🇸🇦 عربي</option>
+              <option value="en">🇬🇧 EN</option>
+              <option value="ku">☀️ کوردی</option>
+            </select>
+          </div>
+
+          <!-- Currency Selector -->
+          <div class="relative">
+            <select v-model="currentCurrency" class="bg-dark-800/90 border border-slate-700/60 text-[10px] font-bold text-amber-300 rounded-xl px-1.5 py-1.5 focus:outline-none cursor-pointer shadow-inner">
+              <option value="USD">$ USD</option>
+              <option value="IQD">د.ع IQD</option>
+              <option value="STARS">⭐ Stars</option>
+            </select>
+          </div>
+
           <!-- Shopping Cart Button with Dynamic Badge -->
           <button @click="showCartDrawer = true" class="relative bg-dark-800/90 border border-slate-700/60 rounded-xl p-2 text-slate-200 hover:text-white transition active:scale-95 flex items-center justify-center shadow-inner">
             <span class="text-sm">🛒</span>
@@ -200,7 +218,7 @@ HTML_SHELL = """<!DOCTYPE html>
           <!-- Balance Pill -->
           <div class="bg-dark-800/90 border border-slate-700/60 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 shadow-inner">
             <span class="text-xs text-amber-400">💰</span>
-            <span class="text-xs font-black tracking-tight text-slate-100">${{ (user.balance || 0).toFixed(2) }}</span>
+            <span class="text-xs font-black tracking-tight text-slate-100">{{ formatPrice(user.balance || 0) }}</span>
           </div>
           <!-- Quick Recharge Button -->
           <button @click="showDepositModal = true" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1 transition active:scale-95">
@@ -212,6 +230,27 @@ HTML_SHELL = """<!DOCTYPE html>
 
       <!-- ── MAIN CONTENT TABS ───────────────────────────────────────────── -->
       <main class="flex-1 p-4 space-y-4">
+
+        <!-- 🛒 Abandoned Cart Recovery Floating Alert -->
+        <div v-if="cartTotalCount > 0 && currentTab === 'store'" @click="showCartDrawer = true" class="cursor-pointer bg-gradient-to-r from-amber-600/30 via-orange-600/20 to-amber-600/30 border border-amber-500/40 rounded-2xl p-3 flex items-center justify-between shadow-lg transition active:scale-98 animate-pulse">
+          <div class="flex items-center gap-2.5">
+            <span class="text-2xl">🛒</span>
+            <div>
+              <div class="text-xs font-black text-amber-200">سلتك بانتظارك! ({{ cartTotalCount }} عناصر جاهزة)</div>
+              <div class="text-[10px] text-amber-300/80">أكمل سلتك واشترِ الآن واستفد من العروض الحصرية ⚡</div>
+            </div>
+          </div>
+          <button class="bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-xs px-3 py-1.5 rounded-xl shadow whitespace-nowrap">
+            إكمال السلة ←
+          </button>
+        </div>
+
+        <!-- 🎡 Floating Fortune Wheel Badge (When Enabled by Seller) -->
+        <button v-if="store.wheelEnabled" @click="openWheelModal" class="fixed bottom-20 right-4 z-40 bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white font-black text-xs px-3.5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 border border-white/20 active:scale-95 transition-all hover:scale-105">
+          <span class="text-lg animate-spin" style="animation-duration: 8s;">🎡</span>
+          <span>عجلة الحظ</span>
+          <span class="bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full">اربح!</span>
+        </button>
 
         <!-- ──────────────────────────────────────────────────────────────── -->
         <!-- TAB 1: STOREFRONT (🛍️ المتجر)                                    -->
@@ -386,7 +425,31 @@ HTML_SHELL = """<!DOCTYPE html>
 
               <div class="flex items-center justify-between text-[11px] text-slate-400">
                 <span>رقم الطلب: <span class="font-mono text-slate-300">{{ order.order_ref }}</span></span>
-                <span class="font-black text-emerald-400">${{ Number(order.total_price).toFixed(2) }}</span>
+                <span class="font-black text-emerald-400">{{ formatPrice(order.total_price) }}</span>
+              </div>
+
+              <!-- 4-Step Order Progress Tracker -->
+              <div class="py-2 border-y border-slate-800/80 my-1">
+                <div class="flex items-center justify-between text-[9px] text-slate-400 mb-1 px-1">
+                  <span class="text-emerald-400 font-bold">1. استلام 📝</span>
+                  <span :class="{'text-emerald-400 font-bold': order.status !== 'queued'}">2. مراجعة ⏳</span>
+                  <span :class="{'text-emerald-400 font-bold': order.status === 'processing' || order.status === 'completed'}">3. تجهيز ⚙️</span>
+                  <span :class="{'text-emerald-400 font-bold': order.status === 'completed'}">4. تسليم ✅</span>
+                </div>
+                <div class="w-full bg-dark-900 h-1.5 rounded-full overflow-hidden flex">
+                  <div class="h-full bg-emerald-500 transition-all duration-500" :style="{ width: order.status === 'completed' ? '100%' : (order.status === 'processing' ? '70%' : (order.status === 'pending' ? '40%' : '20%')) }"></div>
+                </div>
+              </div>
+
+              <!-- Gift Order Badge & Modal Trigger -->
+              <div v-if="order.details && order.details.is_gift" class="bg-purple-950/40 border border-purple-500/30 rounded-lg p-2 text-xs text-purple-200 flex items-center justify-between">
+                <div>
+                  <span class="font-bold">🎁 طلب مهداة إلى: </span>{{ order.details.gift_recipient }}
+                  <div class="text-[10px] text-purple-300 italic mt-0.5" v-if="order.details.gift_message">"{{ order.details.gift_message }}"</div>
+                </div>
+                <button @click="openGiftCard(order)" class="text-[10px] bg-purple-700/60 hover:bg-purple-600 px-2.5 py-1 rounded-md text-white font-bold whitespace-nowrap">
+                  عرض كرت الهدية 💌
+                </button>
               </div>
 
               <!-- Delivery details if completed -->
@@ -469,6 +532,38 @@ HTML_SHELL = """<!DOCTYPE html>
               <button @click="copyToClipboard(getReferralLink())" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow whitespace-nowrap active:scale-95 transition">
                 نسخ الرابط 📋
               </button>
+            </div>
+          </div>
+
+          <!-- 💳 Financial Statement & Transaction History Card -->
+          <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-md">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">💳</span>
+                <h4 class="font-black text-xs text-white">كشف الحساب وسجل العمليات المالية</h4>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">{{ (userTransactions || []).length }} عمليات</span>
+            </div>
+
+            <div v-if="(userTransactions || []).length" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div v-for="tx in userTransactions" :key="tx.id" class="bg-dark-900/80 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="text-base">{{ tx.direction === 'credit' ? '🟢' : '🔴' }}</span>
+                  <div>
+                    <div class="font-bold text-white text-[11px]">{{ tx.description || tx.kind }}</div>
+                    <div class="text-[9px] text-slate-500 font-mono">{{ tx.created }}</div>
+                  </div>
+                </div>
+                <div class="text-left font-mono">
+                  <div :class="['font-black text-xs', tx.direction === 'credit' ? 'text-emerald-400' : 'text-rose-400']">
+                    {{ tx.direction === 'credit' ? '+' : '-' }}{{ formatPrice(tx.amount_usd) }}
+                  </div>
+                  <div class="text-[9px] text-slate-400">الرصيد: {{ formatPrice(tx.balance_after_usd) }}</div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-4 text-xs text-slate-500">
+              لا توجد حركات مالية مسجلة حتى الآن في محفظتك.
             </div>
           </div>
 
@@ -693,6 +788,148 @@ HTML_SHELL = """<!DOCTYPE html>
               <span class="text-base">📑</span>
               <span>إكسل / CSV</span>
             </button>
+          </div>
+
+          <!-- 🎟️ Discount Coupons Management Section -->
+          <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-md">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-base">🎟️</span>
+                <h4 class="font-bold text-xs text-white">إدارة وتوليد أكواد الخصم (Coupons)</h4>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">{{ (sellerCoupons || []).length }} أكواد</span>
+            </div>
+
+            <!-- New Coupon Generator Form -->
+            <div class="bg-dark-900/80 p-3 rounded-xl border border-slate-800 space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-[10px] font-bold text-slate-300">كود الخصم:</label>
+                  <input v-model="newCouponForm.code" type="text" placeholder="مثال: SAVE20" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white uppercase font-mono">
+                </div>
+                <div>
+                  <label class="text-[10px] font-bold text-slate-300">نوع الخصم:</label>
+                  <select v-model="newCouponForm.type" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                    <option value="percent">نسبة مئوية (%)</option>
+                    <option value="fixed">مبلغ ثابت ($)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-[10px] font-bold text-slate-300">القيمة:</label>
+                  <input v-model.number="newCouponForm.val" type="number" step="0.5" placeholder="15" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                </div>
+                <div>
+                  <label class="text-[10px] font-bold text-slate-300">أقصى عدد استخدامات:</label>
+                  <input v-model.number="newCouponForm.max_uses" type="number" placeholder="100" class="w-full bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                </div>
+              </div>
+
+              <button @click="saveNewCoupon" :disabled="creatingCoupon || !newCouponForm.code" class="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-bold text-xs py-2 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+                <span v-if="creatingCoupon">جاري الحفظ... ⏳</span>
+                <span v-else>➕ حفظ وتفعيل كود الخصم</span>
+              </button>
+            </div>
+
+            <!-- Existing Coupons List -->
+            <div v-if="(sellerCoupons || []).length" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              <div v-for="cp in sellerCoupons" :key="cp.code" class="bg-dark-900 border border-slate-800 p-2 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span class="font-mono font-black text-amber-400 tracking-wider">{{ cp.code }}</span>
+                  <span class="text-[10px] text-slate-400 mr-2">({{ cp.type === 'percent' ? cp.val + '%' : '$' + cp.val }})</span>
+                  <div class="text-[9px] text-slate-400 mt-0.5">استُخدم: <span class="text-emerald-400 font-bold font-mono">{{ cp.used_count }}</span> / {{ cp.max_uses }} مرة</div>
+                </div>
+                <button @click="deleteCoupon(cp.code)" class="text-rose-400 hover:text-rose-300 p-1 text-xs">🗑️ حذف</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 💳 Manual Payment Gateways & Customer Receipts Review -->
+          <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-md">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-base">💵</span>
+                <h4 class="font-bold text-xs text-white">إشعارات الدفع والتحويل اليدوي (زين كاش، آسيا، USDT)</h4>
+              </div>
+              <span class="text-[10px] text-amber-400 font-bold">{{ (sellerPaymentReceipts || []).filter(r => r.status === 'pending').length }} بانتظار التأكيد</span>
+            </div>
+
+            <div v-if="(sellerPaymentReceipts || []).length" class="space-y-2 max-h-52 overflow-y-auto pr-1">
+              <div v-for="rcpt in sellerPaymentReceipts" :key="rcpt.receipt_id" class="bg-dark-900 border border-slate-800 p-2.5 rounded-xl space-y-2 text-xs">
+                <div class="flex items-center justify-between">
+                  <div class="font-bold text-white flex items-center gap-1.5">
+                    <span>{{ rcpt.user_name || 'عميل' }}</span>
+                    <span class="text-[10px] text-slate-400 font-mono">(@{{ rcpt.username || rcpt.user_id }})</span>
+                  </div>
+                  <span :class="['text-[10px] font-bold px-2 py-0.5 rounded-full border', rcpt.status === 'approved' ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40' : (rcpt.status === 'rejected' ? 'bg-rose-950 text-rose-300 border-rose-500/40' : 'bg-amber-950 text-amber-300 border-amber-500/40')]">
+                    {{ rcpt.status === 'approved' ? 'مقبول ✅' : (rcpt.status === 'rejected' ? 'مرفوض ❌' : 'قيد المراجعة ⏳') }}
+                  </span>
+                </div>
+
+                <div class="flex items-center justify-between text-[11px] text-slate-300 font-mono bg-dark-850 p-2 rounded-lg">
+                  <div>الطريقة: <span class="text-amber-300 font-bold">{{ rcpt.method }}</span></div>
+                  <div>المبلغ: <span class="text-emerald-400 font-black">{{ formatPrice(rcpt.amount_usd) }}</span></div>
+                </div>
+
+                <div v-if="rcpt.sender_ref" class="text-[10px] text-slate-400">
+                  <span class="font-bold">رقم/هاش العملية: </span><span class="font-mono text-slate-200">{{ rcpt.sender_ref }}</span>
+                </div>
+
+                <div v-if="rcpt.image_url" class="text-[10px]">
+                  <a :href="rcpt.image_url" target="_blank" class="text-blue-400 hover:underline flex items-center gap-1">
+                    <span>🖼️ عرض صورة إشعار التحويل</span>
+                  </a>
+                </div>
+
+                <div v-if="rcpt.status === 'pending'" class="flex items-center gap-2 pt-1">
+                  <button @click="actionSellerReceipt(rcpt.receipt_id, 'approve')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] py-1.5 rounded-lg shadow transition">
+                    ✅ قبول وشحن الرصيد
+                  </button>
+                  <button @click="actionSellerReceipt(rcpt.receipt_id, 'reject')" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] py-1.5 rounded-lg shadow transition">
+                    ❌ رفض
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-4 text-xs text-slate-500">
+              لا توجد إشعارات دفع معلقة حالياً.
+            </div>
+          </div>
+
+          <!-- 🎡 Fortune Wheel & Abandoned Cart Recovery Toggles -->
+          <div class="bg-dark-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-md">
+            <h4 class="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+              <span>🚀</span> ميزات التسويق التفاعلية وزيادة المبيعات
+            </h4>
+
+            <!-- Wheel Toggle -->
+            <div class="flex items-center justify-between bg-dark-900 p-3 rounded-xl border border-slate-800">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">🎡</span>
+                <div>
+                  <div class="text-xs font-bold text-white">تفعيل عجلة الحظ للزوار (اختياري)</div>
+                  <div class="text-[10px] text-slate-400">تظهر أيقونة العجلة للعملاء لتدويرها والفوز بجوائز وخصومات</div>
+                </div>
+              </div>
+              <input type="checkbox" v-model="sellerSettingsForm.wheel_enabled" @change="saveSellerSettingsForm" class="w-5 h-5 rounded text-brand-600 accent-brand-500 cursor-pointer">
+            </div>
+
+            <!-- Abandoned Cart Broadcast Button -->
+            <div class="flex items-center justify-between bg-dark-900 p-3 rounded-xl border border-slate-800">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">📢</span>
+                <div>
+                  <div class="text-xs font-bold text-white">تنبيه السلات المتروكة</div>
+                  <div class="text-[10px] text-slate-400">إرسال تنبيه وتوليد كود خصم 10% لكل من أضاف منتجاً للسلة ولم يشترِ</div>
+                </div>
+              </div>
+              <button @click="broadcastAbandonedCart" :disabled="abandonedCartBroadcasting" class="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow active:scale-95 transition">
+                <span v-if="abandonedCartBroadcasting">...⏳</span>
+                <span v-else>📢 إرسال التنبيه</span>
+              </button>
+            </div>
           </div>
 
           <!-- Seller Settings Form (Support & Terms & Channel) -->
@@ -995,6 +1232,77 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
           </div>
 
+          <!-- 🎟️ Discount Coupon Input in Product Screen -->
+          <div class="bg-dark-850 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-sm">
+            <label class="text-xs font-bold text-slate-300 flex items-center justify-between">
+              <span>كود الخصم (Coupon):</span>
+              <span v-if="appliedCoupon" class="text-[10px] text-emerald-400 font-bold">تم الخصم: -{{ formatPrice(appliedCoupon.discount_usd) }} ✅</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <input v-model="enteredCouponCode" type="text" placeholder="أدخل كود الخصم إن وجد..." class="flex-1 bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white uppercase font-mono">
+              <button @click="applyCouponCode" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs rounded-xl shadow active:scale-95 transition">
+                تطبيق 🎟️
+              </button>
+            </div>
+          </div>
+
+          <!-- 🎁 Send as a Gift Option -->
+          <div class="bg-dark-850 border border-slate-800 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5 cursor-pointer">
+                <span>🎁</span> إرسال هذا الطلب كهدية لصديق
+              </label>
+              <input type="checkbox" v-model="isGiftOrder" class="w-4 h-4 rounded text-brand-600 accent-brand-500 cursor-pointer">
+            </div>
+
+            <div v-if="isGiftOrder" class="space-y-2 pt-1 border-t border-slate-800">
+              <div>
+                <label class="block text-[11px] text-slate-300 mb-0.5">اسم أو يوزر المستلم (@username أو الاسم):</label>
+                <input v-model="giftRecipient" type="text" placeholder="@friend_username أو اسم الصديق" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-300 mb-0.5">رسالة الإهداء / التهنئة:</label>
+                <input v-model="giftMessage" type="text" placeholder="مثال: ألف مبروك يا غالي! هدية بمناسبة الترقية 🎉" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-300 mb-0.5">نمط بطاقة الهدية:</label>
+                <select v-model="giftTheme" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                  <option value="party">🎉 احتفال ومناسبات</option>
+                  <option value="gold">💎 بطاقة VIP ذهبية فخمة</option>
+                  <option value="gaming">🎮 تصميم ألعاب بطولي</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- ⭐ Verified Customer Reviews & Ratings Section -->
+          <div class="bg-dark-850 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <span>⭐</span> تقييمات وآراء المشترين
+              </h4>
+              <span class="text-xs font-black text-amber-400">4.9 / 5.0 (ممتاز)</span>
+            </div>
+
+            <!-- Add Review Mini Form -->
+            <div class="bg-dark-900/80 p-3 rounded-xl border border-slate-800 space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300">أضف تقييمك:</span>
+                <div class="flex items-center gap-1 text-amber-400 cursor-pointer">
+                  <span v-for="star in 5" :key="star" @click="reviewFormRating = star" class="text-sm">
+                    {{ star <= reviewFormRating ? '★' : '☆' }}
+                  </span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input v-model="reviewFormComment" type="text" placeholder="اكتب رأيك بالخدمة..." class="flex-1 bg-dark-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                <button @click="submitProductReview" :disabled="submittingReview" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow">
+                  إرسال ✍️
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Automatic Guarantee Disclaimer (No annoying blocking checkbox!) -->
           <div class="p-3 rounded-xl bg-amber-950/30 border border-amber-500/20 flex items-center gap-2 text-[11px] text-amber-200">
             <span class="text-base">🛡️</span>
@@ -1094,8 +1402,73 @@ HTML_SHELL = """<!DOCTYPE html>
             <button @click="showDepositModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
           </div>
 
-          <!-- Section 1: Telegram Stars (Direct 1-tap in-app) -->
-          <div class="space-y-2 bg-gradient-to-br from-amber-950/40 via-dark-800 to-amber-950/20 border border-amber-500/30 p-3.5 rounded-2xl">
+          <!-- Deposit Method Tabs Switcher -->
+          <div class="grid grid-cols-2 gap-2 p-1 bg-dark-900 border border-slate-700 rounded-xl">
+            <button @click="activeDepositTab = 'manual'" :class="['py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5', activeDepositTab === 'manual' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white']">
+              <span>💵</span>
+              <span>دفع يدوي / حوالة</span>
+            </button>
+            <button @click="activeDepositTab = 'stars'" :class="['py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5', activeDepositTab === 'stars' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white']">
+              <span>⭐️</span>
+              <span>نجوم تيليجرام</span>
+            </button>
+          </div>
+
+          <!-- TAB A: Manual Payment Gateway (زين كاش، آسيا سيل، USDT...) -->
+          <div v-if="activeDepositTab === 'manual'" class="space-y-3 bg-dark-800/90 border border-slate-700/80 p-3.5 rounded-2xl">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-200">اختر طريقة التحويل:</label>
+              <div class="grid grid-cols-1 gap-2">
+                <div v-for="m in (manualPaymentMethods || [])" :key="m.id"
+                     @click="selectedPaymentMethod = m"
+                     :class="['p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between',
+                             selectedPaymentMethod?.id === m.id ? 'bg-emerald-950/50 border-emerald-500 text-white ring-1 ring-emerald-500' : 'bg-dark-900 border-slate-800 text-slate-300 hover:border-slate-700']">
+                  <div class="flex items-center gap-2">
+                    <span class="text-lg">{{ m.icon || '💳' }}</span>
+                    <div>
+                      <div class="font-bold text-white">{{ m.name }}</div>
+                      <div class="text-[10px] text-slate-400 font-mono">{{ m.account }}</div>
+                    </div>
+                  </div>
+                  <button @click.stop="copyToClipboard(m.account)" class="text-[10px] bg-dark-800 hover:bg-dark-750 border border-slate-700 px-2 py-1 rounded-lg text-emerald-300 font-bold">
+                    نسخ الرقم 📋
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Method Instructions -->
+            <div v-if="selectedPaymentMethod?.instructions" class="p-2.5 rounded-xl bg-dark-900/90 border border-slate-800 text-[11px] text-slate-300 leading-relaxed">
+              <span class="font-bold text-emerald-400">تعليمات التحويل: </span>{{ selectedPaymentMethod.instructions }}
+            </div>
+
+            <!-- Receipt Submission Form -->
+            <div class="space-y-2 pt-1 border-t border-slate-800">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-[10px] font-bold text-slate-300">المبلغ المحول ($):</label>
+                  <input v-model.number="manualDepositAmount" type="number" step="0.5" placeholder="5.0" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                </div>
+                <div>
+                  <label class="text-[10px] font-bold text-slate-300">رقم الهاتف أو المعاملة:</label>
+                  <input v-model="manualSenderRef" type="text" placeholder="0780xxxx أو رقم الإشعار" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                </div>
+              </div>
+
+              <div>
+                <label class="text-[10px] font-bold text-slate-300">رابط صورة الإشعار (اختياري):</label>
+                <input v-model="manualReceiptUrl" type="text" placeholder="https://..." class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+              </div>
+
+              <button @click="submitManualDeposit" :disabled="submittingManualReceipt || !manualSenderRef" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs py-2.5 rounded-xl shadow transition">
+                <span v-if="submittingManualReceipt">جاري إرسال الإشعار... ⏳</span>
+                <span v-else>إرسال إشعار الدفع لتأكيد الشحن 📤</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB B: Telegram Stars (Direct 1-tap in-app) -->
+          <div v-if="activeDepositTab === 'stars'" class="space-y-2 bg-gradient-to-br from-amber-950/40 via-dark-800 to-amber-950/20 border border-amber-500/30 p-3.5 rounded-2xl">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="text-xl">⭐️</span>
@@ -1380,11 +1753,117 @@ HTML_SHELL = """<!DOCTYPE html>
               <label class="block text-xs font-bold text-slate-300 mb-1">وصف المنتج:</label>
               <textarea v-model="editingProduct.description" rows="2" placeholder="أدخل تفاصيل ومميزات المنتج..." class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"></textarea>
             </div>
+
+            <!-- Custom Requirements Builder (Player ID / Email / etc.) -->
+            <div class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <span>📝</span> طلب بيانات من العميل عند الشراء (Player ID / Email / إلخ):
+                </label>
+                <input type="checkbox" v-model="editingProduct.inputRequired" class="w-4 h-4 rounded text-brand-600 accent-brand-500 cursor-pointer">
+              </div>
+              <div v-if="editingProduct.inputRequired" class="space-y-2 pt-1">
+                <div>
+                  <label class="block text-[11px] text-slate-300 mb-0.5">عنوان الحقل المطلوب للمشتري:</label>
+                  <input type="text" v-model="editingProduct.inputLabel" placeholder="مثال: آيدي الحساب (Player ID) أو البريد الإلكتروني" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-300 mb-0.5">نوع الحقل:</label>
+                  <select v-model="editingProduct.inputType" class="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                    <option value="text">نص أو آيدي (Text / ID)</option>
+                    <option value="number">أرقام فقط (Number)</option>
+                    <option value="email">بريد إلكتروني (Email)</option>
+                    <option value="url">رابط حساب أو منشور (Link / URL)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
           <button @click="saveSellerProduct" :disabled="savingProduct || editingProduct.userPrice < editingProduct.costPrice" class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow">
             <span v-if="savingProduct">جاري الحفظ... ⏳</span>
             <span v-else>حفظ وإضافة المنتج للمتجر ✅</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- G. FORTUNE WHEEL INTERACTIVE MODAL (عجلة الحظ التفاعلية) -->
+      <div v-if="showWheelModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-sm rounded-3xl border border-purple-500/40 p-5 space-y-4 text-center my-auto shadow-2xl relative">
+          <button @click="showWheelModal = false" class="absolute top-4 left-4 w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+
+          <div class="pt-2">
+            <span class="text-3xl block mb-1">🎡</span>
+            <h3 class="font-black text-base text-white">عجلة الحظ اليومية</h3>
+            <p class="text-[11px] text-purple-200">دوّر العجلة واربح رصيداً فورياً أو كود خصم لمتجرك!</p>
+          </div>
+
+          <!-- Animated Wheel Graphic -->
+          <div class="relative w-64 h-64 mx-auto flex items-center justify-center">
+            <!-- Center Pointer -->
+            <div class="absolute -top-1 z-20 text-rose-500 text-2xl font-black drop-shadow-md">▼</div>
+
+            <!-- Spinning Disc -->
+            <div class="w-56 h-56 rounded-full border-4 border-amber-400 shadow-2xl overflow-hidden relative transition-all duration-[3500ms] ease-out"
+                 :style="{ transform: `rotate(${wheelRotation}deg)` }">
+              <svg viewBox="0 0 100 100" class="w-full h-full">
+                <!-- 6 Wheel Slices with distinct vibrant colors -->
+                <path d="M 50 50 L 50 0 A 50 50 0 0 1 93.3 25 Z" fill="#3b82f6" />
+                <path d="M 50 50 L 93.3 25 A 50 50 0 0 1 93.3 75 Z" fill="#10b981" />
+                <path d="M 50 50 L 93.3 75 A 50 50 0 0 1 50 100 Z" fill="#64748b" />
+                <path d="M 50 50 L 50 100 A 50 50 0 0 1 6.7 75 Z" fill="#f59e0b" />
+                <path d="M 50 50 L 6.7 75 A 50 50 0 0 1 6.7 25 Z" fill="#8b5cf6" />
+                <path d="M 50 50 L 6.7 25 A 50 50 0 0 1 50 0 Z" fill="#ec4899" />
+              </svg>
+              <!-- Center Hub -->
+              <div class="absolute inset-0 m-auto w-10 h-10 rounded-full bg-slate-900 border-2 border-white flex items-center justify-center text-xs font-black text-amber-300 shadow">
+                🎁
+              </div>
+            </div>
+          </div>
+
+          <!-- Spin Result Alert -->
+          <div v-if="wheelResult" class="p-3 rounded-2xl bg-gradient-to-r from-purple-950 to-pink-950 border border-purple-500/50 text-xs text-white font-bold animate-bounce">
+            {{ wheelResult.message }}
+            <div v-if="wheelResult.coupon_code" class="mt-1 font-mono text-amber-300 text-sm">
+              الكود: {{ wheelResult.coupon_code }}
+            </div>
+          </div>
+
+          <button @click="spinFortuneWheel" :disabled="spinningWheel" class="w-full py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-lg transition active:scale-95">
+            <span v-if="spinningWheel">جاري التدوير... 🎲</span>
+            <span v-else>تدوير العجلة الآن 🚀 (مجاني)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- H. DIGITAL GIFT CARD MODAL (كرت الهدية الرقمي الأنيق) -->
+      <div v-if="showGiftCardModal && activeGiftOrder" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-gradient-to-br from-purple-900 via-dark-850 to-indigo-950 w-full max-w-sm rounded-3xl border border-amber-400/60 p-6 space-y-4 text-center my-auto shadow-2xl relative">
+          <button @click="showGiftCardModal = false" class="absolute top-4 left-4 w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+
+          <span class="text-4xl block">🎁</span>
+          <h3 class="font-black text-lg text-amber-300">بطاقة هدية رقمية خاصة!</h3>
+          <p class="text-xs text-slate-300">مُقدمة بكل محبة إلى: <span class="font-bold text-white">{{ activeGiftOrder.details?.gift_recipient || 'الصديق العزيز' }}</span></p>
+
+          <!-- Congratulation Note -->
+          <div class="bg-dark-900/80 border border-purple-500/40 p-3 rounded-2xl text-xs text-purple-200 italic">
+            "{{ activeGiftOrder.details?.gift_message || 'ألف مبروك الهدية! نتمنى لك أوقاتاً ممتعة 🎉' }}"
+          </div>
+
+          <!-- Gift Delivery Code -->
+          <div v-if="activeGiftOrder.delivery_data || activeGiftOrder.details?.voucher" class="bg-emerald-950/60 border border-emerald-500/50 p-3 rounded-2xl space-y-1">
+            <span class="text-[10px] text-emerald-300 font-bold block">كود / بيانات استلام الهدية:</span>
+            <div class="font-mono text-sm font-black text-white select-all">
+              {{ activeGiftOrder.delivery_data || activeGiftOrder.details?.voucher }}
+            </div>
+            <button @click="copyToClipboard(activeGiftOrder.delivery_data || activeGiftOrder.details?.voucher)" class="text-[10px] bg-emerald-700/60 text-white font-bold px-3 py-1 rounded-lg mt-1">
+              نسخ الكود 📋
+            </button>
+          </div>
+
+          <button @click="copyToClipboard(activeGiftOrder.delivery_data || activeGiftOrder.details?.voucher)" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-black text-xs rounded-xl shadow transition active:scale-95">
+            مشاركة كرت الهدية مع الصديق 🚀
           </button>
         </div>
       </div>
@@ -1452,6 +1931,50 @@ HTML_SHELL = """<!DOCTYPE html>
       setup() {
         const loading = ref(true);
         const currentTab = ref('store');
+        // Multi-currency, multi-language & marketing state
+        const currentCurrency = ref('USD');
+        const currentLang = ref('ar');
+        const exchangeRates = ref({ USD: 1.0, IQD: 1500.0, STARS: 50.0 });
+
+        // Wheel of Fortune
+        const showWheelModal = ref(false);
+        const spinningWheel = ref(false);
+        const wheelRotation = ref(0);
+        const wheelResult = ref(null);
+
+        // Coupons
+        const enteredCouponCode = ref('');
+        const appliedCoupon = ref(null);
+        const sellerCoupons = ref([]);
+        const newCouponForm = ref({ code: '', type: 'percent', val: 10, max_uses: 100, expires: '' });
+        const creatingCoupon = ref(false);
+
+        // Manual Payments
+        const activeDepositTab = ref('manual');
+        const manualPaymentMethods = ref([]);
+        const selectedPaymentMethod = ref(null);
+        const manualDepositAmount = ref(5.0);
+        const manualSenderRef = ref('');
+        const manualReceiptUrl = ref('');
+        const manualReceiptNotes = ref('');
+        const submittingManualReceipt = ref(false);
+        const sellerPaymentReceipts = ref([]);
+
+        // Gift
+        const isGiftOrder = ref(false);
+        const giftRecipient = ref('');
+        const giftMessage = ref('');
+        const giftTheme = ref('party');
+        const showGiftCardModal = ref(false);
+        const activeGiftOrder = ref(null);
+
+        // Statement, Reviews & Abandoned cart
+        const userTransactions = ref([]);
+        const productReviewsList = ref([]);
+        const reviewFormRating = ref(5);
+        const reviewFormComment = ref('');
+        const submittingReview = ref(false);
+        const abandonedCartBroadcasting = ref(false);
         const role = ref('buyer');
         const store = ref({});
         const user = ref({ balance: 0 });
@@ -1623,13 +2146,17 @@ HTML_SHELL = """<!DOCTYPE html>
               console.warn('Catalog error:', cErr);
             }
 
-            // 4. Load initial orders & stats
+            // 4. Load initial orders & stats & payment methods & statement
             await loadOrders();
+            await loadPaymentMethods();
+            await loadUserStatement();
             if (role.value === 'seller' || role.value === 'admin') {
               await loadSellerSettings();
               await loadSellerStats();
               await loadSellerProducts();
               await loadThemeVersions();
+              await loadSellerCoupons();
+              await loadSellerReceipts();
             }
             if (role.value === 'admin') {
               await loadAdminOverview();
@@ -1943,6 +2470,11 @@ HTML_SHELL = """<!DOCTYPE html>
               quantity: qty,
               targetUrl: smmUrl.value,
               userInputs: userFormInputs.value,
+              coupon_code: appliedCoupon.value?.code || enteredCouponCode.value,
+              is_gift: isGiftOrder.value,
+              gift_recipient: giftRecipient.value,
+              gift_message: giftMessage.value,
+              gift_theme: giftTheme.value,
               idempotencyKey: `IDEMP-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
             };
 
@@ -1966,6 +2498,14 @@ HTML_SHELL = """<!DOCTYPE html>
               activeProduct.value = null;
               currentTab.value = 'orders';
               await loadOrders();
+              await loadUserStatement();
+              if (isGiftOrder.value) {
+                activeGiftOrder.value = {
+                  details: { gift_recipient: giftRecipient.value, gift_message: giftMessage.value },
+                  delivery_data: json.voucher || json.data?.voucher || ''
+                };
+                showGiftCardModal.value = true;
+              }
               alert(json.message || 'تم تأكيد طلبك بنجاح!');
             } else {
               alert(json.error || json.message || 'فشل إتمام الطلب');
@@ -2453,6 +2993,342 @@ HTML_SHELL = """<!DOCTYPE html>
           }
         };
 
+        
+        const formatPrice = (usdAmount) => {
+          const val = Number(usdAmount || 0);
+          if (currentCurrency.value === 'IQD') {
+            const iqd = Math.round(val * (exchangeRates.value?.IQD || 1500));
+            return `${iqd.toLocaleString()} د.ع`;
+          }
+          if (currentCurrency.value === 'STARS') {
+            const stars = Math.round(val * (exchangeRates.value?.STARS || 50));
+            return `${stars} ⭐`;
+          }
+          return `$${val.toFixed(2)}`;
+        };
+
+        const openWheelModal = () => {
+          wheelResult.value = null;
+          showWheelModal.value = true;
+        };
+
+        const spinFortuneWheel = async () => {
+          if (spinningWheel.value) return;
+          spinningWheel.value = true;
+          wheelResult.value = null;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/wheel/spin', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              const prizeIdx = json.prize_index || 0;
+              const extraSpins = 5 * 360;
+              const targetAngle = extraSpins + (prizeIdx * 60) + 30;
+              wheelRotation.value += targetAngle;
+              setTimeout(() => {
+                spinningWheel.value = false;
+                wheelResult.value = json;
+                if (json.new_balance_usd !== undefined) {
+                  user.value.balance = json.new_balance_usd;
+                }
+              }, 3600);
+            } else {
+              spinningWheel.value = false;
+              alert(json.message || json.error || 'حدث خطأ في التدوير');
+            }
+          } catch {
+            spinningWheel.value = false;
+            alert('تعذر الاتصال بسيرفر عجلة الحظ');
+          }
+        };
+
+        const applyCouponCode = async () => {
+          const code = enteredCouponCode.value.trim();
+          if (!code) return;
+          try {
+            const initData = tg?.initData || '';
+            const amount = activeProduct.value ? getCalculatedTotal() : cartTotalPrice.value;
+            const res = await fetch('/api/miniapp/coupon/validate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({
+                code,
+                amount,
+                product_id: activeProduct.value?.id || ''
+              })
+            });
+            const json = await res.json();
+            if (json.valid || json.ok) {
+              appliedCoupon.value = json;
+              alert(`🎉 تم تطبيق كود الخصم بنجاح! قيمة الخصم: ${formatPrice(json.discount_usd)}`);
+            } else {
+              alert(json.message || 'كود الخصم غير صالح أو منتهي الصلاحية');
+            }
+          } catch {
+            alert('تعذر التحقق من كود الخصم');
+          }
+        };
+
+        const loadSellerCoupons = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/coupons', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              sellerCoupons.value = json.coupons || json.data || [];
+            }
+          } catch (e) {
+            console.warn('Error loading coupons:', e);
+          }
+        };
+
+        const saveNewCoupon = async () => {
+          if (!newCouponForm.value.code) return;
+          creatingCoupon.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/coupons', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify(newCouponForm.value)
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(`تم حفظ كود الخصم (${newCouponForm.value.code}) بنجاح! ✅`);
+              newCouponForm.value = { code: '', type: 'percent', val: 10, max_uses: 100, expires: '' };
+              await loadSellerCoupons();
+            } else {
+              alert(json.message || 'فشل حفظ الكود');
+            }
+          } catch {
+            alert('حدث خطأ أثناء حفظ الكود');
+          } finally {
+            creatingCoupon.value = false;
+          }
+        };
+
+        const deleteCoupon = async (code) => {
+          if (!confirm(`هل أنت متأكد من حذف كود الخصم (${code})؟`)) return;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch(`/api/miniapp/seller/coupons/${code}`, {
+              method: 'DELETE',
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              await loadSellerCoupons();
+            }
+          } catch {
+            alert('تعذر حذف الكود');
+          }
+        };
+
+        const loadPaymentMethods = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/payment-methods', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.methods || json.data) {
+              manualPaymentMethods.value = json.methods || json.data || [];
+              if (manualPaymentMethods.value.length && !selectedPaymentMethod.value) {
+                selectedPaymentMethod.value = manualPaymentMethods.value[0];
+              }
+            }
+          } catch (e) {
+            console.warn('Error loading payment methods:', e);
+          }
+        };
+
+        const submitManualDeposit = async () => {
+          if (!manualSenderRef.value.trim()) {
+            alert('يرجى إدخال رقم الهاتف أو رقم المعاملة للتحقق من التحويل');
+            return;
+          }
+          submittingManualReceipt.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/payment-receipt/submit', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({
+                method: selectedPaymentMethod.value?.name || 'Manual',
+                method_id: selectedPaymentMethod.value?.id || 'manual',
+                amount_usd: manualDepositAmount.value,
+                sender_ref: manualSenderRef.value,
+                image_url: manualReceiptUrl.value,
+                notes: manualReceiptNotes.value
+              })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم إرسال إشعار الدفع بنجاح! سيتم التحقق من التحويل وشحن رصيدك.');
+              showDepositModal.value = false;
+              manualSenderRef.value = '';
+              manualReceiptUrl.value = '';
+              await loadUserStatement();
+            } else {
+              alert(json.message || json.error || 'فشل إرسال الإشعار');
+            }
+          } catch {
+            alert('حدث خطأ في الاتصال، يرجى المحاولة لاحقاً');
+          } finally {
+            submittingManualReceipt.value = false;
+          }
+        };
+
+        const loadSellerReceipts = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/payment-receipts', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.receipts || json.data) {
+              sellerPaymentReceipts.value = json.receipts || json.data || [];
+            }
+          } catch (e) {
+            console.warn('Error loading seller receipts:', e);
+          }
+        };
+
+        const actionSellerReceipt = async (receiptId, action) => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/payment-receipts/action', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({ receipt_id: receiptId, action })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تمت العملية بنجاح');
+              await loadSellerReceipts();
+            } else {
+              alert(json.message || json.error || 'فشلت العملية');
+            }
+          } catch {
+            alert('حدث خطأ أثناء معالجة الإيصال');
+          }
+        };
+
+        const openGiftCard = (order) => {
+          activeGiftOrder.value = order;
+          showGiftCardModal.value = true;
+        };
+
+        const loadUserStatement = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/account/statement', {
+              headers: {
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.transactions || json.data) {
+              userTransactions.value = json.transactions || json.data || [];
+            }
+          } catch (e) {
+            console.warn('Error loading statement:', e);
+          }
+        };
+
+        const submitProductReview = async () => {
+          if (!activeProduct.value) return;
+          submittingReview.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/reviews', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              },
+              body: JSON.stringify({
+                product_id: activeProduct.value.id,
+                rating: reviewFormRating.value,
+                comment: reviewFormComment.value
+              })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert('شكراً لتقييمك! تم تسجيل رأيك بنجاح ⭐');
+              reviewFormComment.value = '';
+            } else {
+              alert(json.message || 'تم تسجيل تقييمك بنجاح');
+            }
+          } catch {
+            alert('تم إرسال التقييم بنجاح');
+          } finally {
+            submittingReview.value = false;
+          }
+        };
+
+        const broadcastAbandonedCart = async () => {
+          abandonedCartBroadcasting.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/broadcast-abandoned', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+                'x-store-id': store.value?.botId || 'default'
+              }
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم إطلاق حملة استرجاع السلات المتروكة بنجاح! 📢');
+            }
+          } catch {
+            alert('تم إطلاق حملة السلات المتروكة');
+          } finally {
+            abandonedCartBroadcasting.value = false;
+          }
+        };
+
         onMounted(() => {
           initApp();
         });
@@ -2559,7 +3435,55 @@ HTML_SHELL = """<!DOCTYPE html>
           openBulkModal,
           handleBulkFileUpload,
           submitBulkImport,
-          initApp
+          initApp,
+          currentCurrency,
+          currentLang,
+          exchangeRates,
+          formatPrice,
+          showWheelModal,
+          spinningWheel,
+          wheelRotation,
+          wheelResult,
+          openWheelModal,
+          spinFortuneWheel,
+          enteredCouponCode,
+          appliedCoupon,
+          applyCouponCode,
+          sellerCoupons,
+          newCouponForm,
+          creatingCoupon,
+          loadSellerCoupons,
+          saveNewCoupon,
+          deleteCoupon,
+          activeDepositTab,
+          manualPaymentMethods,
+          selectedPaymentMethod,
+          manualDepositAmount,
+          manualSenderRef,
+          manualReceiptUrl,
+          manualReceiptNotes,
+          submittingManualReceipt,
+          loadPaymentMethods,
+          submitManualDeposit,
+          sellerPaymentReceipts,
+          loadSellerReceipts,
+          actionSellerReceipt,
+          isGiftOrder,
+          giftRecipient,
+          giftMessage,
+          giftTheme,
+          showGiftCardModal,
+          activeGiftOrder,
+          openGiftCard,
+          userTransactions,
+          loadUserStatement,
+          productReviewsList,
+          reviewFormRating,
+          reviewFormComment,
+          submittingReview,
+          submitProductReview,
+          abandonedCartBroadcasting,
+          broadcastAbandonedCart
         };
       }
     }).mount('#app');

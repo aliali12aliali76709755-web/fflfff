@@ -384,7 +384,15 @@ async def api_store_info(req: web.Request) -> web.Response:
             "referralRewardPercent": 5,
             "supportUrl": seller_settings.get("support_url") or f"https://t.me/{bot.username}",
             "termsText": seller_settings.get("terms_text") or "جميع الخدمات الرقمية يتم تنفيذها بأعلى معايير الأمان والسرعة. يرجى التأكد من صحة البيانات المدخلة قبل الدفع.",
-            "policyText": seller_settings.get("policy_text") or "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت."
+            "policyText": seller_settings.get("policy_text") or "في حال تعذر إكمال الطلب أو حدوث أي خطأ تقني، يحق للمشتري استرجاع كامل المبلغ تلقائياً وفورياً إلى رصيد محفظته بالبوت.",
+            "wheelEnabled": bool(seller_settings.get("wheel_enabled", False)),
+            "wheelPrizes": seller_settings.get("wheel_prizes", []),
+            "exchangeRates": {"USD": 1.0, "IQD": 1500.0, "STARS": 50.0},
+            "manualPayments": await db.kv_get(bot.id, "store:manual_payments", [
+                {"id": "zain_cash", "name": "زين كاش (ZainCash)", "account": "07801234567", "instructions": "يرجى تحويل المبلغ المطلوب إلى رقم المحفظة، ثم إرفاق صورة الإشعار أو رقم العملية.", "icon": "💳", "active": True},
+                {"id": "asiacell", "name": "آسيا حوالة / كاش (AsiaCell)", "account": "07701234567", "instructions": "يرجى التحويل إلى الرقم الموضح وإرفاق رقم الإشعار لتأكيد الشحن فوراً.", "icon": "📱", "active": True},
+                {"id": "usdt", "name": "USDT (TRC20)", "account": "TY4h9sK2LpQxW3vM8z7tA1bC9dE4fG5hJ", "instructions": "أرسل المبلغ عبر شبكة TRC20 وأرفق هاش المعاملة TXID أو سكرين شوت.", "icon": "🪙", "active": True},
+            ])
         }
     })
 
@@ -773,6 +781,16 @@ async def create_store_order(req: web.Request) -> web.Response:
             await db.kv_set(bot.id, "store:custom_products", custom_prods)
             order_status = "completed"
 
+    # تطبيق كود الخصم إن وجد
+    coupon_code = str(data.get("coupon_code") or data.get("coupon") or "").strip().upper()
+    discount_usd = 0.0
+    if coupon_code:
+        valid_c, disc_val, c_msg = await promo.validate_promo(bot.id, ctx.uid, coupon_code, final_usd, str(product_id))
+        if valid_c and disc_val > 0:
+            discount_usd = disc_val
+            final_usd = max(0.0, round(final_usd - discount_usd, 4))
+            await promo.record_promo_applied(bot.id, ctx.uid, coupon_code)
+
     # فحص الرصيد المتاح
     user_bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
     if user_bal < final_usd:
@@ -815,11 +833,22 @@ async def create_store_order(req: web.Request) -> web.Response:
             status=order_status,
             provider_name="InternalFulfillment",
             provider_order_id=idempotency_key,
-            details={"voucher": voucher_code} if voucher_code else {},
+            details={
+                **({"voucher": voucher_code} if voucher_code else {}),
+                **({"is_gift": True, "gift_recipient": str(data.get("gift_recipient") or data.get("giftRecipient") or ""), "gift_message": str(data.get("gift_message") or data.get("giftMessage") or ""), "gift_theme": str(data.get("gift_theme") or data.get("giftTheme") or "party")} if (data.get("is_gift") or data.get("isGift")) else {}),
+                **({"coupon_code": coupon_code, "discount_usd": discount_usd} if (coupon_code and discount_usd > 0) else {}),
+                **({"user_inputs": data.get("userInputs") or data.get("requirements")} if (data.get("userInputs") or data.get("requirements")) else {}),
+            },
             created=dt.datetime.utcnow(),
         )
         s.add(order)
         await s.commit()
+
+    # منح نسبة الإحالة للمُحيل عند نجاح الطلب
+    try:
+        await promo.award_purchase_referral(bot.id, ctx.uid, final_usd)
+    except Exception:
+        pass
 
     # توجيه الطلب إلى قناة الطلبات الفورية إن وجد
     if order_status == "queued":
@@ -923,6 +952,21 @@ async def get_user_account(req: web.Request) -> web.Response:
     terms_text = store_settings.get("terms_text") or "جميع الخدمات مضمونة ويتم تسليمها وفق الشروط المعتمدة. للاستفسار يرجى التواصل مع الدعم."
     policy_text = store_settings.get("policy_text") or "في حال تعذر تنفيذ الخدمة أو تأخرها يتم استرجاع المبلغ كاملاً إلى محفظتك في البوت تلقائياً."
 
+    txs = await ledger.get_user_transactions(ctx.bot.id, ctx.uid, limit=30)
+    tx_items = []
+    for t in txs:
+        tx_items.append({
+            "id": t.id,
+            "tx_id": t.tx_id,
+            "direction": t.direction,
+            "amount_usd": t.amount_usd,
+            "balance_after_usd": t.balance_after_usd,
+            "kind": t.kind,
+            "ref_id": t.ref_id,
+            "description": t.description,
+            "created": t.created.strftime("%Y-%m-%d %H:%M") if t.created else "",
+        })
+
     account_dict = {
         "uid": ctx.uid,
         "name": ctx.uname,
@@ -937,6 +981,7 @@ async def get_user_account(req: web.Request) -> web.Response:
         "support_url": support_url,
         "terms_text": terms_text,
         "policy_text": policy_text,
+        "transactions": tx_items,
     }
 
     return web.json_response({
@@ -1751,12 +1796,19 @@ async def save_seller_settings(req: web.Request) -> web.Response:
         return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
     order_chan = str(body.get("order_channel") or body.get("orderChannel") or "").strip()[:100]
+    prev_settings = await db.kv_get(ctx.bot.id, "store:settings", {}) or {}
     settings = {
-        "support_url": str(body.get("support_url") or body.get("supportUrl") or "").strip()[:255],
-        "terms_text": str(body.get("terms_text") or body.get("termsText") or "").strip()[:1000],
-        "policy_text": str(body.get("policy_text") or body.get("policyText") or "").strip()[:1000],
-        "order_channel": order_chan,
+        **prev_settings,
+        "support_url": str(body.get("support_url") or body.get("supportUrl") or prev_settings.get("support_url", "")).strip()[:255],
+        "terms_text": str(body.get("terms_text") or body.get("termsText") or prev_settings.get("terms_text", "")).strip()[:1000],
+        "policy_text": str(body.get("policy_text") or body.get("policyText") or prev_settings.get("policy_text", "")).strip()[:1000],
+        "order_channel": order_chan or prev_settings.get("order_channel", ""),
+        "wheel_enabled": bool(body.get("wheel_enabled", body.get("wheelEnabled", prev_settings.get("wheel_enabled", False)))),
+        "wheel_prizes": body.get("wheel_prizes", body.get("wheelPrizes", prev_settings.get("wheel_prizes", []))),
     }
+    if "manual_payments" in body or "manualPayments" in body:
+        manual_list = body.get("manual_payments") or body.get("manualPayments") or []
+        await db.kv_set(ctx.bot.id, "store:manual_payments", manual_list)
     await db.kv_set(ctx.bot.id, "store:settings", settings)
     if order_chan:
         await db.kv_set(ctx.bot.id, "store:order_channel", {"username": order_chan, "id": order_chan})
@@ -2382,6 +2434,405 @@ async def admin_dual_refund_action(req: web.Request) -> web.Response:
     return web.json_response({"ok": True, "success": True, "message": msg, "details": res})
 
 
+
+# ─────────────────────────────────────────────────────────────
+# 6. إدارة أكواد الخصم والعروض (Coupons & Promo Codes)
+# ─────────────────────────────────────────────────────────────
+
+async def get_seller_coupons(req: web.Request) -> web.Response:
+    """يجلب قائمة أكواد الخصم النشطة للبوت مع إحصائيات الاستخدام."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    promos = await promo.get_bot_promos(ctx.bot.id)
+    items = []
+    for code, info in promos.items():
+        items.append({
+            "code": code,
+            "type": info.get("type", "percent"),
+            "val": float(info.get("val", 10.0)),
+            "max_uses": int(info.get("max_uses", 100)),
+            "used_count": int(info.get("used_count", 0)),
+            "expires": str(info.get("expires", "")),
+            "min_order": float(info.get("min_order", 0.0)),
+        })
+    return web.json_response({"ok": True, "success": True, "coupons": items, "data": items})
+
+
+async def save_seller_coupon(req: web.Request) -> web.Response:
+    """ينشئ أو يعدل كود خصم للبوت مع التحقق."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    code = str(body.get("code") or "").strip().upper()
+    if not code:
+        return web.json_response({"ok": False, "error": "missing_code", "message": "يرجى كتابة كود الخصم"}, status=400)
+
+    disc_type = str(body.get("type") or body.get("discount_type") or "percent")
+    val = float(body.get("val") or body.get("value") or 10.0)
+    max_uses = int(body.get("max_uses") or body.get("maxUses") or 100)
+    expires = str(body.get("expires") or body.get("expires_at") or "")
+    min_order = float(body.get("min_order") or body.get("minOrder") or 0.0)
+
+    ok = await promo.save_bot_promo(
+        ctx.bot.id,
+        code,
+        discount_type=disc_type,
+        value=val,
+        max_uses=max_uses,
+        expires_at=expires,
+        min_order_usd=min_order,
+    )
+    return web.json_response({"ok": ok, "success": ok, "code": code})
+
+
+async def delete_seller_coupon(req: web.Request) -> web.Response:
+    """يحذف كود خصم للبوت."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    code = req.match_info.get("code") or req.query.get("code") or ""
+    ok = await promo.delete_bot_promo(ctx.bot.id, code)
+    return web.json_response({"ok": ok, "success": ok})
+
+
+async def validate_coupon_endpoint(req: web.Request) -> web.Response:
+    """يتحقق من صلاحية كود الخصم في السلة أو صفحة المنتج."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    code = str(body.get("code") or "").strip()
+    amount = float(body.get("amount") or body.get("order_amount") or 0.0)
+    service_id = str(body.get("product_id") or "")
+
+    valid, discount_usd, msg = await promo.validate_promo(ctx.bot.id, ctx.uid, code, amount, service_id)
+    new_total = max(0.0, round(amount - discount_usd, 2))
+    return web.json_response({
+        "ok": valid,
+        "valid": valid,
+        "success": valid,
+        "code": code.upper(),
+        "discount_usd": discount_usd,
+        "new_total_usd": new_total,
+        "message": msg,
+    })
+
+
+# ─────────────────────────────────────────────────────────────
+# 7. بوابة الدفع اليدوي وإشعارات الإيداع (Manual Payments & Receipts)
+# ─────────────────────────────────────────────────────────────
+
+async def get_payment_methods(req: web.Request) -> web.Response:
+    """يعيد طرق الدفع اليدوية النشطة لمتجر هذا البوت."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+
+    default_methods = [
+        {"id": "zain_cash", "name": "زين كاش (ZainCash)", "account": "07801234567", "instructions": "يرجى تحويل المبلغ المطلوب إلى رقم المحفظة، ثم إرفاق صورة الإشعار أو رقم العملية.", "icon": "💳", "active": True},
+        {"id": "asiacell", "name": "آسيا حوالة / كاش (AsiaCell)", "account": "07701234567", "instructions": "يرجى التحويل إلى الرقم الموضح وإرفاق رقم الإشعار لتأكيد الشحن فوراً.", "icon": "📱", "active": True},
+        {"id": "usdt", "name": "USDT (TRC20)", "account": "TY4h9sK2LpQxW3vM8z7tA1bC9dE4fG5hJ", "instructions": "أرسل المبلغ عبر شبكة TRC20 وأرفق هاش المعاملة TXID أو سكرين شوت.", "icon": "🪙", "active": True},
+    ]
+    saved = await db.kv_get(ctx.bot.id, "store:manual_payments", default_methods) or default_methods
+    return web.json_response({"ok": True, "success": True, "methods": saved, "data": saved})
+
+
+async def save_payment_methods(req: web.Request) -> web.Response:
+    """يحفظ طرق الدفع اليدوية من قبل مالك البوت."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    methods = body.get("methods") or body.get("manual_payments") or []
+    if isinstance(methods, list):
+        await db.kv_set(ctx.bot.id, "store:manual_payments", methods)
+        return web.json_response({"ok": True, "success": True, "methods": methods})
+    return web.json_response({"ok": False, "error": "invalid_format"}, status=400)
+
+
+async def submit_payment_receipt(req: web.Request) -> web.Response:
+    """يرسل إشعار دفع يدوي أو شحن رصيد من قبل المشتري."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    method_id = str(body.get("method") or body.get("method_id") or "manual").strip()
+    amount_usd = float(body.get("amount") or body.get("amount_usd") or 0.0)
+    sender_ref = str(body.get("sender_ref") or body.get("sender") or body.get("tx_id") or "").strip()
+    image_url = str(body.get("image_url") or body.get("receipt_url") or "").strip()
+    notes = str(body.get("notes") or "").strip()
+
+    if amount_usd <= 0:
+        return web.json_response({"ok": False, "error": "invalid_amount", "message": "المبلغ يجب أن يكون أكبر من صفر"}, status=400)
+    if not sender_ref and not image_url:
+        return web.json_response({"ok": False, "error": "missing_proof", "message": "يرجى إرفاق رقم العملية أو صورة الإشعار"}, status=400)
+
+    rcpt_id = f"rcpt_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+    async with db.Session() as s:
+        rcpt = db.PaymentReceipt(
+            receipt_id=rcpt_id,
+            bot_id=ctx.bot.id,
+            user_id=ctx.uid,
+            user_name=ctx.uname,
+            username=ctx.user.get("username", ""),
+            method=method_id,
+            amount=amount_usd,
+            currency="USD",
+            amount_usd=amount_usd,
+            status="pending",
+        )
+        s.add(rcpt)
+        await s.commit()
+
+    await db.kv_set(ctx.bot.id, f"rcpt_detail:{rcpt_id}", {
+        "sender_ref": sender_ref,
+        "image_url": image_url,
+        "notes": notes,
+        "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+    })
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "receipt_id": rcpt_id,
+        "status": "pending",
+        "message": "تم إرسال إشعار الدفع بنجاح! سيتم التحقق من التحويل وإضافة الرصيد إلى محفظتك في أقرب وقت."
+    })
+
+
+async def get_seller_payment_receipts(req: web.Request) -> web.Response:
+    """يجلب كافة إشعارات الدفع اليدوية للبائع لمراجعتها وتأكيدها."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    async with db.Session() as s:
+        rows = (await s.execute(
+            select(db.PaymentReceipt)
+            .where(db.PaymentReceipt.bot_id == ctx.bot.id)
+            .order_by(desc(db.PaymentReceipt.id))
+            .limit(50)
+        )).scalars().all()
+
+    items = []
+    for r in rows:
+        detail = await db.kv_get(ctx.bot.id, f"rcpt_detail:{r.receipt_id}", {}) or {}
+        items.append({
+            "id": r.id,
+            "receipt_id": r.receipt_id,
+            "user_id": r.user_id,
+            "user_name": r.user_name,
+            "username": r.username,
+            "method": r.method,
+            "amount_usd": r.amount_usd,
+            "status": r.status,
+            "sender_ref": detail.get("sender_ref", ""),
+            "image_url": detail.get("image_url", ""),
+            "notes": detail.get("notes", ""),
+            "created_at": detail.get("created_at", ""),
+        })
+    return web.json_response({"ok": True, "success": True, "receipts": items, "data": items})
+
+
+async def action_seller_payment_receipt(req: web.Request) -> web.Response:
+    """قبول أو رفض إشعار دفع يدوي وشحن رصيد العميل فورياً."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad_json"}, status=400)
+
+    receipt_id = str(body.get("receipt_id") or body.get("id") or "").strip()
+    action = str(body.get("action") or "approve").strip()
+
+    async with db.Session() as s:
+        rcpt = (await s.execute(
+            select(db.PaymentReceipt).where(
+                db.PaymentReceipt.bot_id == ctx.bot.id,
+                db.PaymentReceipt.receipt_id == receipt_id
+            )
+        )).scalars().first()
+
+        if not rcpt:
+            return web.json_response({"ok": False, "error": "receipt_not_found"}, status=404)
+
+        if rcpt.status != "pending":
+            return web.json_response({"ok": False, "error": "already_processed", "message": f"تمت معالجة الإيصال مسبقاً ({rcpt.status})"}, status=400)
+
+        if action == "approve":
+            rcpt.status = "approved"
+            ok_credit, tx, new_bal = await ledger.credit_user(
+                bot_id=ctx.bot.id,
+                user_id=rcpt.user_id,
+                amount_usd=rcpt.amount_usd,
+                kind="manual_deposit",
+                ref_id=rcpt.receipt_id,
+                description=f"إيداع يدوي مؤكد عبر {rcpt.method}",
+            )
+            await s.commit()
+            return web.json_response({
+                "ok": True,
+                "success": True,
+                "status": "approved",
+                "new_balance_usd": new_bal,
+                "message": f"تم تأكيد الدفع وشحن ${rcpt.amount_usd:.2f} للمستخدم بنجاح ✅"
+            })
+        else:
+            rcpt.status = "rejected"
+            await s.commit()
+            return web.json_response({
+                "ok": True,
+                "success": True,
+                "status": "rejected",
+                "message": "تم رفض إيصال الدفع"
+            })
+
+
+# ─────────────────────────────────────────────────────────────
+# 8. عجلة الحظ التفاعلية (Spin & Win / Fortune Wheel)
+# ─────────────────────────────────────────────────────────────
+
+async def spin_wheel_endpoint(req: web.Request) -> web.Response:
+    """تدوير عجلة الحظ والفوز برصيد أو كود خصم مع فحص المهلة الزمنية."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+
+    seller_settings = await db.kv_get(ctx.bot.id, "store:settings", {}) or {}
+    if not seller_settings.get("wheel_enabled", False):
+        return web.json_response({"ok": False, "error": "wheel_disabled", "message": "عجلة الحظ غير مفعلة في هذا المتجر حالياً"}, status=400)
+
+    cooldown_key = f"wheel:spin:{ctx.bot.id}:{ctx.uid}"
+    last_spin = await db.kv_get(ctx.bot.id, cooldown_key, 0)
+    now_ts = int(time.time())
+    if now_ts - int(last_spin) < 86400 and not ctx.is_admin:
+        remaining_hours = int((86400 - (now_ts - int(last_spin))) / 3600)
+        return web.json_response({
+            "ok": False,
+            "error": "cooldown",
+            "message": f"لقد قمت بالتدوير اليوم! يمكنك التدوير مجدداً بعد {max(1, remaining_hours)} ساعة ⏳",
+        }, status=429)
+
+    default_prizes = [
+        {"id": "p1", "label": "خصم 10% 🎟️", "type": "coupon", "val": 10.0, "color": "#3b82f6"},
+        {"id": "p2", "label": "رصيد $0.50 💵", "type": "credit", "val": 0.5, "color": "#10b981"},
+        {"id": "p3", "label": "حظ أوفر 🍀", "type": "none", "val": 0.0, "color": "#64748b"},
+        {"id": "p4", "label": "خصم 20% 🔥", "type": "coupon", "val": 20.0, "color": "#f59e0b"},
+        {"id": "p5", "label": "رصيد $1.00 💎", "type": "credit", "val": 1.0, "color": "#8b5cf6"},
+        {"id": "p6", "label": "خصم 15% 🎁", "type": "coupon", "val": 15.0, "color": "#ec4899"},
+    ]
+    prizes = seller_settings.get("wheel_prizes") or default_prizes
+
+    import random
+    won_prize = random.choice(prizes)
+    won_index = prizes.index(won_prize)
+
+    coupon_code = ""
+    if won_prize.get("type") == "credit" and float(won_prize.get("val", 0)) > 0:
+        await ledger.credit_user(
+            bot_id=ctx.bot.id,
+            user_id=ctx.uid,
+            amount_usd=float(won_prize["val"]),
+            kind="wheel_reward",
+            ref_id=f"wheel_{now_ts}",
+            description="جائزة عجلة الحظ اليومية 🎡",
+        )
+    elif won_prize.get("type") == "coupon" and float(won_prize.get("val", 0)) > 0:
+        coupon_code = f"SPIN{random.randint(1000, 9999)}"
+        await promo.save_bot_promo(
+            ctx.bot.id,
+            coupon_code,
+            discount_type="percent",
+            value=float(won_prize["val"]),
+            max_uses=1,
+            per_user=1,
+            expires_at=(dt.datetime.utcnow() + dt.timedelta(days=7)).strftime("%Y-%m-%d"),
+        )
+
+    await db.kv_set(ctx.bot.id, cooldown_key, now_ts)
+    new_bal = await ledger.get_user_balance_usd(ctx.bot.id, ctx.uid)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "prize_index": won_index,
+        "prize": won_prize,
+        "coupon_code": coupon_code,
+        "new_balance_usd": new_bal,
+        "message": f"🎉 مبروك! فزت بـ: {won_prize['label']}" if won_prize.get("val", 0) > 0 else "حظ أوفر في التدويرة القادمة! 🍀",
+    })
+
+
+# ─────────────────────────────────────────────────────────────
+# 9. تذكير واسترجاع السلات المتروكة (Abandoned Cart Recovery)
+# ─────────────────────────────────────────────────────────────
+
+async def broadcast_abandoned_cart(req: web.Request) -> web.Response:
+    """يطلق حملة ترويجية وكود خصم لتشجيع المشترين على إكمال سلاتهم."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    import random
+    promo_code = f"CART{random.randint(100, 999)}"
+    await promo.save_bot_promo(
+        ctx.bot.id,
+        promo_code,
+        discount_type="percent",
+        value=10.0,
+        max_uses=200,
+        per_user=1,
+        expires_at=(dt.datetime.utcnow() + dt.timedelta(days=3)).strftime("%Y-%m-%d"),
+    )
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "coupon_code": promo_code,
+        "message": f"تم تفعيل حملة استرجاع السلات بنجاح! كود الخصم الفعال: ({promo_code}) بخصم 10% لكل مشتري يكمل سلته 🛒",
+    })
+
+
+# ─────────────────────────────────────────────────────────────
+# 10. كشف الحساب وسجل العمليات المالية (Account Statement)
+# ─────────────────────────────────────────────────────────────
+
+async def get_user_statement(req: web.Request) -> web.Response:
+    """يعيد كشف الحساب والعمليات المالية للمشتري."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u)
+
+    txs = await ledger.get_user_transactions(ctx.bot.id, ctx.uid, limit=50)
+    items = []
+    for t in txs:
+        items.append({
+            "id": t.id,
+            "tx_id": t.tx_id,
+            "direction": t.direction,
+            "amount_usd": t.amount_usd,
+            "balance_after_usd": t.balance_after_usd,
+            "kind": t.kind,
+            "ref_id": t.ref_id,
+            "description": t.description,
+            "created": t.created.strftime("%Y-%m-%d %H:%M") if t.created else "",
+        })
+    bal = await ledger.get_user_balance_usd(ctx.bot.id, ctx.uid)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "balance_usd": bal,
+        "transactions": items,
+        "data": items,
+    })
+
+
 def setup_routes(app: web.Application) -> None:
     """يسجل كافة مسارات الـ Mini Apps API بالصيغتين المباشرة والمسماة."""
     u = r"{bot_username:[A-Za-z][A-Za-z0-9_]{3,39}}"
@@ -2471,3 +2922,34 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/api/admin_app/orders", get_admin_orders)
     app.router.add_post("/api/miniapp/admin/orders/action", admin_order_action)
     app.router.add_post("/api/admin_app/dual_refund", admin_dual_refund_action)
+
+    # 4. أكواد الخصم والعروض (Coupons)
+    app.router.add_get("/api/miniapp/seller/coupons", get_seller_coupons)
+    app.router.add_get(f"/api/miniapp/{u}/seller/coupons", get_seller_coupons)
+    app.router.add_post("/api/miniapp/seller/coupons", save_seller_coupon)
+    app.router.add_post(f"/api/miniapp/{u}/seller/coupons", save_seller_coupon)
+    app.router.add_delete("/api/miniapp/seller/coupons/{code}", delete_seller_coupon)
+    app.router.add_delete(f"/api/miniapp/{u}/seller/coupons/{{code}}", delete_seller_coupon)
+    app.router.add_post("/api/miniapp/coupon/validate", validate_coupon_endpoint)
+    app.router.add_post(f"/api/miniapp/{u}/coupon/validate", validate_coupon_endpoint)
+
+    # 5. الدفع اليدوي وإشعارات الإيداع (Manual Payments & Receipts)
+    app.router.add_get("/api/miniapp/payment-methods", get_payment_methods)
+    app.router.add_get(f"/api/miniapp/{u}/payment-methods", get_payment_methods)
+    app.router.add_post("/api/miniapp/payment-methods", save_payment_methods)
+    app.router.add_post(f"/api/miniapp/{u}/payment-methods", save_payment_methods)
+    app.router.add_post("/api/miniapp/payment-receipt/submit", submit_payment_receipt)
+    app.router.add_post(f"/api/miniapp/{u}/payment-receipt/submit", submit_payment_receipt)
+    app.router.add_get("/api/miniapp/seller/payment-receipts", get_seller_payment_receipts)
+    app.router.add_get(f"/api/miniapp/{u}/seller/payment-receipts", get_seller_payment_receipts)
+    app.router.add_post("/api/miniapp/seller/payment-receipts/action", action_seller_payment_receipt)
+    app.router.add_post(f"/api/miniapp/{u}/seller/payment-receipts/action", action_seller_payment_receipt)
+
+    # 6. عجلة الحظ، السلات المتروكة، وكشف الحساب
+    app.router.add_post("/api/miniapp/wheel/spin", spin_wheel_endpoint)
+    app.router.add_post(f"/api/miniapp/{u}/wheel/spin", spin_wheel_endpoint)
+    app.router.add_post("/api/miniapp/seller/broadcast-abandoned", broadcast_abandoned_cart)
+    app.router.add_post(f"/api/miniapp/{u}/seller/broadcast-abandoned", broadcast_abandoned_cart)
+    app.router.add_get("/api/miniapp/account/statement", get_user_statement)
+    app.router.add_get(f"/api/miniapp/{u}/account/statement", get_user_statement)
+
