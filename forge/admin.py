@@ -310,9 +310,9 @@ async def admin_home(m: mk.M) -> None:
         [B("🧩 الأنواع", "m:adm:t"), B("🔐 اشتراك الصانع", "m:adm:fs")],
         [B("⚙️ إعدادات المنصة", "m:adm:s"), B("📜 سجل الإدارة", "m:adm:log")],
         [B(f"🐞 البلاغات ({reports})", "m:adm:rep"), B(f"🧯 الأخطاء ({len(errors.RECENT)})", "m:adm:err") if fid == 0 else None],
-        [B("📊 مبيعات وخدمات المنصة", "m:adm:svc_stats"), B("📥 تصدير قائمة البوتات", "m:adm:exp")],
-        [B("🖥 لوحة الويب", "m:adm:web"), B("🌐 حالة الويب", "m:adm:wb")] if fid == 0 else None,
-        [B("🔄 تحديث", "m:adm:home"), m.home_btn()]]))
+        [B("🛍️ الكتالوج الرقمي العام", "m:adm:catalog"), B("🖥 لوحة الويب", "m:adm:web")] if fid == 0 else [B("🖥 لوحة الويب", "m:adm:web")],
+        [B("🌐 حالة الويب", "m:adm:wb"), B("🔄 تحديث", "m:adm:home")] if fid == 0 else [B("🔄 تحديث", "m:adm:home")],
+        [m.home_btn()]]))
 
 
 # ───────────────────────── المستخدم ─────────────────────────
@@ -637,6 +637,29 @@ async def admin_cb(m: mk.M, a: list[str]) -> None:  # noqa: C901
             [B("⬅️ مبيعات المنصة", "m:adm:svc_stats")],
         ]
         await m.show(text, kb([r for r in rows if r]))
+
+    elif act == "catalog":
+        from .web.miniapp_api import get_master_catalog_items
+        items = await get_master_catalog_items()
+        lines = []
+        for it in items[:12]:
+            lines.append(f"▫️ <b>{esc(it.get('name_ar', it['name']))}</b>\n   التكلفة: <code>${it.get('cost_price', 0):.2f}</code> | البيع: <code>${it.get('base_user_price', 0):.2f}</code> | التصنيف: {it.get('category')}")
+        text = (
+            f"🛍️ <b>الكتالوج الرقمي المركزي للمنصة</b>\n{ui.LINE}\n\n"
+            f"إجمالي المنتجات المركزية: <b>{len(items)}</b>\n"
+            "أي منتج تضيفه أو تعدل سعره يسري فورياً على كافة المتاجر والبائعين والقوالب الأربعة.\n\n"
+            + ("\n".join(lines) if lines else "<i>لا توجد منتجات مسجلة.</i>")
+        )
+        web_app_btn = None
+        from . import web
+        if web.https():
+            from telegram import WebAppInfo
+            web_app_btn = B("🖥 فتح وإدارة الكتالوج من التطبيق المصغر", web_app=WebAppInfo(f"{config.PUBLIC_URL}/admin_app"))
+        rows = []
+        if web_app_btn:
+            rows.append([web_app_btn])
+        rows.append([B("⬅️ لوحة الإدارة", "m:adm:home")])
+        await m.show(text, kb(rows))
 
     elif act == "ord_chanset":
         m.set_state("adm_ord_chan")

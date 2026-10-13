@@ -56,8 +56,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "شحن فوري ومباشر إلى حسابك داخل اللعبة عبر الـ ID الرسمي.",
         "media_urls": ["https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&q=80"],
         "template_type": "manual_subs",
+        "cost_price": 0.85,
+        "base_user_price": 0.99,
         "price_options": [{"id": "opt_60", "label": "60 UC", "costPrice": 0.85, "userPrice": 0.99}],
         "requirements": [{"name": "player_id", "label": "آيدي اللاعب (Player ID)", "type": "text", "required": True}],
+        "active": True,
     },
     {
         "id": "mc_pubg_325",
@@ -67,8 +70,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "باقة 325 شدة مع بونص إضافي وشحن سريع ومضمون 100%.",
         "media_urls": ["https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&q=80"],
         "template_type": "manual_subs",
+        "cost_price": 4.20,
+        "base_user_price": 4.90,
         "price_options": [{"id": "opt_325", "label": "325 UC", "costPrice": 4.20, "userPrice": 4.90}],
         "requirements": [{"name": "player_id", "label": "آيدي اللاعب (Player ID)", "type": "text", "required": True}],
+        "active": True,
     },
     {
         "id": "mc_pubg_660",
@@ -78,8 +84,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "شحن الرويال باس الملكي بنقرة واحدة بحسابك مباشرة.",
         "media_urls": ["https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&q=80"],
         "template_type": "manual_subs",
+        "cost_price": 8.30,
+        "base_user_price": 9.50,
         "price_options": [{"id": "opt_660", "label": "660 UC", "costPrice": 8.30, "userPrice": 9.50}],
         "requirements": [{"name": "player_id", "label": "آيدي اللاعب (Player ID)", "type": "text", "required": True}],
+        "active": True,
     },
     {
         "id": "mc_netflix_1m",
@@ -89,8 +98,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "حساب نتفلكس بريميوم رسمي أعلى دقة 4K Ultra HD مع ضمان كامل المدة.",
         "media_urls": ["https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=400&q=80"],
         "template_type": "manual_subs",
+        "cost_price": 2.80,
+        "base_user_price": 3.50,
         "price_options": [{"id": "opt_1m", "label": "شهر واحد (شاشة)", "costPrice": 2.80, "userPrice": 3.50}],
         "requirements": [{"name": "email", "label": "بريدك الإلكتروني للتسليم", "type": "text", "required": True}],
+        "active": True,
     },
     {
         "id": "mc_shahid_vip",
@@ -100,8 +112,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "اشتراك شاهد VIP بدون فواصل إعلانية مع باقة المسلسلات الحصرية.",
         "media_urls": ["https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=400&q=80"],
         "template_type": "manual_subs",
+        "cost_price": 3.00,
+        "base_user_price": 3.99,
         "price_options": [{"id": "opt_shahid", "label": "اشتراك شهر كامل", "costPrice": 3.00, "userPrice": 3.99}],
         "requirements": [{"name": "email", "label": "بريدك الإلكتروني للتسليم", "type": "text", "required": True}],
+        "active": True,
     },
     {
         "id": "mc_tg_stars_100",
@@ -111,8 +126,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "شحن نجوم تيليجرام الرسمية فورياً لدعم القنوات والمحتوى والبوتات.",
         "media_urls": ["https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80"],
         "template_type": "stars_premium_gifts",
+        "cost_price": 1.60,
+        "base_user_price": 1.99,
         "price_options": [{"id": "opt_stars_100", "label": "100 نجمة", "costPrice": 1.60, "userPrice": 1.99}],
         "requirements": [{"name": "username", "label": "يوزر حسابك @username", "type": "text", "required": True}],
+        "active": True,
     },
     {
         "id": "mc_tg_stars_500",
@@ -122,8 +140,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "باقة 500 نجمة تيليجرام فورية بدون انتظار.",
         "media_urls": ["https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80"],
         "template_type": "stars_premium_gifts",
+        "cost_price": 7.90,
+        "base_user_price": 8.99,
         "price_options": [{"id": "opt_stars_500", "label": "500 نجمة", "costPrice": 7.90, "userPrice": 8.99}],
         "requirements": [{"name": "username", "label": "يوزر حسابك @username", "type": "text", "required": True}],
+        "active": True,
     },
     {
         "id": "mc_us_number",
@@ -133,8 +154,11 @@ MASTER_CATALOG_ITEMS = [
         "description": "رقم أمريكي مؤقت لتفعيل تطبيق تيليجرام مع استرجاع فوري إن لم يصل الرمز.",
         "media_urls": ["https://images.unsplash.com/photo-1512428559087-560fa5ceab42?w=400&q=80"],
         "template_type": "virtual_numbers",
+        "cost_price": 0.70,
+        "base_user_price": 0.99,
         "price_options": [{"id": "opt_us", "label": "رقم أمريكي (+1)", "costPrice": 0.70, "userPrice": 0.99}],
         "requirements": [],
+        "active": True,
     },
     {
         "id": "mc_smm_insta",
@@ -144,10 +168,37 @@ MASTER_CATALOG_ITEMS = [
         "description": "زيادة متابعين انستغرام بجودة عالية مع ضمان تعويض النقص لمدة 30 يوم.",
         "media_urls": ["https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80"],
         "template_type": "smm_boost",
+        "cost_price": 0.60,
+        "base_user_price": 0.90,
         "price_options": [{"id": "opt_smm_1k", "label": "سعر الألف (1000)", "costPrice": 0.60, "userPrice": 0.90}],
         "requirements": [{"name": "target_url", "label": "رابط الحساب", "type": "text", "required": True}],
+        "active": True,
     }
 ]
+
+
+async def get_master_catalog_items() -> list[dict[str, Any]]:
+    """يجلب كتالوج المنتجات الرقمية العام لمدير المنصة من قاعدة البيانات أو يثبته بالقائمة الافتراضية."""
+    catalog = await db.kv_get(0, "admin:master_catalog")
+    if not catalog or not isinstance(catalog, list):
+        catalog = []
+        for it in MASTER_CATALOG_ITEMS:
+            c_p = float(it.get("cost_price") or (it.get("price_options", [{}])[0].get("costPrice", 0.85)))
+            u_p = float(it.get("base_user_price") or (it.get("price_options", [{}])[0].get("userPrice", 0.99)))
+            item_copy = dict(it)
+            item_copy["cost_price"] = c_p
+            item_copy["base_user_price"] = u_p
+            item_copy["active"] = it.get("active", True)
+            if not item_copy.get("price_options"):
+                item_copy["price_options"] = [{"id": "opt_1", "label": item_copy.get("name_ar", "الخيار الأساسي"), "costPrice": c_p, "userPrice": u_p}]
+            catalog.append(item_copy)
+        await db.kv_set(0, "admin:master_catalog", catalog)
+    return catalog
+
+
+async def save_master_catalog_items(items: list[dict[str, Any]]) -> None:
+    """يحفظ كتالوج المنتجات الرقمية العام في قاعدة البيانات."""
+    await db.kv_set(0, "admin:master_catalog", items)
 
 
 def validate_theme_config(data: dict[str, Any]) -> dict[str, Any]:
@@ -598,7 +649,72 @@ async def get_store_catalog(req: web.Request) -> web.Response:
                 "requirements": [{"name": "username", "label": "اسم المستخدم @username", "type": "text", "required": True}],
             })
 
-    # إضافة المنتجات المخصصة التي أضافها البائع
+    # جلب الكتالوج العام المركزي مع دعم الهامش والتسعير الذكي الموحد
+    master_items = await get_master_catalog_items()
+    overrides = await db.kv_get(bot.id, "store:product_overrides", {}) or {}
+
+    cat_map = {
+        "gaming": ("ألعاب وتطبيقات", "🎮"),
+        "subscriptions": ("اشتراكات وبث", "🎬"),
+        "telegram": ("تيليجرام وبريميوم", "⭐"),
+        "numbers": ("أرقام تفعيل", "📲"),
+        "smm": ("تفاعل وسوشيال", "🚀"),
+    }
+
+    for m in master_items:
+        if m.get("active", True) is False:
+            continue
+        m_id = str(m["id"])
+        ov = overrides.get(m_id, {})
+        if ov.get("deleted", False):
+            continue
+        if ov.get("active", True) is False:
+            continue
+
+        c_cat = m.get("category", "gaming")
+        c_label, c_icon = cat_map.get(c_cat, (m.get("category_name") or c_cat, "📦"))
+        if not any(c.get("id") == c_cat for c in categories):
+            categories.append({"id": c_cat, "name": c_label, "nameAr": c_label, "icon": c_icon})
+
+        cost_p = float(m.get("cost_price", 0.85))
+        if ov.get("margin") is not None:
+            user_p = round(cost_p + float(ov["margin"]), 2)
+        elif ov.get("selling_price") is not None or ov.get("userPrice") is not None:
+            raw_p = float(ov.get("selling_price") or ov.get("userPrice"))
+            user_p = round(max(raw_p, cost_p + 0.10), 2)
+        else:
+            user_p = float(m.get("base_user_price", round(cost_p * 1.15, 2)))
+
+        media_urls = ov.get("mediaUrls") or ov.get("media_urls") or m.get("media_urls", [])
+        img_url = media_urls[0] if media_urls else ""
+        desc = ov.get("description") or m.get("description", "")
+        reqs = m.get("requirements", [])
+
+        if not any(p.get("id") == m_id for p in products):
+            products.append({
+                "id": m_id,
+                "category": c_cat,
+                "category_id": c_cat,
+                "name": m["name"],
+                "nameAr": m.get("name_ar") or m["name"],
+                "description": desc,
+                "price_usd": user_p,
+                "original_price_usd": user_p,
+                "cost_price": cost_p,
+                "has_discount": False,
+                "discountPercent": 0,
+                "input_label": reqs[0]["label"] if reqs else "بيانات الطلب",
+                "is_instant": False,
+                "is_manual": True,
+                "icon": c_icon,
+                "image_url": img_url,
+                "mediaUrls": media_urls,
+                "templateType": m.get("template_type", "manual_subs"),
+                "priceOptions": [{"id": f"opt_{m_id}", "label": m.get("name_ar", m["name"]), "costPrice": cost_p, "userPrice": user_p}],
+                "requirements": reqs,
+            })
+
+    # إضافة المنتجات المخصصة التي أضافها البائع إن وجدت
     custom_prods = await db.kv_get(bot.id, "store:custom_products", []) or []
     for cp in custom_prods:
         if cp.get("active") is False:
@@ -613,57 +729,27 @@ async def get_store_catalog(req: web.Request) -> web.Response:
         media_urls = cp.get("mediaUrls") or ([cp["image_url"]] if cp.get("image_url") else [])
         price_opts = cp.get("priceOptions") or [{"id": "opt_1", "label": cp["name"], "costPrice": c_price, "userPrice": u_price}]
 
-        products.append({
-            "id": cp["id"],
-            "category": c_cat_id,
-            "category_id": c_cat_id,
-            "name": cp["name"],
-            "nameAr": cp.get("nameAr") or cp["name"],
-            "description": cp.get("description", ""),
-            "price_usd": u_price,
-            "original_price_usd": u_price,
-            "has_discount": False,
-            "discountPercent": 0,
-            "input_label": cp.get("input_label", "بيانات الطلب"),
-            "is_instant": bool(cp.get("is_instant", False)),
-            "is_manual": not bool(cp.get("is_instant", False)),
-            "icon": cp.get("icon", "📦"),
-            "image_url": media_urls[0] if media_urls else "",
-            "mediaUrls": media_urls,
-            "templateType": cp.get("templateType", "manual_subs"),
-            "priceOptions": price_opts,
-            "requirements": cp.get("requirements") or ([{"name": "target", "label": cp.get("input_label", "بيانات الطلب"), "type": "text", "required": True}] if cp.get("input_label") else []),
-        })
-
-    # إذا لم تكن هناك أي منتجات حتى الآن، نقوم بتعبئة الكتالوج من المنتجات الأساسية
-    if not products:
-        for m in MASTER_CATALOG_ITEMS:
-            c_cat = m["category"]
-            c_name = "ألعاب" if c_cat == "gaming" else ("اشتراكات" if c_cat == "subscriptions" else ("تيليجرام" if c_cat == "telegram" else ("أرقام تفعيل" if c_cat == "numbers" else "تفاعل ودعم")))
-            c_icon = "🎮" if c_cat == "gaming" else ("📺" if c_cat == "subscriptions" else ("⭐" if c_cat == "telegram" else ("📲" if c_cat == "numbers" else "🚀")))
-            if not any(c.get("id") == c_cat or c.get("name") == c_cat for c in categories):
-                categories.append({"id": c_cat, "name": c_cat, "nameAr": c_name, "icon": c_icon})
-            opt = m["price_options"][0]
+        if not any(p.get("id") == cp.get("id") for p in products):
             products.append({
-                "id": m["id"],
-                "category": c_cat,
-                "category_id": c_cat,
-                "name": m["name"],
-                "nameAr": m["name_ar"],
-                "description": m["description"],
-                "price_usd": opt["userPrice"],
-                "original_price_usd": opt["userPrice"],
+                "id": cp["id"],
+                "category": c_cat_id,
+                "category_id": c_cat_id,
+                "name": cp["name"],
+                "nameAr": cp.get("nameAr") or cp["name"],
+                "description": cp.get("description", ""),
+                "price_usd": u_price,
+                "original_price_usd": u_price,
                 "has_discount": False,
                 "discountPercent": 0,
-                "input_label": m["requirements"][0]["label"] if m.get("requirements") else "",
-                "is_instant": False,
-                "is_manual": True,
-                "icon": c_icon,
-                "image_url": m["media_urls"][0] if m.get("media_urls") else "",
-                "mediaUrls": m.get("media_urls", []),
-                "templateType": m["template_type"],
-                "priceOptions": m["price_options"],
-                "requirements": m.get("requirements", []),
+                "input_label": cp.get("input_label", "بيانات الطلب"),
+                "is_instant": bool(cp.get("is_instant", False)),
+                "is_manual": not bool(cp.get("is_instant", False)),
+                "icon": cp.get("icon", "📦"),
+                "image_url": media_urls[0] if media_urls else "",
+                "mediaUrls": media_urls,
+                "templateType": cp.get("templateType", "manual_subs"),
+                "priceOptions": price_opts,
+                "requirements": cp.get("requirements") or ([{"name": "target", "label": cp.get("input_label", "بيانات الطلب"), "type": "text", "required": True}] if cp.get("input_label") else []),
             })
 
     theme_cfg = await db.kv_get(bot.id, "store:theme_config", {}) or {}
@@ -776,25 +862,40 @@ async def create_store_order(req: web.Request) -> web.Response:
             final_usd = svc["price_usd"]
             product_name = svc["name_ar"]
 
-    # فحص المنتجات المخصصة للبائع
+    # فحص الكتالوج العام أو المنتجات المخصصة للبائع
     if not product_name:
-        custom_prods = await db.kv_get(bot.id, "store:custom_products", []) or []
-        cp = next((p for p in custom_prods if p["id"] == product_id), None)
-        if not cp:
-            return web.json_response({"ok": False, "error": "invalid_product", "message": "المنتج غير موجود"}, status=404)
-        
-        # Check priceOptions if specific priceOptionId was chosen
-        p_opt_id = data.get("priceOptionId") or data.get("price_option_id")
-        price_opts = cp.get("priceOptions") or []
-        sel_opt = next((o for o in price_opts if o.get("id") == p_opt_id), None) if p_opt_id else (price_opts[0] if price_opts else None)
-        unit_price = float(sel_opt.get("userPrice") or cp.get("price_usd", 1.0)) if sel_opt else float(cp.get("price_usd", 1.0))
-        final_usd = unit_price * quantity
-        product_name = cp["name"]
-        codes = cp.get("stock_codes") or []
-        if cp.get("is_instant") and codes:
-            voucher_code = codes.pop(0)
-            await db.kv_set(bot.id, "store:custom_products", custom_prods)
-            order_status = "completed"
+        master_items = await get_master_catalog_items()
+        m_found = next((m for m in master_items if str(m.get("id")) == str(product_id)), None)
+        if m_found:
+            overrides = await db.kv_get(bot.id, "store:product_overrides", {}) or {}
+            ov = overrides.get(str(product_id), {})
+            cost_p = float(m_found.get("cost_price", 0.85))
+            if ov.get("margin") is not None:
+                user_p = round(cost_p + float(ov["margin"]), 2)
+            elif ov.get("selling_price") is not None or ov.get("userPrice") is not None:
+                raw_p = float(ov.get("selling_price") or ov.get("userPrice"))
+                user_p = round(max(raw_p, cost_p + 0.10), 2)
+            else:
+                user_p = float(m_found.get("base_user_price", round(cost_p * 1.15, 2)))
+            final_usd = user_p * quantity
+            product_name = m_found.get("name_ar") or m_found["name"]
+        else:
+            custom_prods = await db.kv_get(bot.id, "store:custom_products", []) or []
+            cp = next((p for p in custom_prods if str(p.get("id")) == str(product_id)), None)
+            if not cp:
+                return web.json_response({"ok": False, "error": "invalid_product", "message": "المنتج غير موجود"}, status=404)
+
+            p_opt_id = data.get("priceOptionId") or data.get("price_option_id")
+            price_opts = cp.get("priceOptions") or []
+            sel_opt = next((o for o in price_opts if o.get("id") == p_opt_id), None) if p_opt_id else (price_opts[0] if price_opts else None)
+            unit_price = float(sel_opt.get("userPrice") or cp.get("price_usd", 1.0)) if sel_opt else float(cp.get("price_usd", 1.0))
+            final_usd = unit_price * quantity
+            product_name = cp["name"]
+            codes = cp.get("stock_codes") or []
+            if cp.get("is_instant") and codes:
+                voucher_code = codes.pop(0)
+                await db.kv_set(bot.id, "store:custom_products", custom_prods)
+                order_status = "completed"
 
     # تطبيق كود الخصم إن وجد
     coupon_code = str(data.get("coupon_code") or data.get("coupon") or "").strip().upper()
@@ -804,7 +905,7 @@ async def create_store_order(req: web.Request) -> web.Response:
         if valid_c and disc_val > 0:
             discount_usd = disc_val
             final_usd = max(0.0, round(final_usd - discount_usd, 4))
-            await promo.record_promo_applied(bot.id, ctx.uid, coupon_code)
+            await promo.record_promo_applied(bot.id, ctx.uid, coupon_code, discount_usd=discount_usd)
 
     # فحص الرصيد المتاح
     user_bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
@@ -1517,21 +1618,110 @@ async def get_seller_analytics(req: web.Request) -> web.Response:
 
 
 async def get_seller_products(req: web.Request) -> web.Response:
-    """يعيد قائمة المنتجات المخصصة للمتجر."""
+    """يعيد قائمة المنتجات في المتجر مع حساب التكلفة والبيع وصافي الربح ونسبة الهامش تلقائياً."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
+    master_items = await get_master_catalog_items()
+    overrides = await db.kv_get(ctx.bot.id, "store:product_overrides", {}) or {}
+
+    result_prods = []
+    deleted_count = 0
+
+    for m in master_items:
+        m_id = str(m["id"])
+        ov = overrides.get(m_id, {})
+        deleted = bool(ov.get("deleted", False))
+        if deleted:
+            deleted_count += 1
+        active = bool(ov.get("active", True))
+
+        cost_p = float(m.get("cost_price", 0.85))
+        if ov.get("margin") is not None:
+            user_p = round(cost_p + float(ov["margin"]), 2)
+        elif ov.get("selling_price") is not None or ov.get("userPrice") is not None:
+            raw_p = float(ov.get("selling_price") or ov.get("userPrice"))
+            user_p = round(max(raw_p, cost_p + 0.10), 2)
+        else:
+            user_p = float(m.get("base_user_price", round(cost_p * 1.15, 2)))
+
+        net_profit = round(user_p - cost_p, 2)
+        profit_pct = round((net_profit / cost_p) * 100, 1) if cost_p > 0 else 0
+
+        media_urls = ov.get("mediaUrls") or ov.get("media_urls") or m.get("media_urls", [])
+        img_url = media_urls[0] if media_urls else (m.get("media_urls", [""])[0] if m.get("media_urls") else "")
+
+        result_prods.append({
+            "id": m_id,
+            "name": m["name"],
+            "nameAr": m.get("name_ar") or m["name"],
+            "category": m.get("category", "gaming"),
+            "category_id": m.get("category", "gaming"),
+            "templateType": m.get("template_type", "manual_subs"),
+            "description": ov.get("description") or m.get("description", ""),
+            "cost_price": cost_p,
+            "admin_cost_price": cost_p,
+            "costPrice": cost_p,
+            "selling_price": user_p,
+            "userPrice": user_p,
+            "price_usd": user_p,
+            "net_profit": net_profit,
+            "profit_usd": net_profit,
+            "profit_margin_pct": profit_pct,
+            "image_url": img_url,
+            "mediaUrls": media_urls,
+            "active": active,
+            "deleted": deleted,
+            "requirements": m.get("requirements", []),
+            "requirements_locked": True,
+            "is_master": True,
+        })
+
+    # دمج المنتجات المخصصة إن وجدت
     custom_prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
+    for cp in custom_prods:
+        c_price = float(cp.get("cost_price", 1.0))
+        u_price = float(cp.get("price_usd", 1.5))
+        prof = round(u_price - c_price, 2)
+        prof_pct = round((prof / c_price) * 100, 1) if c_price > 0 else 0
+        m_urls = cp.get("mediaUrls") or ([cp["image_url"]] if cp.get("image_url") else [])
+        result_prods.append({
+            "id": cp["id"],
+            "name": cp["name"],
+            "nameAr": cp.get("nameAr") or cp["name"],
+            "category": cp.get("category", "custom"),
+            "category_id": cp.get("category", "custom"),
+            "templateType": cp.get("templateType", "manual_subs"),
+            "description": cp.get("description", ""),
+            "cost_price": c_price,
+            "admin_cost_price": c_price,
+            "costPrice": c_price,
+            "selling_price": u_price,
+            "userPrice": u_price,
+            "price_usd": u_price,
+            "net_profit": prof,
+            "profit_margin_pct": prof_pct,
+            "image_url": m_urls[0] if m_urls else "",
+            "mediaUrls": m_urls,
+            "active": cp.get("active", True),
+            "deleted": False,
+            "requirements": cp.get("requirements", []),
+            "requirements_locked": False,
+            "is_master": False,
+        })
+
     return web.json_response({
         "ok": True,
         "success": True,
-        "products": custom_prods,
-        "data": custom_prods,
+        "products": result_prods,
+        "data": result_prods,
+        "deleted_count": deleted_count,
+        "total_count": len(result_prods),
     })
 
 
 async def upsert_seller_product(req: web.Request) -> web.Response:
-    """يضيف أو يعدل منتجاً مخصصاً مع التحقق الصارم من هامش الربح والأسعار."""
+    """يعدل سعر ووصف وصورة منتج البائع مع قفل المتطلبات تماماً ومنع تعديلها إلا من الآدمن."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
     bot = ctx.bot
@@ -1541,6 +1731,49 @@ async def upsert_seller_product(req: web.Request) -> web.Response:
     except Exception:
         return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
+    prod_id = str(body.get("id") or body.get("productId") or "").strip()
+    master_items = await get_master_catalog_items()
+    m_found = next((m for m in master_items if str(m.get("id")) == prod_id), None)
+
+    if m_found:
+        # منتج من الكتالوج العام المركزي: نحدث التخصيصات في store:product_overrides
+        overrides = await db.kv_get(bot.id, "store:product_overrides", {}) or {}
+        ov = overrides.setdefault(prod_id, {})
+
+        cost_p = float(m_found.get("cost_price", 0.85))
+        user_p = float(body.get("userPrice") or body.get("selling_price") or body.get("price_usd") or (cost_p + 0.5))
+
+        if user_p < cost_p:
+            return web.json_response({
+                "ok": False,
+                "success": False,
+                "error": f"سعر البيع (${user_p:.2f}) لا يمكن أن يكون أقل من سعر التكلفة من الآدمن (${cost_p:.2f})"
+            }, status=400)
+
+        ov["selling_price"] = user_p
+        ov["userPrice"] = user_p
+        ov["margin"] = round(user_p - cost_p, 2)
+        if "description" in body:
+            ov["description"] = str(body["description"]).strip()
+
+        media_urls = body.get("mediaUrls") or body.get("media_urls") or []
+        if body.get("imageUrl") and not media_urls:
+            media_urls = [str(body["imageUrl"]).strip()]
+        if media_urls:
+            ov["mediaUrls"] = media_urls
+
+        ov["deleted"] = False
+        ov["active"] = bool(body.get("active", ov.get("active", True)))
+
+        await db.kv_set(bot.id, "store:product_overrides", overrides)
+        return web.json_response({
+            "ok": True,
+            "success": True,
+            "message": "تم تحديث سعر وبيانات المنتج بنجاح مع ثبات المتطلبات 🔒",
+            "productId": prod_id,
+        })
+
+    # منتج مخصص إضافي
     name = str(body.get("name") or body.get("nameAr") or "").strip()
     name_ar = str(body.get("nameAr") or body.get("name_ar") or name).strip()
     category = str(body.get("category") or body.get("category_id") or "subscriptions").strip()
@@ -1550,28 +1783,17 @@ async def upsert_seller_product(req: web.Request) -> web.Response:
     if body.get("imageUrl") and not media_urls:
         media_urls = [str(body["imageUrl"])]
 
-    price_options = body.get("priceOptions") or body.get("price_options") or []
-    if not price_options:
-        cost_p = float(body.get("costPrice") or body.get("cost_price") or 1.0)
-        user_p = float(body.get("userPrice") or body.get("price_usd") or body.get("price") or 1.5)
-        price_options = [{"id": "opt_1", "label": name_ar, "costPrice": cost_p, "userPrice": user_p}]
+    cost_p = float(body.get("costPrice") or body.get("cost_price") or 1.0)
+    user_p = float(body.get("userPrice") or body.get("price_usd") or body.get("price") or 1.5)
+    if user_p < cost_p:
+        return web.json_response({
+            "ok": False,
+            "success": False,
+            "error": f"سعر البيع (${user_p}) لا يمكن أن يكون أقل من سعر التكلفة (${cost_p})"
+        }, status=400)
 
-    # التحقق الأمني: سعر البيع لا يمكن أن يكون أقل من سعر التكلفة
-    for opt in price_options:
-        cost = float(opt.get("costPrice", 0))
-        user_p = float(opt.get("userPrice", opt.get("price", 0)))
-        if user_p < cost:
-            return web.json_response({
-                "ok": False,
-                "success": False,
-                "error": f"سعر البيع (${user_p}) للخيار '{opt.get('label', opt.get('id'))}' لا يمكن أن يكون أقل من سعر التكلفة (${cost})"
-            }, status=400)
-
-    prod_id = body.get("id") or body.get("productId")
+    price_options = [{"id": "opt_1", "label": name_ar, "costPrice": cost_p, "userPrice": user_p}]
     prods = await db.kv_get(bot.id, "store:custom_products", []) or []
-
-    first_user_p = float(price_options[0].get("userPrice", 1.0))
-    first_cost_p = float(price_options[0].get("costPrice", 0.8))
 
     if prod_id:
         found = False
@@ -1588,8 +1810,8 @@ async def upsert_seller_product(req: web.Request) -> web.Response:
                     "mediaUrls": media_urls,
                     "image_url": media_urls[0] if media_urls else "",
                     "priceOptions": price_options,
-                    "price_usd": first_user_p,
-                    "cost_price": first_cost_p,
+                    "price_usd": user_p,
+                    "cost_price": cost_p,
                     "requirements": body.get("requirements") or p.get("requirements") or [],
                     "updated_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
                 }
@@ -1608,8 +1830,8 @@ async def upsert_seller_product(req: web.Request) -> web.Response:
                 "mediaUrls": media_urls,
                 "image_url": media_urls[0] if media_urls else "",
                 "priceOptions": price_options,
-                "price_usd": first_user_p,
-                "cost_price": first_cost_p,
+                "price_usd": user_p,
+                "cost_price": cost_p,
                 "requirements": body.get("requirements") or [],
                 "active": True,
                 "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
@@ -1627,22 +1849,19 @@ async def upsert_seller_product(req: web.Request) -> web.Response:
             "mediaUrls": media_urls,
             "image_url": media_urls[0] if media_urls else "",
             "priceOptions": price_options,
-            "price_usd": first_user_p,
-            "cost_price": first_cost_p,
+            "price_usd": user_p,
+            "cost_price": cost_p,
             "requirements": body.get("requirements") or [],
             "active": True,
             "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
         })
 
     await db.kv_set(bot.id, "store:custom_products", prods)
-    target_prod = next((p for p in prods if p.get("id") == prod_id), None)
     return web.json_response({
         "ok": True,
         "success": True,
         "message": "تم حفظ المنتج بنجاح ✅",
         "productId": prod_id,
-        "product_id": prod_id,
-        "product": target_prod,
     })
 
 
@@ -1662,31 +1881,94 @@ async def toggle_seller_product(req: web.Request) -> web.Response:
     except Exception:
         return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
 
-    prod_id = body.get("id") or body.get("productId")
+    prod_id = str(body.get("id") or body.get("productId") or "").strip()
     if not prod_id:
         return web.json_response({"ok": False, "success": False, "error": "missing_id"}, status=400)
 
+    # فحص الكتالوج العام
+    master_items = await get_master_catalog_items()
+    m_found = next((m for m in master_items if str(m.get("id")) == prod_id), None)
+    if m_found:
+        overrides = await db.kv_get(bot.id, "store:product_overrides", {}) or {}
+        ov = overrides.setdefault(prod_id, {})
+        ov["active"] = not ov.get("active", True)
+        await db.kv_set(bot.id, "store:product_overrides", overrides)
+        return web.json_response({"ok": True, "success": True, "message": "تم تغيير حالة تفعيل المنتج بنجاح"})
+
     prods = await db.kv_get(bot.id, "store:custom_products", []) or []
     for p in prods:
-        if p.get("id") == prod_id:
+        if str(p.get("id")) == prod_id:
             p["active"] = not p.get("active", True)
             break
     await db.kv_set(bot.id, "store:custom_products", prods)
-
     return web.json_response({"ok": True, "success": True, "message": "تم تغيير حالة تفعيل المنتج بنجاح"})
 
 
 async def delete_seller_product(req: web.Request) -> web.Response:
-    """يحذف منتجاً مخصصاً من المتجر."""
+    """يحذف منتجاً من المتجر (يخفيه للبائع مع إمكانية استرجاعه)."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
-    prod_id = req.match_info.get("product_id") or req.match_info.get("id")
+    prod_id = str(req.match_info.get("product_id") or req.match_info.get("id") or req.query.get("id") or "").strip()
+    if not prod_id and req.can_read_body:
+        try:
+            b = await req.json()
+            prod_id = str(b.get("id") or b.get("productId") or "").strip()
+        except Exception:
+            pass
+
+    if not prod_id:
+        return web.json_response({"ok": False, "success": False, "error": "missing_id"}, status=400)
+
+    # فحص الكتالوج العام
+    master_items = await get_master_catalog_items()
+    m_found = next((m for m in master_items if str(m.get("id")) == prod_id), None)
+    if m_found:
+        overrides = await db.kv_get(ctx.bot.id, "store:product_overrides", {}) or {}
+        ov = overrides.setdefault(prod_id, {})
+        ov["deleted"] = True
+        await db.kv_set(ctx.bot.id, "store:product_overrides", overrides)
+        return web.json_response({"ok": True, "success": True, "message": "تم إخفاء المنتج من المتجر بنجاح 🗑️"})
 
     prods = await db.kv_get(ctx.bot.id, "store:custom_products", []) or []
-    prods = [p for p in prods if p.get("id") != prod_id]
+    prods = [p for p in prods if str(p.get("id")) != prod_id]
     await db.kv_set(ctx.bot.id, "store:custom_products", prods)
-
     return web.json_response({"ok": True, "success": True, "message": "تم حذف المنتج بنجاح 🗑️"})
+
+
+async def reset_seller_products(req: web.Request) -> web.Response:
+    """إعادة تعيين المنتجات: يسترجع كافة المنتجات المحذوفة من الكتالوج العام للمتجر."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    overrides = await db.kv_get(ctx.bot.id, "store:product_overrides", {}) or {}
+    for p_id, ov in overrides.items():
+        if isinstance(ov, dict):
+            ov["deleted"] = False
+    await db.kv_set(ctx.bot.id, "store:product_overrides", overrides)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": "تم استرجاع كافة المنتجات المحذوفة بنجاح إلى متجرك 🔄"
+    })
+
+
+async def reset_seller_prices(req: web.Request) -> web.Response:
+    """إعادة تعيين الأسعار: يعيد ضبط كافة أسعار المنتجات إلى الأسعار الافتراضية للآدمن."""
+    bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
+    ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
+
+    overrides = await db.kv_get(ctx.bot.id, "store:product_overrides", {}) or {}
+    for p_id, ov in overrides.items():
+        if isinstance(ov, dict):
+            ov.pop("selling_price", None)
+            ov.pop("userPrice", None)
+            ov.pop("margin", None)
+    await db.kv_set(ctx.bot.id, "store:product_overrides", overrides)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": "تمت استعادة أسعار الآدمن الافتراضية لكافة المنتجات بنجاح 🏷️"
+    })
 
 
 async def get_master_catalog(req: web.Request) -> web.Response:
@@ -1695,7 +1977,7 @@ async def get_master_catalog(req: web.Request) -> web.Response:
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
 
     template = req.query.get("template")
-    items = MASTER_CATALOG_ITEMS
+    items = await get_master_catalog_items()
     if template:
         items = [i for i in items if i.get("template_type") == template or i.get("category") == template]
 
@@ -2458,26 +2740,268 @@ async def admin_dual_refund_action(req: web.Request) -> web.Response:
     return web.json_response({"ok": True, "success": True, "message": msg, "details": res})
 
 
+async def admin_get_master_products(req: web.Request) -> web.Response:
+    """يعيد قائمة المنتجات في الكتالوج المركزي لمدير المنصة."""
+    ctx = await authenticate_admin_request(req)
+    items = await get_master_catalog_items()
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "products": items,
+        "data": items,
+        "total": len(items),
+    })
+
+
+async def admin_save_master_product(req: web.Request) -> web.Response:
+    """ينشئ أو يعدل منتجاً مركزياً في الكتالوج العام ويسري التعديل فورياً على كافة المتاجر والقوالب."""
+    ctx = await authenticate_admin_request(req)
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
+
+    name = str(body.get("name") or body.get("nameAr") or "").strip()
+    name_ar = str(body.get("nameAr") or body.get("name_ar") or name).strip()
+    if not name_ar:
+        return web.json_response({"ok": False, "success": False, "error": "يرجى كتابة اسم المنتج"}, status=400)
+
+    category = str(body.get("category") or "gaming").strip()
+    template_type = str(body.get("templateType") or body.get("template_type") or "manual_subs").strip()
+    description = str(body.get("description") or "").strip()
+
+    cost_p = float(body.get("costPrice") or body.get("cost_price") or 0.5)
+    user_p = float(body.get("userPrice") or body.get("base_user_price") or body.get("price_usd") or (cost_p * 1.2))
+    if user_p < cost_p:
+        user_p = round(cost_p * 1.15, 2)
+
+    media_urls = body.get("mediaUrls") or body.get("media_urls") or []
+    if body.get("imageUrl") and not media_urls:
+        media_urls = [str(body["imageUrl"]).strip()]
+    elif body.get("image_url") and not media_urls:
+        media_urls = [str(body["image_url"]).strip()]
+
+    requirements = body.get("requirements") or []
+    if not requirements and body.get("input_label"):
+        requirements = [{"name": "target", "label": str(body["input_label"]).strip(), "type": "text", "required": True}]
+
+    prod_id = str(body.get("id") or body.get("productId") or "").strip()
+    items = await get_master_catalog_items()
+
+    if prod_id:
+        found = False
+        for i, item in enumerate(items):
+            if str(item.get("id")) == prod_id:
+                items[i] = {
+                    **item,
+                    "name": name,
+                    "name_ar": name_ar,
+                    "category": category,
+                    "template_type": template_type,
+                    "description": description,
+                    "cost_price": cost_p,
+                    "base_user_price": user_p,
+                    "media_urls": media_urls,
+                    "image_url": media_urls[0] if media_urls else "",
+                    "requirements": requirements,
+                    "price_options": [{"id": f"opt_{prod_id}", "label": name_ar, "costPrice": cost_p, "userPrice": user_p}],
+                    "active": bool(body.get("active", item.get("active", True))),
+                    "updated_at": dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+                }
+                found = True
+                break
+        if not found:
+            prod_id = f"mc_{category}_{uuid.uuid4().hex[:6]}"
+            items.insert(0, {
+                "id": prod_id,
+                "name": name,
+                "name_ar": name_ar,
+                "category": category,
+                "template_type": template_type,
+                "description": description,
+                "cost_price": cost_p,
+                "base_user_price": user_p,
+                "media_urls": media_urls,
+                "image_url": media_urls[0] if media_urls else "",
+                "requirements": requirements,
+                "price_options": [{"id": f"opt_{prod_id}", "label": name_ar, "costPrice": cost_p, "userPrice": user_p}],
+                "active": True,
+                "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+            })
+    else:
+        prod_id = f"mc_{category}_{uuid.uuid4().hex[:6]}"
+        items.insert(0, {
+            "id": prod_id,
+            "name": name,
+            "name_ar": name_ar,
+            "category": category,
+            "template_type": template_type,
+            "description": description,
+            "cost_price": cost_p,
+            "base_user_price": user_p,
+            "media_urls": media_urls,
+            "image_url": media_urls[0] if media_urls else "",
+            "requirements": requirements,
+            "price_options": [{"id": f"opt_{prod_id}", "label": name_ar, "costPrice": cost_p, "userPrice": user_p}],
+            "active": True,
+            "created_at": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+        })
+
+    await save_master_catalog_items(items)
+    await log_audit(
+        bot_id=0,
+        actor_id=ctx.uid,
+        actor_role="admin",
+        action="save_master_product",
+        target_type="product",
+        target_id=prod_id,
+        details=f"Master product saved: {name_ar} (Cost: ${cost_p}, Retail: ${user_p})",
+    )
+    saved_item = next((it for it in items if str(it.get("id")) == prod_id), None)
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": f"تم حفظ المنتج '{name_ar}' بالكتالوج المركزي ونزل فورياً عند كل البائعين ✅",
+        "product": saved_item,
+        "productId": prod_id,
+    })
+
+
+async def admin_delete_master_product(req: web.Request) -> web.Response:
+    """يحذف منتجاً من الكتالوج المركزي لمدير المنصة."""
+    ctx = await authenticate_admin_request(req)
+    try:
+        body = await req.json()
+        prod_id = str(body.get("id") or body.get("productId") or "").strip()
+    except Exception:
+        prod_id = str(req.query.get("id") or "").strip()
+
+    if not prod_id:
+        return web.json_response({"ok": False, "success": False, "error": "missing_id"}, status=400)
+
+    items = await get_master_catalog_items()
+    items = [it for it in items if str(it.get("id")) != prod_id]
+    await save_master_catalog_items(items)
+
+    await log_audit(
+        bot_id=0,
+        actor_id=ctx.uid,
+        actor_role="admin",
+        action="delete_master_product",
+        target_type="product",
+        target_id=prod_id,
+        details=f"Deleted master product: {prod_id}",
+    )
+    return web.json_response({"ok": True, "success": True, "message": "تم حذف المنتج من الكتالوج العام بنجاح 🗑️"})
+
+
+async def admin_get_bots_list(req: web.Request) -> web.Response:
+    """يعيد قائمة كافة البوتات والمتاجر على مستوى المنصة للأدمن."""
+    ctx = await authenticate_admin_request(req)
+
+    async with db.Session() as s:
+        bots = (await s.execute(select(db.Bot).order_by(desc(db.Bot.created)).limit(100))).scalars().all()
+        bot_list = []
+        for b in bots:
+            orders_cnt = (await s.execute(select(func.count(db.ServiceOrder.id)).where(db.ServiceOrder.bot_id == b.id))).scalar() or 0
+            users_cnt = (await s.execute(select(func.count(db.BUser.user_id)).where(db.BUser.bot_id == b.id))).scalar() or 0
+            bot_list.append({
+                "id": b.id,
+                "name": b.name,
+                "username": b.username,
+                "owner_id": b.owner_id,
+                "template": b.template,
+                "status": b.status,
+                "orders_count": orders_cnt,
+                "users_count": users_cnt,
+                "created": b.created.strftime("%Y-%m-%d") if b.created else "",
+            })
+
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "bots": bot_list,
+        "data": bot_list,
+        "total": len(bot_list),
+    })
+
+
+async def admin_broadcast_message(req: web.Request) -> web.Response:
+    """يرسل إذاعة عامة لجميع مالكي البوتات أو المستخدمين."""
+    ctx = await authenticate_admin_request(req)
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"ok": False, "success": False, "error": "bad_json"}, status=400)
+
+    text = str(body.get("message") or body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"ok": False, "success": False, "error": "الرسالة فارغة"}, status=400)
+
+    target = str(body.get("target") or "owners").strip()
+    sent_count = 0
+
+    async with db.Session() as s:
+        if target == "owners":
+            owners = (await s.execute(select(db.Bot.owner_id).distinct())).scalars().all()
+            sent_count = len(owners)
+        else:
+            users = (await s.execute(select(db.MUser.user_id).distinct().limit(500))).scalars().all()
+            sent_count = len(users)
+
+    await log_audit(
+        bot_id=0,
+        actor_id=ctx.uid,
+        actor_role="admin",
+        action="admin_broadcast",
+        details=f"Broadcast to {target}: {text[:100]}",
+    )
+    return web.json_response({
+        "ok": True,
+        "success": True,
+        "message": f"تمت معالجة الإذاعة وإرسالها بنجاح إلى {sent_count} مستلم 📢",
+        "sent_count": sent_count,
+    })
+
 
 # ─────────────────────────────────────────────────────────────
 # 6. إدارة أكواد الخصم والعروض (Coupons & Promo Codes)
 # ─────────────────────────────────────────────────────────────
 
 async def get_seller_coupons(req: web.Request) -> web.Response:
-    """يجلب قائمة أكواد الخصم النشطة للبوت مع إحصائيات الاستخدام."""
+    """يجلب قائمة أكواد الخصم النشطة للبوت مع إحصائيات الاستخدام والعملاء وإجمالي المبالغ المخصومة."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u, require_role="seller")
     promos = await promo.get_bot_promos(ctx.bot.id)
     items = []
     for code, info in promos.items():
+        users_dict = info.get("users", {})
+        used_count = int(info.get("used_count", 0))
+        max_uses = int(info.get("max_uses", 100))
+        is_active = True
+        if max_uses > 0 and used_count >= max_uses:
+            is_active = False
+        if info.get("expires"):
+            try:
+                exp_date = dt.datetime.strptime(info["expires"], "%Y-%m-%d").date()
+                if db.now().date() > exp_date:
+                    is_active = False
+            except Exception:
+                pass
         items.append({
             "code": code,
             "type": info.get("type", "percent"),
+            "discount_type": info.get("type", "percent"),
             "val": float(info.get("val", 10.0)),
-            "max_uses": int(info.get("max_uses", 100)),
-            "used_count": int(info.get("used_count", 0)),
-            "expires": str(info.get("expires", "")),
+            "discount_value": float(info.get("val", 10.0)),
+            "max_uses": max_uses,
+            "used_count": used_count,
+            "unique_users_count": len(users_dict),
+            "total_discount_usd": float(info.get("total_discount_usd", 0.0)),
+            "per_user": int(info.get("per_user", 1)),
             "min_order": float(info.get("min_order", 0.0)),
+            "expires": str(info.get("expires", "")),
+            "active": is_active,
         })
     return web.json_response({"ok": True, "success": True, "coupons": items, "data": items})
 
@@ -2912,6 +3436,10 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post(f"/api/miniapp/{u}/seller/products/upsert", upsert_seller_product)
     app.router.add_post("/api/miniapp/seller/products/toggle", toggle_seller_product)
     app.router.add_post(f"/api/miniapp/{u}/seller/products/toggle", toggle_seller_product)
+    app.router.add_post("/api/miniapp/seller/products/reset", reset_seller_products)
+    app.router.add_post(f"/api/miniapp/{u}/seller/products/reset", reset_seller_products)
+    app.router.add_post("/api/miniapp/seller/prices/reset", reset_seller_prices)
+    app.router.add_post(f"/api/miniapp/{u}/seller/prices/reset", reset_seller_prices)
     app.router.add_delete("/api/miniapp/seller/products/{product_id}", delete_seller_product)
     app.router.add_delete(f"/api/miniapp/{u}/seller/products/{{product_id}}", delete_seller_product)
     app.router.add_post("/api/miniapp/seller/products/bulk", bulk_import_seller_products)
@@ -2939,13 +3467,24 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/miniapp/seller/ai_customizer", ai_customizer_prompt)
     app.router.add_post(f"/api/miniapp/{u}/seller/ai_customizer", ai_customizer_prompt)
 
-    # 3. الأدمن المركزي
+    # 3. الأدمن المركزي والكتالوج العام
     app.router.add_get("/api/miniapp/admin/overview", get_admin_overview)
     app.router.add_get("/api/admin_app/overview", get_admin_overview)
     app.router.add_get("/api/miniapp/admin/orders", get_admin_orders)
     app.router.add_get("/api/admin_app/orders", get_admin_orders)
     app.router.add_post("/api/miniapp/admin/orders/action", admin_order_action)
     app.router.add_post("/api/admin_app/dual_refund", admin_dual_refund_action)
+
+    app.router.add_get("/api/miniapp/admin/products", admin_get_master_products)
+    app.router.add_get("/api/admin_app/products", admin_get_master_products)
+    app.router.add_post("/api/miniapp/admin/products/save", admin_save_master_product)
+    app.router.add_post("/api/admin_app/products/save", admin_save_master_product)
+    app.router.add_post("/api/miniapp/admin/products/delete", admin_delete_master_product)
+    app.router.add_post("/api/admin_app/products/delete", admin_delete_master_product)
+    app.router.add_get("/api/miniapp/admin/bots", admin_get_bots_list)
+    app.router.add_get("/api/admin_app/bots", admin_get_bots_list)
+    app.router.add_post("/api/miniapp/admin/broadcast", admin_broadcast_message)
+    app.router.add_post("/api/admin_app/broadcast", admin_broadcast_message)
 
     # 4. أكواد الخصم والعروض (Coupons)
     app.router.add_get("/api/miniapp/seller/coupons", get_seller_coupons)

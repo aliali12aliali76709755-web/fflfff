@@ -120,12 +120,13 @@ async def validate_promo(
     return True, discount, f"كود فعال! خصم: ${discount:.2f}"
 
 
-async def record_promo_applied(bot_id: int, user_id: int, code: str) -> None:
-    """يسجل استخدام الكود بعد نجاح الطلب."""
+async def record_promo_applied(bot_id: int, user_id: int, code: str, discount_usd: float = 0.0) -> None:
+    """يسجل استخدام الكود وإجمالي مبلغ الخصم الممنوح بعد نجاح الطلب."""
     clean_code = code.strip().upper()
     promos = await get_bot_promos(bot_id)
     if clean_code in promos:
         promos[clean_code]["used_count"] = int(promos[clean_code].get("used_count", 0)) + 1
+        promos[clean_code]["total_discount_usd"] = round(float(promos[clean_code].get("total_discount_usd", 0.0)) + float(discount_usd), 2)
         users = dict(promos[clean_code].get("users", {}))
         users[str(user_id)] = int(users.get(str(user_id), 0)) + 1
         promos[clean_code]["users"] = users

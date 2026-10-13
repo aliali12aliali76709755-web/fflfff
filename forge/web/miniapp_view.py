@@ -874,14 +874,22 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
 
             <!-- Existing Coupons List -->
-            <div v-if="(sellerCoupons || []).length" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-              <div v-for="cp in sellerCoupons" :key="cp.code" class="bg-dark-900 border border-slate-800 p-2 rounded-xl flex items-center justify-between text-xs">
-                <div>
-                  <span class="font-mono font-black text-amber-400 tracking-wider">{{ cp.code }}</span>
-                  <span class="text-[10px] text-slate-400 mr-2">({{ cp.type === 'percent' ? cp.val + '%' : '$' + cp.val }})</span>
-                  <div class="text-[9px] text-slate-400 mt-0.5">استُخدم: <span class="text-emerald-400 font-bold font-mono">{{ cp.used_count }}</span> / {{ cp.max_uses }} مرة</div>
+            <div v-if="(sellerCoupons || []).length" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <div v-for="cp in sellerCoupons" :key="cp.code" class="bg-dark-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono font-black text-amber-400 tracking-wider text-xs">{{ cp.code }}</span>
+                    <span class="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold font-mono">
+                      {{ cp.type === 'percent' ? cp.val + '%' : '$' + cp.val }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2.5 text-[10px] text-slate-400">
+                    <span>استُخدم: <strong class="text-white font-mono">{{ cp.used_count || 0 }}</strong> / {{ cp.max_uses || '∞' }}</span>
+                    <span>عملاء: <strong class="text-sky-400 font-mono">{{ cp.unique_users_count || 0 }}</strong></span>
+                    <span>وفّر للعملاء: <strong class="text-emerald-400 font-mono">{{ formatPrice(cp.total_discount_usd || 0) }}</strong></span>
+                  </div>
                 </div>
-                <button @click="deleteCoupon(cp.code)" class="text-rose-400 hover:text-rose-300 p-1 text-xs">🗑️ حذف</button>
+                <button @click="deleteCoupon(cp.code)" class="text-rose-400 hover:text-rose-300 p-1.5 text-xs bg-rose-950/40 border border-rose-800/40 rounded-lg">🗑️ حذف</button>
               </div>
             </div>
           </div>
@@ -1017,37 +1025,78 @@ HTML_SHELL = """<!DOCTYPE html>
           </div>
 
           <!-- Seller Products Management Section -->
-          <div class="space-y-2 pt-1">
+          <div class="space-y-3 pt-1">
             <div class="flex items-center justify-between">
               <h4 class="font-bold text-xs text-slate-200 flex items-center gap-1.5">
                 <span>📦</span> إدارة منتجات المتجر
               </h4>
-              <span class="text-[10px] text-slate-400">{{ sellerProducts.length }} منتج</span>
+              <span class="text-[10px] text-slate-400 font-mono">{{ sellerProducts.length }} منتج معروض</span>
+            </div>
+
+            <!-- Seller Action Buttons Bar -->
+            <div class="grid grid-cols-3 gap-1.5">
+              <button @click="openNewProductModal" class="bg-brand-600 hover:bg-brand-500 text-white font-bold text-[10px] py-2 px-1 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1">
+                <span>➕</span>
+                <span>منتج خاص</span>
+              </button>
+              <button @click="resetSellerProducts" class="bg-dark-800 hover:bg-dark-750 text-sky-300 border border-sky-500/30 font-bold text-[10px] py-2 px-1 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1">
+                <span>🔄</span>
+                <span>استرجاع المحذوفة</span>
+              </button>
+              <button @click="resetSellerPrices" class="bg-dark-800 hover:bg-dark-750 text-amber-300 border border-amber-500/30 font-bold text-[10px] py-2 px-1 rounded-xl shadow active:scale-95 transition flex items-center justify-center gap-1">
+                <span>🏷️</span>
+                <span>أسعار الآدمن</span>
+              </button>
             </div>
 
             <div v-if="sellerProducts.length" class="space-y-2">
-              <div v-for="prod in sellerProducts" :key="prod.id" class="bg-dark-800 border border-slate-700/80 p-3 rounded-xl flex items-center justify-between text-xs">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-10 h-10 rounded-lg bg-dark-750 flex items-center justify-center overflow-hidden border border-slate-700">
-                    <img v-if="(prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url" :src="(prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url" class="w-full h-full object-cover">
-                    <span v-else class="text-base">🛍️</span>
-                  </div>
-                  <div>
-                    <div class="font-bold text-white">{{ prod.nameAr || prod.name }}</div>
-                    <div class="text-[10px] text-slate-400">
-                      التكلفة: {{ formatPrice(prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0) }} | البيع: {{ formatPrice(prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0) }}
-                      <span class="text-emerald-400 font-bold mr-1 font-mono">
-                        (ربح: +{{ formatPrice(((prod.price_usd || prod.priceOptions?.[0]?.userPrice || 0) - (prod.cost_price || prod.priceOptions?.[0]?.costPrice || 0))) }})
-                      </span>
+              <div v-for="prod in sellerProducts" :key="prod.id" class="bg-dark-800 border border-slate-700/80 p-3 rounded-2xl space-y-2 text-xs">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-11 h-11 rounded-xl bg-dark-750 flex items-center justify-center overflow-hidden border border-slate-700 shrink-0">
+                      <img v-if="(prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url" :src="(prod.mediaUrls && prod.mediaUrls[0]) || prod.image_url" class="w-full h-full object-cover">
+                      <span v-else class="text-lg">🛍️</span>
                     </div>
+                    <div>
+                      <div class="font-bold text-white flex items-center gap-1.5">
+                        <span>{{ prod.nameAr || prod.name }}</span>
+                        <span v-if="prod.is_master" class="text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.2 rounded-md font-bold">مركزي 👑</span>
+                        <span v-else class="text-[9px] bg-sky-500/20 text-sky-300 border border-sky-500/30 px-1.5 py-0.2 rounded-md font-bold">متجرك 🏪</span>
+                      </div>
+                      <div v-if="prod.is_master" class="text-[9px] text-amber-400 flex items-center gap-1 mt-0.5">
+                        <span>🔒 المتطلبات مقفلة من الآدمن</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <span :class="['text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0', prod.active !== false ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700']">
+                    {{ prod.active !== false ? 'معروض ✅' : 'مخفي ⏸️' }}
+                  </span>
+                </div>
+
+                <!-- Price & Profit Display Pill -->
+                <div class="bg-dark-900/90 border border-slate-800 p-2 rounded-xl flex items-center justify-between text-[11px] font-mono">
+                  <div class="text-slate-400">
+                    جملة الآدمن: <span class="text-slate-200 font-bold">{{ formatPrice(prod.cost_price || prod.costPrice || 0) }}</span>
+                  </div>
+                  <div class="text-slate-400">
+                    البيع: <span class="text-white font-black">{{ formatPrice(prod.price_usd || prod.userPrice || 0) }}</span>
+                  </div>
+                  <div class="text-emerald-400 font-black">
+                    ربح: +{{ formatPrice(((prod.price_usd || prod.userPrice || 0) - (prod.cost_price || prod.costPrice || 0))) }}
                   </div>
                 </div>
 
-                <div class="flex items-center gap-2">
-                  <button @click="toggleProductActive(prod.id)" :class="['px-2 py-1 rounded-lg text-[10px] font-bold transition', prod.active !== false ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700']">
-                    {{ prod.active !== false ? 'نشط ✅' : 'معطل ⏸️' }}
+                <!-- Card Actions -->
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-700/50">
+                  <button @click="openEditSellerProduct(prod)" class="flex-1 bg-brand-600/20 hover:bg-brand-600/30 text-brand-300 border border-brand-500/30 font-bold text-[10px] py-1.5 rounded-lg transition active:scale-95 flex items-center justify-center gap-1">
+                    <span>✏️</span>
+                    <span>تعديل السعر والوصف</span>
                   </button>
-                  <button @click="deleteSellerProduct(prod.id)" class="text-rose-400 hover:text-rose-300 p-1">
+                  <button @click="toggleProductActive(prod.id)" class="px-2.5 py-1.5 bg-dark-750 hover:bg-dark-700 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold transition">
+                    {{ prod.active !== false ? 'إخفاء ⏸️' : 'إظهار ▶️' }}
+                  </button>
+                  <button @click="deleteSellerProduct(prod.id)" class="px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 border border-rose-800/40 rounded-lg text-[10px] font-bold transition">
                     🗑️
                   </button>
                 </div>
@@ -1060,38 +1109,202 @@ HTML_SHELL = """<!DOCTYPE html>
         </div>
 
         <!-- ──────────────────────────────────────────────────────────────── -->
-        <!-- TAB 5: SUPER ADMIN DASHBOARD (👑 الأدمن - للأدمن فقط)             -->
+        <!-- TAB 5: SUPER ADMIN DASHBOARD (👑 الأدمن الأعلى لبوت صانع البوتات)  -->
         <!-- ──────────────────────────────────────────────────────────────── -->
         <div v-if="currentTab === 'admin' && role === 'admin'" class="space-y-4">
-          <div class="flex items-center justify-between border-b border-rose-900/40 pb-2">
-            <h3 class="font-black text-sm text-rose-300 flex items-center gap-1.5">
-              <span>👑</span> لوحة الأدمن الأعلى للمنصة
-            </h3>
-            <span class="text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-bold">Admin Only</span>
+          <!-- Admin Dashboard Header -->
+          <div class="flex items-center justify-between border-b border-rose-900/40 pb-2.5">
+            <div>
+              <h3 class="font-black text-sm text-rose-300 flex items-center gap-1.5">
+                <span>👑</span> لوحة تحكم صانع البوتات والمنصة المركزية
+              </h3>
+              <p class="text-[10px] text-slate-400">إدارة الكتالوج العام لكافة القوالب، الأسعار، الإحصائيات، والبوتات</p>
+            </div>
+            <span class="text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">Admin Only</span>
           </div>
 
-          <!-- Admin Overview Stats Grid -->
-          <div class="grid grid-cols-2 gap-2.5">
-            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
-              <span class="text-[10px] text-slate-400">إجمالي المتاجر</span>
-              <div class="text-xl font-black text-rose-300">{{ adminOverview.totalStores || 1 }}</div>
+          <!-- Admin Sub-Navigation Dock -->
+          <div class="grid grid-cols-5 gap-1 bg-dark-900/80 p-1 rounded-2xl border border-slate-800 text-[10px] font-bold">
+            <button @click="adminActiveSubTab = 'catalog'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'catalog' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+              <span>🛍️</span>
+              <span class="truncate">الكتالوج</span>
+            </button>
+            <button @click="adminActiveSubTab = 'stats'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'stats' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+              <span>📊</span>
+              <span class="truncate">الإحصائيات</span>
+            </button>
+            <button @click="adminActiveSubTab = 'bots'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'bots' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+              <span>🤖</span>
+              <span class="truncate">البوتات</span>
+            </button>
+            <button @click="adminActiveSubTab = 'orders'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'orders' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+              <span>🧾</span>
+              <span class="truncate">الطلبات</span>
+            </button>
+            <button @click="adminActiveSubTab = 'broadcast'" :class="['py-2 px-1 rounded-xl transition text-center flex flex-col items-center gap-0.5', adminActiveSubTab === 'broadcast' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200']">
+              <span>📢</span>
+              <span class="truncate">إذاعة</span>
+            </button>
+          </div>
+
+          <!-- ── SUB-TAB 1: MASTER DIGITAL CATALOG ── -->
+          <div v-if="adminActiveSubTab === 'catalog'" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="font-bold text-xs text-white flex items-center gap-1.5">
+                  <span>🛍️</span> الكتالوج الرقمي العام (القوالب الأربعة)
+                </h4>
+                <p class="text-[10px] text-slate-400">أي منتج تضيفه أو تعدله هنا ينزل فورياً لجميع المتاجر والبائعين</p>
+              </div>
+              <button @click="openAddAdminProduct" class="bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] py-1.5 px-3 rounded-xl shadow active:scale-95 transition flex items-center gap-1">
+                <span>➕</span>
+                <span>إضافة منتج</span>
+              </button>
             </div>
-            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
-              <span class="text-[10px] text-slate-400">حجم تعاملات المنصة</span>
-              <div class="text-xl font-black text-emerald-400 font-mono">{{ formatPrice(adminOverview.totalPlatformVolume || 0) }}</div>
+
+            <!-- Category Filter Tabs -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <button @click="adminCategoryFilter = 'all'" :class="['px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition', adminCategoryFilter === 'all' ? 'bg-rose-600 text-white' : 'bg-dark-800 text-slate-400 border border-slate-700']">
+                الكل ({{ adminProducts.length }})
+              </button>
+              <button @click="adminCategoryFilter = 'gaming'" :class="['px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition', adminCategoryFilter === 'gaming' ? 'bg-rose-600 text-white' : 'bg-dark-800 text-slate-400 border border-slate-700']">
+                🎮 ألعاب
+              </button>
+              <button @click="adminCategoryFilter = 'subscriptions'" :class="['px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition', adminCategoryFilter === 'subscriptions' ? 'bg-rose-600 text-white' : 'bg-dark-800 text-slate-400 border border-slate-700']">
+                📺 اشتراكات
+              </button>
+              <button @click="adminCategoryFilter = 'telegram'" :class="['px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition', adminCategoryFilter === 'telegram' ? 'bg-rose-600 text-white' : 'bg-dark-800 text-slate-400 border border-slate-700']">
+                ⭐ تيليجرام
+              </button>
+              <button @click="adminCategoryFilter = 'numbers'" :class="['px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition', adminCategoryFilter === 'numbers' ? 'bg-rose-600 text-white' : 'bg-dark-800 text-slate-400 border border-slate-700']">
+                📱 أرقام
+              </button>
+              <button @click="adminCategoryFilter = 'smm'" :class="['px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition', adminCategoryFilter === 'smm' ? 'bg-rose-600 text-white' : 'bg-dark-800 text-slate-400 border border-slate-700']">
+                🚀 دعم ورشق
+              </button>
             </div>
-            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
-              <span class="text-[10px] text-slate-400">إجمالي طلبات المنصة</span>
-              <div class="text-xl font-black text-white">{{ adminOverview.totalOrders || 0 }}</div>
+
+            <!-- Master Products Grid -->
+            <div v-if="filteredAdminProducts.length" class="space-y-2">
+              <div v-for="prod in filteredAdminProducts" :key="prod.id" class="bg-dark-800 border border-slate-700 p-3 rounded-2xl space-y-2 text-xs">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-12 h-12 rounded-xl bg-dark-750 flex items-center justify-center overflow-hidden border border-slate-700 shrink-0">
+                      <img v-if="prod.image_url" :src="prod.image_url" class="w-full h-full object-cover">
+                      <span v-else class="text-xl">🛍️</span>
+                    </div>
+                    <div>
+                      <div class="font-bold text-white text-sm">{{ prod.name_ar || prod.name }}</div>
+                      <div class="text-[10px] text-slate-400 font-mono">{{ prod.name }}</div>
+                      <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span class="text-[9px] bg-slate-700 text-slate-200 px-1.5 py-0.2 rounded font-mono">{{ prod.category }}</span>
+                        <span class="text-[9px] bg-brand-900/50 text-brand-300 border border-brand-700/50 px-1.5 py-0.2 rounded font-mono">{{ prod.template_type }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <span class="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+                    معمم للجميع ✅
+                  </span>
+                </div>
+
+                <!-- Prices info -->
+                <div class="bg-dark-900 p-2 rounded-xl flex items-center justify-between text-[11px] font-mono border border-slate-800">
+                  <div class="text-slate-400">
+                    التكلفة عليك: <span class="text-rose-400 font-bold">{{ formatPrice(prod.cost_price || 0) }}</span>
+                  </div>
+                  <div class="text-slate-400">
+                    سعر البدء المقترح: <span class="text-white font-black">{{ formatPrice(prod.base_user_price || 0) }}</span>
+                  </div>
+                  <div class="text-emerald-400 font-black">
+                    ربح مقترح: +{{ formatPrice((prod.base_user_price || 0) - (prod.cost_price || 0)) }}
+                  </div>
+                </div>
+
+                <!-- Requirements display -->
+                <div v-if="prod.requirements && prod.requirements.length" class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span class="text-[10px] text-slate-400">المتطلبات المقفلة:</span>
+                  <span v-for="r in prod.requirements" :key="r.name" class="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md font-bold">
+                    🔒 {{ r.label }}
+                  </span>
+                </div>
+
+                <!-- Card Actions -->
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-700/60">
+                  <button @click="openEditAdminProduct(prod)" class="flex-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-[11px] py-1.5 rounded-xl transition active:scale-95 flex items-center justify-center gap-1">
+                    <span>✏️</span>
+                    <span>تعديل السعر والمتطلبات والصورة</span>
+                  </button>
+                  <button @click="deleteAdminProduct(prod.id)" class="px-3 py-1.5 bg-rose-950/50 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 rounded-xl text-[11px] font-bold transition active:scale-95">
+                    <span>🗑️ حذف</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="bg-dark-800/90 border border-rose-900/40 p-3 rounded-xl">
-              <span class="text-[10px] text-slate-400">طلبات معلقة للتنفيذ</span>
-              <div class="text-xl font-black text-amber-400">{{ adminOverview.pendingManualOrders || 0 }}</div>
+            <div v-else class="text-center py-8 text-xs text-slate-500 bg-dark-800/30 rounded-2xl">
+              لا توجد منتجات عامة مسجلة في هذا القسم. اضغط "إضافة منتج" لنشر أول منتج مركزي!
             </div>
           </div>
 
-          <!-- Admin Manual Orders Queue -->
-          <div class="space-y-3">
+          <!-- ── SUB-TAB 2: PLATFORM OVERVIEW & STATS ── -->
+          <div v-if="adminActiveSubTab === 'stats'" class="space-y-3">
+            <h4 class="font-bold text-xs text-white flex items-center gap-1.5">
+              <span>📊</span> إحصائيات ونشاط المنصة الشامل
+            </h4>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="bg-dark-800 border border-slate-700 p-3.5 rounded-2xl">
+                <span class="text-[10px] text-slate-400">إجمالي المتاجر والبوتات</span>
+                <div class="text-2xl font-black text-rose-300 mt-1 font-mono">{{ adminBots.length || adminOverview.totalStores || 1 }}</div>
+              </div>
+              <div class="bg-dark-800 border border-slate-700 p-3.5 rounded-2xl">
+                <span class="text-[10px] text-slate-400">حجم تعاملات المنصة</span>
+                <div class="text-2xl font-black text-emerald-400 mt-1 font-mono">{{ formatPrice(adminOverview.totalPlatformVolume || 0) }}</div>
+              </div>
+              <div class="bg-dark-800 border border-slate-700 p-3.5 rounded-2xl">
+                <span class="text-[10px] text-slate-400">إجمالي طلبات المنصة</span>
+                <div class="text-2xl font-black text-white mt-1 font-mono">{{ adminOverview.totalOrders || 0 }}</div>
+              </div>
+              <div class="bg-dark-800 border border-slate-700 p-3.5 rounded-2xl">
+                <span class="text-[10px] text-slate-400">طلبات معلقة للتنفيذ</span>
+                <div class="text-2xl font-black text-amber-400 mt-1 font-mono">{{ adminOverview.pendingManualOrders || 0 }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SUB-TAB 3: PLATFORM BOTS LIST ── -->
+          <div v-if="adminActiveSubTab === 'bots'" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-xs text-white flex items-center gap-1.5">
+                <span>🤖</span> قائمة بوتات ومتاجر المنصة
+              </h4>
+              <span class="text-[10px] text-slate-400 font-mono">{{ adminBots.length }} بوت نشط</span>
+            </div>
+
+            <div v-if="adminBots.length" class="space-y-2">
+              <div v-for="b in adminBots" :key="b.bot_id" class="bg-dark-800 border border-slate-700 p-3 rounded-2xl text-xs space-y-2">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-bold text-white text-sm">@{{ b.username || 'بدون يوزر' }}</div>
+                    <div class="text-[10px] text-slate-400">المالك: {{ b.owner_name }} ({{ b.owner_id }})</div>
+                  </div>
+                  <span class="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+                    {{ b.status === 'active' ? 'نشط 🟢' : b.status }}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-slate-400 bg-dark-900 p-2 rounded-xl">
+                  <span>القالب: <strong class="text-sky-300">{{ b.template_type }}</strong></span>
+                  <span>الرصيد: <strong class="text-emerald-400 font-mono">${{ b.balance_usd || 0 }}</strong></span>
+                  <a v-if="b.username" :href="'https://t.me/' + b.username" target="_blank" class="text-brand-400 hover:underline">فتح البوت ↗</a>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-6 text-xs text-slate-500 bg-dark-800/30 rounded-2xl">
+              لا توجد بوتات مسجلة بعد في قاعدة البيانات
+            </div>
+          </div>
+
+          <!-- ── SUB-TAB 4: ORDERS QUEUE ── -->
+          <div v-if="adminActiveSubTab === 'orders'" class="space-y-3">
             <h4 class="font-bold text-xs text-slate-300">الطلبات اليدوية والخدمات المعلقة</h4>
             <div v-if="adminOrders.length" class="space-y-2">
               <div v-for="ord in adminOrders" :key="ord.id" class="bg-dark-800 border border-slate-700 p-3 rounded-xl space-y-2 text-xs">
@@ -1102,11 +1315,9 @@ HTML_SHELL = """<!DOCTYPE html>
                 <div class="text-[11px] text-slate-400">
                   العميل: {{ ord.user_id || ord.user_telegram_id }} | المرجع: {{ ord.order_ref || ord.order_id }}
                 </div>
-                <!-- Target input -->
                 <div v-if="ord.target" class="bg-dark-900 p-2 rounded text-[11px] font-mono text-slate-300">
                   بيانات العميل: {{ ord.target }}
                 </div>
-                <!-- Actions -->
                 <div class="flex items-center gap-2 pt-1 border-t border-slate-700/60">
                   <button @click="handleAdminOrderAction(ord.order_ref || ord.order_id, 'deliver')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-1.5 rounded-lg text-white font-bold text-[11px]">
                     تسليم ✅
@@ -1122,6 +1333,32 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
             <div v-else class="text-center py-6 text-xs text-slate-500 bg-dark-800/30 rounded-xl">
               لا توجد طلبات يدوية معلقة حالياً
+            </div>
+          </div>
+
+          <!-- ── SUB-TAB 5: PLATFORM BROADCAST ── -->
+          <div v-if="adminActiveSubTab === 'broadcast'" class="space-y-3">
+            <h4 class="font-bold text-xs text-white flex items-center gap-1.5">
+              <span>📢</span> إذاعة وتنبيهات عامة من صانع البوتات
+            </h4>
+            <div class="bg-dark-800 border border-slate-700 p-3.5 rounded-2xl space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">الجمهور المستهدف بالإذاعة:</label>
+                <select v-model="adminBroadcastTarget" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                  <option value="owners">أصحاب المتاجر وصناع البوتات فقط (Bot Owners)</option>
+                  <option value="all">كافة المستخدمين والمشترين في المنصة (All Users)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">نص الرسالة والإشعار:</label>
+                <textarea v-model="adminBroadcastMsg" rows="4" placeholder="اكتب نص الإشعار هنا ليصل فورياً في محادثات التليجرام..." class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white leading-relaxed"></textarea>
+              </div>
+
+              <button @click="sendAdminBroadcast" :disabled="sendingBroadcast || !adminBroadcastMsg.trim()" class="w-full bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+                <span v-if="sendingBroadcast">جاري إرسال الإذاعة... ⏳</span>
+                <span v-else>📢 إرسال الإذاعة فورياً لجميع المحددين</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1713,28 +1950,37 @@ HTML_SHELL = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- E. ADD / EDIT PRODUCT MODAL -->
+      <!-- E. ADD / EDIT PRODUCT MODAL (SELLER) -->
       <div v-if="showProductModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
         <div class="bg-dark-850 w-full max-w-lg rounded-3xl border border-slate-700/80 p-5 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
           <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
             <h3 class="font-black text-sm text-white flex items-center gap-2">
-              <span>➕</span> إضافة / تعديل منتج بالمتجر
+              <span>{{ editingProduct.is_master ? '👑' : '➕' }}</span>
+              <span>{{ editingProduct.is_master ? 'تخصيص منتج مركزي لمتجرك' : 'إضافة / تعديل منتج خاص بالمتجر' }}</span>
             </h3>
             <button @click="showProductModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <!-- Master product notice for seller -->
+          <div v-if="editingProduct.is_master" class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 space-y-1">
+            <div class="font-bold flex items-center gap-1.5">
+              <span>🔒</span> متطلبات هذا المنتج مقفلة من الآدمن
+            </div>
+            <p class="text-slate-300">سعر التكلفة والمتطلبات محددة مركزياً من إدارة المنصة لحماية تنفيذ الطلبات. يمكنك فقط تعديل سعر البيع، الوصف، وصورة المنتج لمتجرك.</p>
           </div>
 
           <div class="space-y-3">
             <div>
               <label class="block text-xs font-bold text-slate-300 mb-1">اسم المنتج بالعربية:</label>
-              <input type="text" v-model="editingProduct.nameAr" placeholder="مثال: شحن بطاقة نتفليكس 100$" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+              <input type="text" v-model="editingProduct.nameAr" :disabled="editingProduct.is_master" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white disabled:opacity-70 disabled:cursor-not-allowed">
             </div>
 
             <div>
               <label class="block text-xs font-bold text-slate-300 mb-1">اسم المنتج بالإنجليزية:</label>
-              <input type="text" v-model="editingProduct.name" placeholder="Netflix Gift Card $100" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+              <input type="text" v-model="editingProduct.name" :disabled="editingProduct.is_master" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white disabled:opacity-70 disabled:cursor-not-allowed">
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div v-if="!editingProduct.is_master" class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-300 mb-1">الفئة (Category):</label>
                 <select v-model="editingProduct.category" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
@@ -1758,13 +2004,26 @@ HTML_SHELL = """<!DOCTYPE html>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">سعر التكلفة ($):</label>
-                <input type="number" step="0.01" v-model.number="editingProduct.costPrice" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                <label class="block text-xs font-bold text-slate-300 mb-1">
+                  {{ editingProduct.is_master ? 'سعر جملة الآدمن ($):' : 'سعر التكلفة ($):' }}
+                </label>
+                <input type="number" step="0.01" v-model.number="editingProduct.costPrice" :disabled="editingProduct.is_master" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono disabled:opacity-60 disabled:cursor-not-allowed">
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">سعر البيع للعميل ($):</label>
-                <input type="number" step="0.01" v-model.number="editingProduct.userPrice" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                <label class="block text-xs font-bold text-slate-300 mb-1">سعر البيع لزبائنك ($):</label>
+                <input type="number" step="0.01" v-model.number="editingProduct.userPrice" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-400 font-mono font-bold focus:border-brand-500">
               </div>
+            </div>
+
+            <!-- Dynamic Live Profit Display -->
+            <div class="bg-dark-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs font-mono">
+              <span class="text-slate-400">صافي ربحك المحسوب:</span>
+              <span class="font-bold text-emerald-400">
+                +{{ formatPrice(editingProduct.userPrice - editingProduct.costPrice) }}
+                <span class="text-[10px] text-slate-400 font-normal mr-1">
+                  ({{ editingProduct.costPrice > 0 ? Math.round(((editingProduct.userPrice - editingProduct.costPrice) / editingProduct.costPrice) * 100) : 0 }}%)
+                </span>
+              </span>
             </div>
 
             <!-- Floor Price Security Alert -->
@@ -1775,22 +2034,21 @@ HTML_SHELL = """<!DOCTYPE html>
             <!-- Native Gallery / Media File Upload -->
             <div class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
               <div class="flex items-center justify-between">
-                <label class="block text-xs font-bold text-slate-200">صورة أو فيديو المنتج:</label>
+                <label class="block text-xs font-bold text-slate-200">صورة المنتج:</label>
                 <span v-if="uploadingMedia" class="text-[10px] text-brand-400 font-bold animate-pulse">جاري الرفع... ⏳</span>
               </div>
 
               <!-- Media Preview if available -->
               <div v-if="editingProduct.imageUrl" class="relative w-full h-32 rounded-xl bg-dark-900 overflow-hidden border border-slate-700">
-                <video v-if="isMediaVideo(editingProduct.imageUrl)" :src="editingProduct.imageUrl" controls class="w-full h-full object-cover"></video>
-                <img v-else :src="editingProduct.imageUrl" class="w-full h-full object-cover" alt="preview">
+                <img :src="editingProduct.imageUrl" class="w-full h-full object-cover" alt="preview">
                 <button type="button" @click="editingProduct.imageUrl = ''" class="absolute top-2 left-2 bg-rose-600/80 hover:bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✕</button>
               </div>
 
               <!-- Native Gallery / File Picker -->
-              <input type="file" ref="productMediaFileInput" accept="image/*,video/*" @change="handleProductMediaUpload" class="hidden">
+              <input type="file" ref="productMediaFileInput" accept="image/*" @change="handleProductMediaUpload" class="hidden">
               <button type="button" @click="$refs.productMediaFileInput.click()" :disabled="uploadingMedia" class="w-full py-2.5 px-3 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/40 rounded-xl text-xs font-bold text-brand-300 flex items-center justify-center gap-2 transition active:scale-95 shadow-sm">
                 <span>📸</span>
-                <span>اختيار صورة أو فيديو من المعرض (Phone Gallery)</span>
+                <span>اختيار صورة من معرض الهاتف (Phone Gallery)</span>
               </button>
 
               <!-- Optional URL input -->
@@ -1805,8 +2063,24 @@ HTML_SHELL = """<!DOCTYPE html>
               <textarea v-model="editingProduct.description" rows="2" placeholder="أدخل تفاصيل ومميزات المنتج..." class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"></textarea>
             </div>
 
-            <!-- Custom Requirements Builder (Player ID / Email / etc.) -->
-            <div class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
+            <!-- Master product requirements: Locked preview -->
+            <div v-if="editingProduct.is_master" class="space-y-1.5 bg-dark-900/60 p-3 rounded-xl border border-slate-800">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300">المتطلبات الإلزامية من المشتري:</span>
+                <span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">🔒 مقفلة من الآدمن</span>
+              </div>
+              <div v-if="editingProduct.requirements && editingProduct.requirements.length" class="flex items-center gap-1.5 flex-wrap pt-1">
+                <span v-for="r in editingProduct.requirements" :key="r.name" class="text-[10px] bg-dark-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-lg font-mono">
+                  🔒 {{ r.label || r.name }}
+                </span>
+              </div>
+              <div v-else class="text-[10px] text-slate-400">
+                هذا المنتج لا يتطلب مدخلات إضافية من المشتري عند الشراء.
+              </div>
+            </div>
+
+            <!-- Custom Requirements Builder for custom products only -->
+            <div v-else class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                   <span>📝</span> طلب بيانات من العميل عند الشراء (Player ID / Email / إلخ):
@@ -1831,9 +2105,155 @@ HTML_SHELL = """<!DOCTYPE html>
             </div>
           </div>
 
-          <button @click="saveSellerProduct" :disabled="savingProduct || editingProduct.userPrice < editingProduct.costPrice" class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow">
+          <button @click="saveSellerProduct" :disabled="savingProduct || editingProduct.userPrice < editingProduct.costPrice" class="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow flex items-center justify-center gap-1.5">
             <span v-if="savingProduct">جاري الحفظ... ⏳</span>
             <span v-else>حفظ وإضافة المنتج للمتجر ✅</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- F. SUPER ADMIN MASTER PRODUCT MODAL (آدمن المنصة الأعلى) -->
+      <div v-if="showAdminProductModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-dark-850 w-full max-w-lg rounded-3xl border border-rose-500/40 p-5 space-y-4 my-auto max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div class="flex items-center justify-between border-b border-rose-900/40 pb-3">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <span>👑</span> {{ adminProductForm.id ? 'تعديل منتج مركزي (الكتالوج العام)' : 'إضافة منتج مركزي جديد (الكتالوج العام)' }}
+            </h3>
+            <button @click="showAdminProductModal = false" class="w-8 h-8 rounded-full bg-dark-750 text-slate-300 flex items-center justify-center text-xs">✕</button>
+          </div>
+
+          <div class="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-[11px] text-rose-300">
+            ℹ️ أي تعديل على هذا المنتج سينزل تلقائياً على القوالب الأربعة ولجميع البائعين. وإذا رفعت التكلفة يرتفع السعر تلقائياً عند الجميع بنفس الفرق لضمان أرباحهم.
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">اسم المنتج بالعربية (يظهر للجميع):</label>
+              <input type="text" v-model="adminProductForm.name_ar" placeholder="مثال: شحن شدات ببجي 660 UC" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">اسم المنتج بالإنجليزية:</label>
+              <input type="text" v-model="adminProductForm.name" placeholder="PUBG Mobile 660 UC" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">القسم (Category):</label>
+                <select v-model="adminProductForm.category" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                  <option value="gaming">ألعاب (Gaming)</option>
+                  <option value="subscriptions">اشتراكات (Subscriptions)</option>
+                  <option value="telegram">تيليجرام (Telegram)</option>
+                  <option value="numbers">أرقام تفعيل (Numbers)</option>
+                  <option value="smm">تفاعل ودعم (SMM)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">نوع القالب المتصل:</label>
+                <select v-model="adminProductForm.template_type" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                  <option value="manual_subs">اشتراكات وشحن ألعاب</option>
+                  <option value="stars_premium_gifts">نجوم وبريميوم وهدايا</option>
+                  <option value="virtual_numbers">أرقام تفعيل</option>
+                  <option value="smm_boost">زيادة تفاعل ودعم</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">سعر التكلفة عليك ($):</label>
+                <input type="number" step="0.01" v-model.number="adminProductForm.cost_price" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">سعر البيع المقترح للبدء ($):</label>
+                <input type="number" step="0.01" v-model.number="adminProductForm.base_user_price" class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono">
+              </div>
+            </div>
+
+            <!-- Profit preview -->
+            <div class="bg-dark-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs font-mono">
+              <span class="text-slate-400">هامش الربح الافتراضي:</span>
+              <span class="text-emerald-400 font-bold">+{{ formatPrice(adminProductForm.base_user_price - adminProductForm.cost_price) }}</span>
+            </div>
+
+            <!-- Direct Phone Gallery Upload for Admin -->
+            <div class="space-y-2 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-bold text-slate-200">صورة المنتج (من المعرض المباشر):</label>
+                <span v-if="uploadingAdminMedia" class="text-[10px] text-rose-400 font-bold animate-pulse">جاري الرفع... ⏳</span>
+              </div>
+
+              <!-- Media Preview -->
+              <div v-if="adminProductForm.image_url" class="relative w-full h-32 rounded-xl bg-dark-900 overflow-hidden border border-slate-700">
+                <img :src="adminProductForm.image_url" class="w-full h-full object-cover" alt="preview">
+                <button type="button" @click="adminProductForm.image_url = ''" class="absolute top-2 left-2 bg-rose-600/80 hover:bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✕</button>
+              </div>
+
+              <!-- Native Gallery / File Picker -->
+              <input type="file" ref="adminMediaFileInput" accept="image/*" @change="uploadAdminImage" class="hidden">
+              <button type="button" @click="$refs.adminMediaFileInput.click()" :disabled="uploadingAdminMedia" class="w-full py-2.5 px-3 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 rounded-xl text-xs font-bold text-rose-300 flex items-center justify-center gap-2 transition active:scale-95 shadow-sm">
+                <span>📸</span>
+                <span>اختيار صورة من معرض الهاتف (Phone Gallery)</span>
+              </button>
+
+              <div class="flex items-center gap-1.5 pt-1">
+                <span class="text-[10px] text-slate-400">أو رابط مباشر:</span>
+                <input type="text" v-model="adminProductForm.image_url" placeholder="https://..." class="flex-1 bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">وصف المنتج:</label>
+              <textarea v-model="adminProductForm.description" rows="2" placeholder="أدخل تفاصيل ومميزات المنتج..." class="w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"></textarea>
+            </div>
+
+            <!-- Requirements Builder (Locked to Admin Only) -->
+            <div class="space-y-2.5 bg-dark-800/80 p-3 rounded-xl border border-slate-700">
+              <div>
+                <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <span>🔒</span> المتطلبات الإلزامية من المشتري (مقفلة لك كآدمن فقط):
+                </label>
+                <p class="text-[10px] text-slate-400 mt-0.5">البيانات التي سيطلبها المتجر من العميل عند الشراء (لا يمكن للبائعين تعديلها)</p>
+              </div>
+
+              <!-- Quick Presets -->
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <button type="button" @click="addAdminRequirementPreset('player_id')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + آيدي اللاعب (Player ID)
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('email')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + البريد الإلكتروني (Email)
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('username')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + اسم المستخدم (Username)
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('url')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + رابط حساب/منشور (URL)
+                </button>
+                <button type="button" @click="addAdminRequirementPreset('phone')" class="px-2 py-1 bg-dark-900 hover:bg-dark-750 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-bold">
+                  + رقم الهاتف (Phone)
+                </button>
+              </div>
+
+              <!-- Current Defined Requirements List -->
+              <div v-if="adminProductForm.requirements && adminProductForm.requirements.length" class="space-y-1.5 pt-1">
+                <div v-for="(req, rIdx) in adminProductForm.requirements" :key="req.name" class="flex items-center justify-between p-2 rounded-lg bg-dark-900 border border-slate-800 text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="text-amber-400 font-bold font-mono">🔒 {{ req.label }}</span>
+                    <span class="text-[10px] text-slate-400">({{ req.type }})</span>
+                  </div>
+                  <button type="button" @click="removeAdminRequirement(rIdx)" class="text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded text-xs">✕</button>
+                </div>
+              </div>
+              <div v-else class="text-[10px] text-slate-500 py-1">
+                لا توجد متطلبات مضافة حالياً. اختر من القوالب أعلاه لإلزام المشتري بإدخالها عند الطلب.
+              </div>
+            </div>
+          </div>
+
+          <button @click="saveAdminProduct" :disabled="savingAdminProduct || adminProductForm.base_user_price < adminProductForm.cost_price" class="w-full bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+            <span v-if="savingAdminProduct">جاري الحفظ والنشر... ⏳</span>
+            <span v-else>حفظ ونشر للمنصة ولكافة المتاجر 🚀</span>
           </button>
         </div>
       </div>
@@ -2303,6 +2723,31 @@ HTML_SHELL = """<!DOCTYPE html>
         const selectedMasterIds = ref([]);
         const importMarginPercent = ref(15);
 
+        // Super Admin Master Catalog & Dashboard State
+        const adminActiveSubTab = ref('catalog');
+        const adminProducts = ref([]);
+        const adminBots = ref([]);
+        const adminCategoryFilter = ref('all');
+        const showAdminProductModal = ref(false);
+        const adminProductForm = ref({
+          id: '',
+          name: '',
+          name_ar: '',
+          category: 'gaming',
+          template_type: 'manual_subs',
+          cost_price: 1.0,
+          base_user_price: 1.5,
+          image_url: '',
+          description: '',
+          requirements: []
+        });
+        const adminBroadcastMsg = ref('');
+        const adminBroadcastTarget = ref('owners');
+        const sendingBroadcast = ref(false);
+        const savingAdminProduct = ref(false);
+        const uploadingAdminMedia = ref(false);
+        const adminMediaFileInput = ref(null);
+
         // Telegram WebApp Instance
         const tg = window.Telegram?.WebApp;
 
@@ -2414,8 +2859,7 @@ HTML_SHELL = """<!DOCTYPE html>
               await loadSellerReceipts();
             }
             if (role.value === 'admin') {
-              await loadAdminOverview();
-              await loadAdminOrders();
+              await loadAdminData();
             }
 
           } catch (err) {
@@ -3037,6 +3481,8 @@ HTML_SHELL = """<!DOCTYPE html>
 
         const openNewProductModal = () => {
           editingProduct.value = {
+            id: '',
+            is_master: false,
             name: '',
             nameAr: '',
             category: 'subscriptions',
@@ -3047,6 +3493,63 @@ HTML_SHELL = """<!DOCTYPE html>
             description: ''
           };
           showProductModal.value = true;
+        };
+
+        const openEditSellerProduct = (prod) => {
+          editingProduct.value = {
+            id: prod.id,
+            is_master: !!prod.is_master,
+            name: prod.name || prod.nameAr,
+            nameAr: prod.nameAr || prod.name,
+            category: prod.category || 'subscriptions',
+            templateType: prod.templateType || 'manual_subs',
+            costPrice: Number(prod.cost_price || prod.costPrice || 1.0),
+            userPrice: Number(prod.price_usd || prod.userPrice || (prod.cost_price ? prod.cost_price * 1.2 : 1.5)),
+            imageUrl: prod.image_url || (prod.mediaUrls && prod.mediaUrls[0]) || '',
+            description: prod.description || '',
+            requirements: prod.requirements || []
+          };
+          showProductModal.value = true;
+        };
+
+        const resetSellerProducts = async () => {
+          if (!confirm('هل تريد استرجاع كافة المنتجات المركزية التي قمت بحذفها سابقاً؟')) return;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/products/reset', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم استرجاع كافة المنتجات المحذوفة بنجاح!');
+              await loadSellerProducts();
+            } else {
+              alert(json.message || json.error || 'تعذر استرجاع المنتجات');
+            }
+          } catch {
+            alert('حدث خطأ في الاتصال');
+          }
+        };
+
+        const resetSellerPrices = async () => {
+          if (!confirm('هل تريد استعادة أسعار البيع الافتراضية المقترحة من إدارة المنصة لكافة المنتجات المركزية؟')) return;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/seller/prices/reset', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تمت استعادة أسعار الآدمن الافتراضية بنجاح!');
+              await loadSellerProducts();
+            } else {
+              alert(json.message || json.error || 'تعذر إعادة تعيين الأسعار');
+            }
+          } catch {
+            alert('حدث خطأ في الاتصال');
+          }
         };
 
         const saveSellerProduct = async () => {
@@ -3062,6 +3565,8 @@ HTML_SHELL = """<!DOCTYPE html>
           try {
             const initData = tg?.initData || '';
             const payload = {
+              id: editingProduct.value.id || undefined,
+              is_master: editingProduct.value.is_master,
               name: editingProduct.value.name || editingProduct.value.nameAr,
               nameAr: editingProduct.value.nameAr || editingProduct.value.name,
               category: editingProduct.value.category,
@@ -3087,6 +3592,11 @@ HTML_SHELL = """<!DOCTYPE html>
               alert(json.message || 'تم حفظ المنتج بنجاح!');
               showProductModal.value = false;
               await loadSellerProducts();
+              try {
+                const catRes = await fetch(`/api/miniapp/catalog?store_id=${store.value?.botId || 'default'}`);
+                const catJson = await catRes.json();
+                if (catJson.success && catJson.data) products.value = catJson.data.products || [];
+              } catch {}
             } else {
               alert(json.error || 'فشل حفظ المنتج');
             }
@@ -3122,6 +3632,215 @@ HTML_SHELL = """<!DOCTYPE html>
             if (json.success || json.ok) await loadSellerProducts();
           } catch {}
         };
+
+        // Super Admin Methods
+        const loadAdminProducts = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/products', {
+              headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              adminProducts.value = json.products || json.data || [];
+            }
+          } catch (e) {
+            console.warn('Error loading admin products:', e);
+          }
+        };
+
+        const loadAdminBots = async () => {
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/bots', {
+              headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' }
+            });
+            const json = await res.json();
+            if (json.success || json.ok) {
+              adminBots.value = json.bots || json.data || [];
+            }
+          } catch (e) {
+            console.warn('Error loading admin bots:', e);
+          }
+        };
+
+        const loadAdminData = async () => {
+          await Promise.all([
+            loadAdminOverview(),
+            loadAdminOrders(),
+            loadAdminProducts(),
+            loadAdminBots()
+          ]);
+        };
+
+        const filteredAdminProducts = computed(() => {
+          if (adminCategoryFilter.value === 'all') return adminProducts.value;
+          return adminProducts.value.filter(p => p.category === adminCategoryFilter.value || p.template_type === adminCategoryFilter.value);
+        });
+
+        const openAddAdminProduct = () => {
+          adminProductForm.value = {
+            id: '',
+            name: '',
+            name_ar: '',
+            category: 'gaming',
+            template_type: 'manual_subs',
+            cost_price: 1.0,
+            base_user_price: 1.5,
+            image_url: '',
+            description: '',
+            requirements: []
+          };
+          showAdminProductModal.value = true;
+        };
+
+        const openEditAdminProduct = (prod) => {
+          adminProductForm.value = {
+            id: prod.id,
+            name: prod.name || prod.name_ar,
+            name_ar: prod.name_ar || prod.name,
+            category: prod.category || 'gaming',
+            template_type: prod.template_type || 'manual_subs',
+            cost_price: Number(prod.cost_price || 1.0),
+            base_user_price: Number(prod.base_user_price || prod.cost_price * 1.3 || 1.5),
+            image_url: prod.image_url || '',
+            description: prod.description || '',
+            requirements: Array.isArray(prod.requirements) ? JSON.parse(JSON.stringify(prod.requirements)) : []
+          };
+          showAdminProductModal.value = true;
+        };
+
+        const addAdminRequirementPreset = (presetType) => {
+          if (!adminProductForm.value.requirements) adminProductForm.value.requirements = [];
+          const presets = {
+            player_id: { name: 'player_id', label: 'آيدي اللاعب (Player ID)', type: 'text', placeholder: 'مثال: 5123456789' },
+            email: { name: 'email', label: 'البريد الإلكتروني (Email)', type: 'email', placeholder: 'example@gmail.com' },
+            username: { name: 'username', label: 'اسم المستخدم (Username)', type: 'text', placeholder: '@username' },
+            url: { name: 'target_url', label: 'رابط الحساب أو المنشور (URL)', type: 'url', placeholder: 'https://...' },
+            phone: { name: 'phone', label: 'رقم الهاتف (Phone Number)', type: 'text', placeholder: '+9647...' }
+          };
+          const p = presets[presetType];
+          if (p && !adminProductForm.value.requirements.some(r => r.name === p.name)) {
+            adminProductForm.value.requirements.push({ ...p });
+          }
+        };
+
+        const removeAdminRequirement = (idx) => {
+          if (adminProductForm.value.requirements) {
+            adminProductForm.value.requirements.splice(idx, 1);
+          }
+        };
+
+        const uploadAdminImage = async (evt) => {
+          const file = evt.target.files?.[0];
+          if (!file) return;
+          uploadingAdminMedia.value = true;
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/miniapp/upload', {
+              method: 'POST',
+              body: formData
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              adminProductForm.value.image_url = json.url;
+              alert('تم رفع الصورة بنجاح! 📸');
+            } else {
+              alert(json.error || 'فشل رفع الصورة');
+            }
+          } catch {
+            alert('حدث خطأ أثناء رفع الصورة');
+          } finally {
+            uploadingAdminMedia.value = false;
+          }
+        };
+
+        const saveAdminProduct = async () => {
+          if (!adminProductForm.value.name_ar && !adminProductForm.value.name) {
+            alert('الرجاء كتابة اسم المنتج');
+            return;
+          }
+          if (adminProductForm.value.base_user_price < adminProductForm.value.cost_price) {
+            alert('سعر البيع لا يمكن أن يكون أقل من سعر التكلفة!');
+            return;
+          }
+          savingAdminProduct.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/products/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify(adminProductForm.value)
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم حفظ ونشر المنتج المركزي بنجاح لجميع المتاجر! 🚀');
+              showAdminProductModal.value = false;
+              await loadAdminProducts();
+            } else {
+              alert(json.message || json.error || 'فشل حفظ المنتج');
+            }
+          } catch {
+            alert('حدث خطأ أثناء الاتصال بالسيرفر');
+          } finally {
+            savingAdminProduct.value = false;
+          }
+        };
+
+        const deleteAdminProduct = async (id) => {
+          if (!confirm('تحذير: هل أنت متأكد من حذف هذا المنتج المركزي من جميع القوالب ومتاجر البائعين؟')) return;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/products/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify({ id })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم حذف المنتج من المنصة بنجاح!');
+              await loadAdminProducts();
+            } else {
+              alert(json.message || json.error || 'فشل حذف المنتج');
+            }
+          } catch {
+            alert('حدث خطأ في الاتصال');
+          }
+        };
+
+        const sendAdminBroadcast = async () => {
+          if (!adminBroadcastMsg.value.trim()) {
+            alert('يرجى كتابة نص الرسالة أولاً');
+            return;
+          }
+          sendingBroadcast.value = true;
+          try {
+            const initData = tg?.initData || '';
+            const res = await fetch('/api/miniapp/admin/broadcast', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+              body: JSON.stringify({ message: adminBroadcastMsg.value, target: adminBroadcastTarget.value })
+            });
+            const json = await res.json();
+            if (json.ok || json.success) {
+              alert(json.message || 'تم إرسال الإذاعة بنجاح! 📢');
+              adminBroadcastMsg.value = '';
+            } else {
+              alert(json.message || json.error || 'فشل إرسال الإذاعة');
+            }
+          } catch {
+            alert('حدث خطأ أثناء الإرسال');
+          } finally {
+            sendingBroadcast.value = false;
+          }
+        };
+
+        watch(currentTab, (newTab) => {
+          if (newTab === 'admin' && role.value === 'admin') {
+            loadAdminData();
+          }
+        });
 
         const loadSellerSettings = async () => {
           try {
@@ -3758,7 +4477,36 @@ HTML_SHELL = """<!DOCTYPE html>
           currencyOptions,
           showGuaranteeModal,
           scrollToStatement,
-          accountData
+          accountData,
+          // Seller Edit & Reset Methods
+          openEditSellerProduct,
+          resetSellerProducts,
+          resetSellerPrices,
+          // Super Admin State & Methods
+          adminActiveSubTab,
+          adminProducts,
+          adminBots,
+          adminCategoryFilter,
+          showAdminProductModal,
+          adminProductForm,
+          adminBroadcastMsg,
+          adminBroadcastTarget,
+          sendingBroadcast,
+          savingAdminProduct,
+          uploadingAdminMedia,
+          adminMediaFileInput,
+          filteredAdminProducts,
+          loadAdminProducts,
+          loadAdminBots,
+          loadAdminData,
+          openAddAdminProduct,
+          openEditAdminProduct,
+          addAdminRequirementPreset,
+          removeAdminRequirement,
+          uploadAdminImage,
+          saveAdminProduct,
+          deleteAdminProduct,
+          sendAdminBroadcast
         };
       }
     }).mount('#app');
