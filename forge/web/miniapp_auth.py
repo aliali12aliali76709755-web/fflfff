@@ -42,11 +42,25 @@ class AuthContext:
         }
 
 
+_RESOLVE_CACHE: dict[str, tuple[float, db.Bot | None]] = {}
+
+
+def invalidate_resolve_cache(bot_identifier: str | int | None = None) -> None:
+    if bot_identifier:
+        clean = str(bot_identifier).lstrip("@").strip().lower()
+        _RESOLVE_CACHE.pop(clean, None)
+    else:
+        _RESOLVE_CACHE.clear()
+
+
 async def resolve_bot(bot_identifier: str | int | None = None) -> db.Bot | None:
-    """يجلب سجل البوت إما عبر ID أو عبر username مع توفير بدائل ذكية."""
+    """يجلب سجل البوت إما عبر ID أو عبر username مع توفير بدائل ذكية وكاش 60 ثانية."""
+    clean_u = str(bot_identifier or "").lstrip("@").strip().lower()
+    hit = _RESOLVE_CACHE.get(clean_u)
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+
     async with db.Session() as s:
-        clean_u = str(bot_identifier or "").lstrip("@").strip().lower()
-        
         # إذا لم يتم تحديد بوت أو تم تمرير اسم عام افتراضي
         if not clean_u or clean_u in ("shop", "app", "default", "store", "admin_app", "store_default"):
             bot = (await s.execute(
@@ -54,13 +68,14 @@ async def resolve_bot(bot_identifier: str | int | None = None) -> db.Bot | None:
             )).scalars().first()
             if bot is None:
                 bot = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().first()
-            # لا ننشئ بوتاً وهمياً بتوكن مزيف: إن لم يوجد بوت نشط نُرجع None (404)
+            _RESOLVE_CACHE[clean_u] = (time.time(), bot)
             return bot
 
         # إذا كان المعرف رقماً (Bot ID)
         if clean_u.isdigit():
             bot = await s.get(db.Bot, int(clean_u))
             if bot:
+                _RESOLVE_CACHE[clean_u] = (time.time(), bot)
                 return bot
 
         # البحث عبر اسم المستخدم username
@@ -69,6 +84,7 @@ async def resolve_bot(bot_identifier: str | int | None = None) -> db.Bot | None:
             select(db.Bot).where(func.lower(db.Bot.username) == clean_u)
             .order_by((db.Bot.status == "active").desc(), db.Bot.created.desc())
         )).scalars().first()
+        _RESOLVE_CACHE[clean_u] = (time.time(), bot)
         return bot
 
 

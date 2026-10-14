@@ -152,6 +152,11 @@ def invalidate(bot_id: int) -> None:
         _CAT_CACHE.pop(k, None)
     _STORE_CFG_CACHE.pop(bot_id, None)
     currency.invalidate_currency_cache(bot_id)
+    try:
+        from . import miniapp_auth
+        miniapp_auth.invalidate_resolve_cache(bot_id)
+    except Exception:
+        pass
 
 
 async def build_catalog(bot: db.Bot, lang: str = "ar") -> dict[str, Any]:
