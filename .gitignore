@@ -7,3 +7,4 @@ forge.db
 scratch/
 tests/fake_tunnel_name.txt
 .system_generated/
+*.zip
