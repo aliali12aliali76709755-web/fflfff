@@ -83,7 +83,13 @@ def _parts(bot: db.Bot) -> tuple[str, ...]:
     return out + ("custom",)
 
 
+_STORE_CFG_CACHE: dict[int, tuple[float, dict]] = {}
+
+
 async def store_cfg(bot_id: int) -> dict[str, Any]:
+    hit = _STORE_CFG_CACHE.get(bot_id)
+    if hit and time.time() - hit[0] < 60:
+        return hit[1].copy()
     cfg = dict(STORE_DEFAULTS)
     saved = await db.kv_get(bot_id, "v2:store", {}) or {}
     if isinstance(saved, dict):
@@ -91,7 +97,8 @@ async def store_cfg(bot_id: int) -> dict[str, Any]:
     sup = dict(STORE_DEFAULTS["support"])
     sup.update(cfg.get("support") or {})
     cfg["support"] = sup
-    return cfg
+    _STORE_CFG_CACHE[bot_id] = (time.time(), cfg)
+    return cfg.copy()
 
 
 def _clean_str(v: Any, n: int) -> str:
@@ -105,11 +112,22 @@ def _clean_url(v: Any) -> str:
 
 async def _currencies(bot_id: int, allowed: list[str] | None = None) -> list[dict]:
     rates = await currency.fetch_live_rates()
+    manual_rates = (await currency.get_manual_rates(bot_id)) if bot_id else {}
     out = []
     for code, info in currency.CURRENCIES.items():
         if code == "POINTS" or (allowed and code not in allowed and code != "USD"):
             continue
-        rate = await currency.get_effective_rate(bot_id, code) if bot_id else float(rates.get(code, info["default_rate"]))
+        if code == "USD":
+            rate = 1.0
+        elif code in manual_rates:
+            try:
+                rate = float(manual_rates[code])
+                if rate <= 0:
+                    rate = float(rates.get(code, info["default_rate"]))
+            except (ValueError, TypeError):
+                rate = float(rates.get(code, info["default_rate"]))
+        else:
+            rate = float(rates.get(code, info["default_rate"]))
         out.append({"code": code, "ar": info["name_ar"], "en": info["name_en"], "symbol": info["symbol"],
                     "decimals": info.get("decimals", 2), "rate": rate})
     return out
@@ -132,6 +150,8 @@ _CAT_CACHE: dict[tuple[int, str], tuple[float, dict]] = {}
 def invalidate(bot_id: int) -> None:
     for k in [k for k in _CAT_CACHE if k[0] == bot_id]:
         _CAT_CACHE.pop(k, None)
+    _STORE_CFG_CACHE.pop(bot_id, None)
+    currency.invalidate_currency_cache(bot_id)
 
 
 async def build_catalog(bot: db.Bot, lang: str = "ar") -> dict[str, Any]:
@@ -699,6 +719,7 @@ async def s_payments(req: web.Request) -> web.Response:
                     except (TypeError, ValueError):
                         pass
         await db.kv_set(bid, "v2:store", cfg)
+        invalidate(bid)
     cfg = await store_cfg(bid)
     methods = [dict({"currency": "USD", "on": False}, **m) for m in await payments.get_payment_methods(bid) if m.get("id") != "telegram_stars"]
     return _ok(methods=methods, packages=cfg["packages"], custom_min=cfg["custom_min"], custom_max=cfg["custom_max"],

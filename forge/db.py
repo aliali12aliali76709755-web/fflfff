@@ -383,7 +383,7 @@ class DiscountUsage(Base):
 
 _pool_args = {"pool_pre_ping": True}
 if not config.DATABASE_URL.startswith("sqlite"):
-    _pool_args.update(pool_size=4, max_overflow=2, pool_timeout=10, pool_recycle=60)
+    _pool_args.update(pool_size=10, max_overflow=10, pool_timeout=20, pool_recycle=300)
 
 engine = create_async_engine(config.DATABASE_URL, **_pool_args)
 Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
