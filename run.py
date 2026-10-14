@@ -15,7 +15,7 @@ from telegram import Update
 
 for _s in (sys.stdout, sys.stderr):  # طرفية ويندوز قد لا تدعم العربية افتراضياً
     try:
-        _s.reconfigure(encoding="utf-8", errors="replace")
+        _s.reconfigure(encoding="utf-8", errors="replace", line_buffering=True, write_through=True)
     except Exception:
         pass
 
@@ -33,11 +33,16 @@ class MemoryHandler(logging.Handler):
 
 
 mem_handler = MemoryHandler()
-mem_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+mem_handler.setFormatter(fmt)
 mem_handler.setLevel(logging.INFO)
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(fmt)
+stream_handler.setLevel(logging.INFO)
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.INFO)
 root_logger.addHandler(mem_handler)
+root_logger.addHandler(stream_handler)
 
 
 def _send_tg_notification(text: str) -> None:
