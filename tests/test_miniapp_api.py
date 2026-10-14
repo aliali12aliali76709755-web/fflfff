@@ -9,12 +9,13 @@ import json
 import time
 from urllib.parse import urlencode
 import pytest
+from forge.modules.providers.digital import DigitalManager
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase, TestClient, TestServer
 from PIL import Image
 
 from forge import config, crypto, db
-from forge.modules import currency, ledger
+from forge.modules import payments, currency, ledger
 from forge.web import media_pipe, miniapp_api, miniapp_auth, server
 
 
@@ -168,6 +169,8 @@ async def test_miniapp_full_api_cycle():
 
         # 9. شحن رصيد للمشتري ($50) وإعادة المحاولة
         await ledger.credit_user(test_seed, buyer_uid, 50.0, "test_deposit")
+        # البائع يشحن رصيده الرئيسي في الصانع (منه تُخصم تكلفة المنصة لكل بيعة)
+        await ledger.credit_seller(seller_uid, 100.0, "test_deposit")
         cur_bal = await ledger.get_user_balance_usd(test_seed, buyer_uid)
         assert cur_bal == 50.0
 
@@ -293,6 +296,9 @@ async def test_templates_catalog_and_orders():
 
     try:
         base_seed = int(time.time() * 1000) % 700000 + 300000
+        # البائعون يشحنون أرصدتهم في الصانع (منها تُخصم تكلفة المنصة لكل بيعة)
+        for _sid in (base_seed + 10, base_seed + 20, base_seed + 30):
+            await ledger.credit_seller(_sid, 100.0, "test_deposit")
         buyer_uid = base_seed + 99
 
         # ── 1. قالب أرقام التفعيل (SMS) ──
@@ -328,7 +334,31 @@ async def test_templates_catalog_and_orders():
         assert r_sms_ord.status == 200
         sms_ord_res = await r_sms_ord.json()
         assert sms_ord_res["ok"] is True
-        assert sms_ord_res["status"] == "queued"
+        assert sms_ord_res["status"] == "waiting_sms" and sms_ord_res["phone"].startswith("+")
+        # فحص الكود عبر المزود (المحاكي يعيد كوداً) ثم يظهر في طلباتي
+        r_chk = await client.post(f"/api/miniapp/{sms_u}/sms/check", headers={"X-Telegram-Init-Data": sms_init},
+                                  json={"order_id": sms_ord_res["order_id"]})
+        chk = await r_chk.json()
+        assert chk["ok"] and chk["code"]
+        r_my = await client.get(f"/api/miniapp/{sms_u}/orders/my", headers={"X-Telegram-Init-Data": sms_init})
+        my = (await r_my.json())["data"]
+        assert my[0]["sms_code"] == chk["code"] and my[0]["status"] == "completed"
+        # بعد وصول الكود لا يمكن الإلغاء والاسترجاع
+        r_can = await client.post(f"/api/miniapp/{sms_u}/sms/cancel", headers={"X-Telegram-Init-Data": sms_init},
+                                  json={"order_id": sms_ord_res["order_id"]})
+        assert r_can.status == 400
+        # رقم جديد يُلغى قبل الكود فيُسترجع المبلغ كاملاً، ومستخدم آخر لا يستطيع إلغاءه
+        bal0 = await ledger.get_user_balance_usd(base_seed + 1, buyer_uid)
+        r2 = await (await client.post(f"/api/miniapp/{sms_u}/order", headers={"X-Telegram-Init-Data": sms_init},
+                                      json={"product_id": sms_prod["id"], "target": ""})).json()
+        assert r2["ok"] and await ledger.get_user_balance_usd(base_seed + 1, buyer_uid) < bal0
+        other_init = make_init_data(sms_token, {"id": buyer_uid + 7, "first_name": "X"})
+        r_x = await client.post(f"/api/miniapp/{sms_u}/sms/cancel", headers={"X-Telegram-Init-Data": other_init},
+                                json={"order_id": r2["order_id"]})
+        assert r_x.status == 404
+        r_c = await client.post(f"/api/miniapp/{sms_u}/sms/cancel", headers={"X-Telegram-Init-Data": sms_init},
+                                json={"order_id": r2["order_id"]})
+        assert r_c.status == 200 and abs(await ledger.get_user_balance_usd(base_seed + 1, buyer_uid) - bal0) < 0.0001
 
         # ── 2. قالب خدمات التفاعل (SMM) ──
         smm_token = f"{base_seed}:AAHkL_smm_token_secret"
@@ -609,45 +639,58 @@ async def test_buyer_account_and_seller_features():
         assert del_res["ok"] is True
 
         # 10. اختبار شحن نجوم تيليجرام Stars Deposit
+        # 10. شحن النجوم: الطلب لا يشحن أي رصيد إطلاقاً قبل تأكيد الدفع من تيليجرام
+        bal_before = await ledger.get_user_balance_usd(test_bot_id, buyer_id)
+        r_stars = await client.post(
+            f"/api/miniapp/{bot_user}/deposit/stars",
+            headers={"X-Telegram-Init-Data": buyer_init},
+            json={"stars": 100000000}
+        )
+        assert r_stars.status == 400  # خارج الحدود
         r_stars = await client.post(
             f"/api/miniapp/{bot_user}/deposit/stars",
             headers={"X-Telegram-Init-Data": buyer_init},
             json={"stars": 100}
         )
-        assert r_stars.status == 200
-        stars_res = await r_stars.json()
-        assert stars_res["ok"] is True
-        assert stars_res["stars_amount"] == 100
-        assert stars_res["new_balance_usd"] > 0
+        assert r_stars.status in (200, 503)  # 503 هنا لأن البوت غير مشغّل في الاختبار
+        assert await ledger.get_user_balance_usd(test_bot_id, buyer_id) == bal_before
 
-        # 11. اختبار شراء السلة المجمعة Cart Checkout
-        cart_payload = {
-            "items": [
-                {
-                    "productId": "cart_p1",
-                    "name": "بطاقة نتفلكس",
-                    "price": 0.5,
-                    "quantity": 2,
-                    "target": "user@test.com"
-                },
-                {
-                    "productId": "cart_p2",
-                    "name": "شحن ببجي",
-                    "price": 0.5,
-                    "quantity": 1,
-                    "target": "55443322"
-                }
-            ]
-        }
-        r_cart = await client.post(
-            f"/api/miniapp/{bot_user}/order/cart-checkout",
-            headers={"X-Telegram-Init-Data": buyer_init},
-            json=cart_payload
-        )
+        # الشحن الحقيقي: فقط بتأكيد دفع صالح، ومرة واحدة لكل عملية دفع
+        payload = payments._stars_payload(test_bot_id, buyer_id, 100)
+        ok1, _, b1 = await payments.credit_paid_stars(test_bot_id, buyer_id, payload, "XTR", 100, "charge_abc")
+        ok2, _, b2 = await payments.credit_paid_stars(test_bot_id, buyer_id, payload, "XTR", 100, "charge_abc")
+        assert ok1 and ok2 and b1 == b2 == round(bal_before + 1.6, 4)
+        bad, _, _ = await payments.credit_paid_stars(test_bot_id, buyer_id + 1, payload, "XTR", 100, "charge_x")
+        assert bad is False  # فاتورة مستخدم آخر
+        bad, _, _ = await payments.credit_paid_stars(test_bot_id, buyer_id, payload, "XTR", 999, "charge_y")
+        assert bad is False  # مبلغ لا يطابق الفاتورة
+
+        # 11. سلة المشتريات: السعر يُحسب في السيرفر ويُتجاهل أي سعر مرسل من المتصفح
+        await ledger.credit_user(test_bot_id, buyer_id, 100.0, "test_deposit")
+        await ledger.credit_seller(seller_id, 100.0, "test_deposit")
+        catalog = await DigitalManager.get_services_catalog(test_bot_id)
+        p1, p2 = catalog[0], catalog[1]
+        expected = round(p1["price_usd"] * 2 + p2["price_usd"], 4)
+        cart_payload = {"items": [
+            {"productId": p1["id"], "price": 0.01, "quantity": 2, "target": "user@test.com"},
+            {"productId": p2["id"], "price": 0.01, "quantity": 1, "target": "55443322"},
+        ]}
+        bal_b = await ledger.get_user_balance_usd(test_bot_id, buyer_id)
+        r_cart = await client.post(f"/api/miniapp/{bot_user}/order/cart-checkout",
+                                   headers={"X-Telegram-Init-Data": buyer_init}, json=cart_payload)
         assert r_cart.status == 200
         cart_res = await r_cart.json()
         assert cart_res["ok"] is True
-        assert cart_res["total_amount"] == 1.5
+        assert abs(cart_res["total_amount"] - expected) < 0.01
+        assert abs((bal_b - await ledger.get_user_balance_usd(test_bot_id, buyer_id)) - expected) < 0.01
+
+        # منتج وهمي في السلة = رفض كامل بلا خصم
+        bal_b = await ledger.get_user_balance_usd(test_bot_id, buyer_id)
+        r_bad = await client.post(f"/api/miniapp/{bot_user}/order/cart-checkout",
+                                  headers={"X-Telegram-Init-Data": buyer_init},
+                                  json={"items": [{"productId": "fake_x", "price": 0.01, "quantity": 1}]})
+        assert r_bad.status == 400
+        assert await ledger.get_user_balance_usd(test_bot_id, buyer_id) == bal_b
 
     finally:
         await client.close()

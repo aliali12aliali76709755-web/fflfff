@@ -1,6 +1,8 @@
 """طبقة المصادقة والتحقق الصارم من الهوية والأدوار للتطبيقات المصغرة (Mini Apps Auth Layer)."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -27,6 +29,7 @@ class AuthContext:
     is_owner: bool
     is_admin: bool
     init_data_raw: str = ""
+    is_guest: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -35,6 +38,7 @@ class AuthContext:
             "role": self.role,
             "is_owner": self.is_owner,
             "is_admin": self.is_admin,
+            "is_guest": self.is_guest,
         }
 
 
@@ -50,24 +54,7 @@ async def resolve_bot(bot_identifier: str | int | None = None) -> db.Bot | None:
             )).scalars().first()
             if bot is None:
                 bot = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().first()
-            if bot is None:
-                bot = (await s.execute(select(db.Bot))).scalars().first()
-            if bot is None:
-                admin_uid = config.ADMIN_ID or 8821038059
-                dummy_token = config.MAKER_TOKEN or "platform_default_token_secret_123"
-                bot = db.Bot(
-                    id=1,
-                    factory_id=0,
-                    owner_id=admin_uid,
-                    username="forge_store_bot",
-                    name="متجر المنصة الرقمي",
-                    token=crypto.enc(dummy_token),
-                    template="digital",
-                    status="active",
-                )
-                s.add(bot)
-                await s.commit()
-
+            # لا ننشئ بوتاً وهمياً بتوكن مزيف: إن لم يوجد بوت نشط نُرجع None (404)
             return bot
 
         # إذا كان المعرف رقماً (Bot ID)
@@ -77,7 +64,11 @@ async def resolve_bot(bot_identifier: str | int | None = None) -> db.Bot | None:
                 return bot
 
         # البحث عبر اسم المستخدم username
-        bot = (await s.execute(select(db.Bot).where(func.lower(db.Bot.username) == clean_u))).scalars().first()
+        # الأحدث النشط أولاً (قد يبقى سجل قديم بنفس الاسم لبوت حُذف وأعيد تسجيله)
+        bot = (await s.execute(
+            select(db.Bot).where(func.lower(db.Bot.username) == clean_u)
+            .order_by((db.Bot.status == "active").desc(), db.Bot.created.desc())
+        )).scalars().first()
         return bot
 
 
@@ -134,89 +125,71 @@ async def authenticate_miniapp_request(
 
     user_data = None
 
-    # التحقق من مفتاح إدارة سري للوصول الإداري الآمن خارج التيليجرام
-    admin_secret = os.environ.get("ADMIN_WEB_SECRET", "").strip() or (config.MAKER_TOKEN[:16] if config.MAKER_TOKEN else "adm_secret_8821038059")
-    req_admin_key = (req.query.get("admin_key") or req.headers.get("x-admin-key") or req.headers.get("X-Admin-Key") or "").strip()
-    is_key_authenticated_admin = bool(req_admin_key and req_admin_key == admin_secret)
+    is_guest = False
 
-    # وضع التصفح خارج التيليجرام بدون initData
-    if not init_data or str(init_data).startswith("mock"):
-        # لا يُمنح أي دور إداري أو بائع بالمتصفح إلا بمصادقة صريحة
-        if is_key_authenticated_admin:
-            user_data = {
-                "id": config.ADMIN_ID or 8821038059,
-                "first_name": "مدير المنصة (الأدمن)",
-                "username": "super_admin",
-            }
-        elif str(init_data).startswith("mock") and config.is_admin(int(config.ADMIN_ID or 8821038059)) and req.headers.get("x-test-internal") == "true":
-            # بيئة الاختبارات الآلية الداخلية فقط
-            user_data = {
-                "id": config.ADMIN_ID or 8821038059,
-                "first_name": "مدير المنصة",
-                "username": "test_admin",
-            }
+    # مفتاح إدارة للوصول من المتصفح خارج تيليجرام: يعمل فقط إن ضُبط ADMIN_WEB_SECRET (24 حرفاً فأكثر).
+    # لا قيمة افتراضية ولا اشتقاق من توكن الصانع، والمقارنة بزمن ثابت ضد هجمات التوقيت.
+    admin_secret = os.environ.get("ADMIN_WEB_SECRET", "").strip()
+    req_admin_key = (req.headers.get("x-admin-key") or req.headers.get("X-Admin-Key") or "").strip()
+    is_key_authenticated_admin = bool(
+        len(admin_secret) >= 24 and req_admin_key
+        and hmac.compare_digest(req_admin_key.encode(), admin_secret.encode())
+    )
+
+    if not init_data:
+        if is_key_authenticated_admin and config.ADMIN_ID:
+            user_data = {"id": int(config.ADMIN_ID), "first_name": "مدير المنصة", "username": "super_admin"}
         else:
-            # الزائر العادي أو المشتري: دور مشتري حصراً، وممنوع الوصول لأي لوحة
-            user_data = {
-                "id": 9991001,
-                "first_name": "زائر المتجر",
-                "username": "guest_buyer",
-            }
-
+            # زائر من المتصفح: تصفّح فقط، بهوية سالبة فريدة لكل جهاز (لا تتصادم مع هويات تيليجرام ولا مع زوار آخرين)
+            gid = (req.headers.get("x-guest-id") or req.cookies.get("guest_id") or "").strip()[:64]
+            if not gid:
+                peer = req.remote or ""
+                ua = req.headers.get("User-Agent", "")
+                gid = f"{peer}|{ua}"
+            h = int.from_bytes(hashlib.sha256(gid.encode()).digest()[:6], "big")
+            user_data = {"id": -(h or 1), "first_name": "زائر المتجر", "username": ""}
+            is_guest = True
     else:
-        # 1. التحقق الحقيقي عبر توكن البوت المطلوب
+        init_data = str(init_data)
+        # 1. التحقق بتوكن البوت نفسه (الحالة الطبيعية: فتح المتجر من داخل بوت البائع)
         if bot.token:
             try:
-                raw_token = crypto.dec(bot.token)
-                user_data = sign.check_init_data(init_data, raw_token, max_age=86400)
+                user_data = sign.check_init_data(init_data, crypto.dec(bot.token), max_age=86400)
             except Exception:
-                pass
+                user_data = None
 
-        # 2. التحقق عبر توكن الصانع الرئيسي (في حال فُتح التطبيق من بوت الصانع أو الأدمن)
+        # 2. التحقق بتوكن الصانع (فتح اللوحة من بوت الصانع) — هوية تيليجرام واحدة عالمياً فلا خلط بين المتاجر
         if not user_data and config.MAKER_TOKEN:
             try:
                 user_data = sign.check_init_data(init_data, config.MAKER_TOKEN, max_age=86400)
             except Exception:
-                pass
+                user_data = None
 
-        # 3. التحقق الاحتياطي عبر توكنات البوتات النشطة للمالك أو المنصة
+        # 3. احتياطي محدود: بوتات يملكها نفس المستخدم فقط، وننقل السياق لذلك البوت نفسه.
+        #    لا نجرّب توكنات كل البوتات أبداً (كان ذلك بطيئاً ويقبل توقيع بوت آخر داخل متجر غريب).
         if not user_data:
             parsed_uid = None
-            if "user=" in init_data:
-                try:
-                    qs = urllib.parse.parse_qs(init_data)
-                    u_raw = qs.get("user", ["{}"])[0]
-                    u_obj = json.loads(u_raw)
-                    if isinstance(u_obj, dict) and u_obj.get("id"):
-                        parsed_uid = int(u_obj["id"])
-                except Exception:
-                    pass
-
-            async with db.Session() as s:
-                if parsed_uid:
-                    user_owned = (await s.execute(select(db.Bot).where(db.Bot.owner_id == parsed_uid, db.Bot.status == "active"))).scalars().all()
-                    for b in user_owned:
-                        if b.token:
-                            try:
-                                u_try = sign.check_init_data(init_data, crypto.dec(b.token), max_age=86400)
-                                if u_try:
-                                    user_data = u_try
-                                    bot = b
-                                    break
-                            except Exception:
-                                pass
-
-                if not user_data:
-                    bots_list = (await s.execute(select(db.Bot).where(db.Bot.status == "active"))).scalars().all()
-                    for b in bots_list:
-                        if b.token:
-                            try:
-                                u_try = sign.check_init_data(init_data, crypto.dec(b.token), max_age=86400)
-                                if u_try:
-                                    user_data = u_try
-                                    break
-                            except Exception:
-                                pass
+            try:
+                u_obj = json.loads(urllib.parse.parse_qs(init_data).get("user", ["{}"])[0])
+                if isinstance(u_obj, dict) and u_obj.get("id"):
+                    parsed_uid = int(u_obj["id"])
+            except Exception:
+                parsed_uid = None
+            if parsed_uid:
+                async with db.Session() as s:
+                    owned = (await s.execute(
+                        select(db.Bot).where(db.Bot.owner_id == parsed_uid, db.Bot.status == "active").limit(20)
+                    )).scalars().all()
+                for b in owned:
+                    if not b.token:
+                        continue
+                    try:
+                        u_try = sign.check_init_data(init_data, crypto.dec(b.token), max_age=86400)
+                    except Exception:
+                        u_try = None
+                    if u_try:
+                        user_data, bot = u_try, b
+                        break
 
     if not user_data or not user_data.get("id"):
         raise web.HTTPUnauthorized(
@@ -229,12 +202,21 @@ async def authenticate_miniapp_request(
     uname = " ".join(p for p in name_parts if p).strip() or user_data.get("username", "") or f"User {uid}"
 
     # تحديد الأدوار في السيرفر بدقة صارمة
-    is_admin = bool(config.is_admin(uid) or (config.ADMIN_ID and uid == config.ADMIN_ID))
-    is_owner = bool(uid == bot.owner_id)
+    is_admin = (not is_guest) and bool(config.is_admin(uid) or (config.ADMIN_ID and uid == config.ADMIN_ID))
+    is_owner = (not is_guest) and bool(uid == bot.owner_id)
+
+    # الزائر من خارج تيليجرام يتصفح فقط: أي عملية كتابة (شراء/شحن/تعديل) تتطلب فتح المتجر من تيليجرام
+    _guest_ok = req.path.endswith(("/auth", "/coupon/validate", "/user/language"))
+    if is_guest and req.method not in ("GET", "HEAD", "OPTIONS") and not _guest_ok:
+        raise web.HTTPUnauthorized(
+            text=json.dumps({"ok": False, "success": False, "error": "telegram_required",
+                             "message": "افتح المتجر من داخل تيليجرام لإتمام العملية"}),
+            content_type="application/json",
+        )
 
 
     # إذا كان المستخدم يملك بوتاً خاصاً به وفُتح التطبيق باسم افتراضي
-    if not is_owner and not is_admin and str(bot_identifier).lower() in ("shop", "app", "default", "store", "admin_app", "store_default"):
+    if not is_guest and not is_owner and not is_admin and str(bot_identifier).lower() in ("shop", "app", "default", "store", "admin_app", "store_default"):
         async with db.Session() as s:
             user_bot = (await s.execute(
                 select(db.Bot).where(db.Bot.owner_id == uid, db.Bot.status == "active")
@@ -259,6 +241,7 @@ async def authenticate_miniapp_request(
         is_owner=is_owner,
         is_admin=is_admin,
         init_data_raw=str(init_data),
+        is_guest=is_guest,
     )
 
     if require_role == "seller" and not (ctx.is_owner or ctx.is_admin):

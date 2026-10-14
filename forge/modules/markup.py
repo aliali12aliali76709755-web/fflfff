@@ -12,6 +12,42 @@ from forge import db
 log = logging.getLogger("forge.markup")
 
 
+def pick_margin(rules: dict, *, owner_id: int = 0, tpl_key: str = "", category_id: str = "",
+                product_id: str = "", variant_id: str = "") -> tuple[str, float, str]:
+    """اختيار الهامش من قواعد محمّلة مسبقاً (بلا قاعدة بيانات) — الأدق يسبق الأعم."""
+    for key, lvl in ((f"var:{variant_id}" if variant_id else "", "variant"), (f"prd:{product_id}" if product_id else "", "product"),
+                     (f"cat:{category_id}" if category_id else "", "category"), (f"tpl:{tpl_key}" if tpl_key else "", "template"),
+                     (f"usr:{owner_id}" if owner_id else "", "seller")):
+        if key and key in rules:
+            r = rules[key]
+            return r.get("type", "percent"), float(r.get("val", 0.0)), lvl
+    glob = rules.get("global", {"type": "percent", "val": 10.0})
+    return glob.get("type", "percent"), float(glob.get("val", 10.0)), "global"
+
+
+def apply_margin(cost: float, m_type: str, m_val: float) -> float:
+    return round(cost + m_val, 4) if m_type == "fixed" else round(cost * (1.0 + m_val / 100.0), 4)
+
+
+async def floor_pricer(bot_id: int, tpl_key: str):
+    """دالة تحسب سعر المنصة (الأرضية) لأي منتج في متجر معيّن، بتحميل القواعد ومالك البوت مرة واحدة."""
+    rules = await db.kv_get(0, "sys:markup_rules", {}) or {}
+    owner = 0
+    try:
+        async with db.Session() as s:
+            b = await s.get(db.Bot, bot_id)
+            owner = b.owner_id if b else 0
+    except Exception:
+        owner = 0
+
+    def floor(cost: float, product_id: str = "") -> float:
+        if cost <= 0:
+            return 0.0
+        t, v, _ = pick_margin(rules, owner_id=owner, tpl_key=tpl_key, product_id=product_id)
+        return apply_margin(cost, t, v)
+    return floor
+
+
 class MarkupManager:
     """إدارة نسب وأرباح المنصة وحماية أرضية الأسعار."""
 

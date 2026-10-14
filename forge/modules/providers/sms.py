@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import json
 import logging
 import urllib.parse
@@ -151,16 +152,33 @@ class SMSManager:
 
     @classmethod
     async def get_configured_providers(cls, bot_id: int) -> list[BaseSMSAdapter]:
-        providers_conf = await db.kv_get(bot_id, "sms:providers", [])
+        # المزودون على مستوى المنصة فقط (bot_id=0) يديرهم مدير المنصة — المنتجات من المنصة لكل المتاجر
+        providers_conf = await db.kv_get(0, "sms:providers", []) or []
         adapters: list[BaseSMSAdapter] = []
         if isinstance(providers_conf, list):
             for p in providers_conf:
                 if p.get("on", True) and p.get("api_url") and p.get("api_key"):
                     adapters.append(StandardSMSAdapter(p.get("name", "Custom"), p["api_url"], p["api_key"]))
-
-        if not adapters:
+        # المحاكي للاختبارات فقط (PROVIDERS_MOCK=1). في الإنتاج بلا مزود = لا بيع، بدل تسليم طلبات وهمية مدفوعة.
+        if not adapters and os.environ.get("PROVIDERS_MOCK") == "1":
             adapters.append(MockSMSAdapter())
         return adapters
+
+    @staticmethod
+    def base_cost(country: str, app: str, cmap: dict | None = None) -> float:
+        """تكلفة الرقم الأساسية لدى المزود (قبل هامش المنصة وهامش البائع). يتجاوزها المدير بخريطة الكتالوج."""
+        c_info = SMS_COUNTRIES.get(country, {"mult": 1.0})
+        a_info = SMS_APPS.get(app, {"base_cost": 0.40})
+        default = round(a_info["base_cost"] * c_info.get("mult", 1.0), 2)
+        if cmap:
+            from .. import catalog as _cat
+            return _cat.effective_cost(cmap, f"{country}_{app}", default)
+        return default
+
+    @classmethod
+    async def platform_base(cls, country: str, app: str) -> float:
+        from .. import catalog as _cat
+        return cls.base_cost(country, app, await _cat.get_map("sms"))
 
     @classmethod
     async def calculate_number_price(cls, bot_id: int, country: str, app: str) -> float:
@@ -170,17 +188,18 @@ class SMSManager:
 
         key = f"{country}_{app}"
         if overrides.get(key, {}).get("price_usd"):
-            return float(overrides[key]["price_usd"])
+            from ..markup import floor_pricer
+            fl = round((await floor_pricer(bot_id, "sms"))(await cls.platform_base(country, app), key) + 0.0049, 2)
+            return max(float(overrides[key]["price_usd"]), fl)
 
-        c_info = SMS_COUNTRIES.get(country, {"mult": 1.0})
-        a_info = SMS_APPS.get(app, {"base_cost": 0.40})
-        base = round(a_info["base_cost"] * c_info.get("mult", 1.0), 2)
+        from ..markup import floor_pricer
+        base = await cls.platform_base(country, app)
+        floor = round((await floor_pricer(bot_id, "sms"))(base, key) + 0.0049, 2)
 
         m_type = margin_conf.get("type", "percent")
         m_val = float(margin_conf.get("val", 35.0))
-        if m_type == "percent":
-            return round(base * (1.0 + m_val / 100.0), 2)
-        return round(base + m_val, 2)
+        price = round(base * (1.0 + m_val / 100.0), 2) if m_type == "percent" else round(base + m_val, 2)
+        return max(price, floor)   # لا يبيع البائع أبداً بأقل من سعر المنصة
 
     @classmethod
     async def rent_number_with_failover(
@@ -212,7 +231,9 @@ class SMSManager:
     async def check_sms_code(cls, bot_id: int, activation_id: str, provider_name: str) -> dict[str, Any]:
         """يفحص وصول كود الـ SMS من المزود."""
         providers = await cls.get_configured_providers(bot_id)
-        prov = next((p for p in providers if p.name == provider_name), providers[0])
+        prov = next((p for p in providers if p.name == provider_name), providers[0] if providers else None)
+        if prov is None:
+            return {"status": "waiting", "code": ""}
         try:
             return await prov.check_sms(activation_id)
         except Exception as e:
@@ -231,35 +252,32 @@ class SMSManager:
         async with db.Session() as s:
             res = await s.execute(db.select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id))
             ord_row = res.scalars().first()
-            if not ord_row:
+            if not ord_row or ord_row.bot_id != bot_id or ord_row.user_id != user_id:
                 return False, "الطلب غير موجود", 0.0
-            if ord_row.status in ("completed", "canceled"):
+            if ord_row.status in ("completed", "canceled", "refunded") or (ord_row.details or {}).get("sms_code"):
                 return False, f"تمت معالجة الطلب مسبقاً ({ord_row.status})", 0.0
 
             # 1. إلغاء لدى المزود إن أمكن
             providers = await cls.get_configured_providers(bot_id)
-            prov = next((p for p in providers if p.name == ord_row.provider_name), providers[0])
+            prov = next((p for p in providers if p.name == ord_row.provider_name), providers[0] if providers else None)
             try:
-                await prov.cancel_number(ord_row.provider_order_id)
+                if prov is not None:
+                    await prov.cancel_number(ord_row.provider_order_id)
             except Exception:
                 pass
 
-            # 2. استرجاع الرصيد للمستخدم ذرياً
-            refund_amount = ord_row.price_user_usd
-            ok_ref, tx, new_bal = await ledger.credit_user(
-                bot_id,
-                user_id,
-                refund_amount,
-                kind="sms_refund",
-                ref_id=order_id,
-                description=f"استرجاع رصيد رقم {ord_row.target} ({reason})",
-            )
-            if not ok_ref:
-                return False, "فشل استرجاع الرصيد في دفتر الأستاذ", 0.0
-
-            ord_row.status = "canceled"
-            ord_row.details = dict(ord_row.details or {}, refund_reason=reason, refund_tx=tx)
-            await s.commit()
+        # 2. استرجاع ذري للطرفين (الزبون + تكلفة المنصة على البائع)، محمي من التكرار
+        ok_ref, msg, res = await ledger.atomic_dual_refund(order_id, reason=reason)
+        if not ok_ref:
+            return False, msg, 0.0
+        refund_amount = res.get("buyer_refund_usd", 0.0)
+        new_bal = await ledger.get_user_balance_usd(bot_id, user_id)
+        async with db.Session() as s:
+            row = (await s.execute(db.select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id))).scalars().first()
+            if row is not None:
+                row.status = "canceled"
+                row.details = dict(row.details or {}, refund_reason=reason, refund_tx=res.get("buyer_tx", ""))
+                await s.commit()
 
         log.info("SMS Order %s canceled and refunded $%.2f to user %d", order_id, refund_amount, user_id)
         return True, "تم إلغاء الرقم واسترجاع رصيدك كاملاً بنجاح", new_bal

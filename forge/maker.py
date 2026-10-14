@@ -19,7 +19,8 @@ from telegram import Update
 from telegram.constants import ChatType, ParseMode
 from telegram.error import Forbidden, InvalidToken, RetryAfter, TelegramError
 from telegram.ext import (Application, CallbackQueryHandler, ChatJoinRequestHandler, ChatMemberHandler,
-                          CommandHandler, ContextTypes, ManagedBotUpdatedHandler, MessageHandler, filters)
+                          CommandHandler, ContextTypes, ManagedBotUpdatedHandler, MessageHandler, PreCheckoutQueryHandler,
+                          filters)
 
 from . import child, config, crypto, db, errors, templates, ui, web
 from . import plat as platform
@@ -32,59 +33,6 @@ LEVELS = [(0, "🥉 مبتدئ", "🥉 Starter"), (100, "🥈 صاعد", "🥈 R
 _last_user_notify: float = 0.0
 _SEEN_USERS: set[tuple[int, int]] = set()
 _KNOWN_CHANNELS: set[int] = set()
-_USER_BATCH_QUEUE: asyncio.Queue = asyncio.Queue()
-_BATCH_WORKER_STARTED: bool = False
-
-
-async def _user_batch_worker() -> None:
-    """معالج دفعي خفيف لتسجيل المستخدمين في قاعدة البيانات بدون أي تأخير للبوت."""
-    _fail_streak = 0
-    while True:
-        try:
-            # انتظر أول عنصر
-            item = await asyncio.wait_for(_USER_BATCH_QUEUE.get(), timeout=5.0)
-            _USER_BATCH_QUEUE.task_done()
-            batch = [item]
-            # جمع المزيد فوراً بدون انتظار
-            while len(batch) < 200:
-                try:
-                    batch.append(_USER_BATCH_QUEUE.get_nowait())
-                    _USER_BATCH_QUEUE.task_done()
-                except asyncio.QueueEmpty:
-                    break
-            # كتابة الدفعة في قاعدة البيانات
-            async with db.Session() as s:
-                for fid, uid, name, username, lang, ref in batch:
-                    try:
-                        row = await s.get(db.MUser, (fid, uid))
-                        if row is None:
-                            s.add(db.MUser(
-                                factory_id=fid,
-                                user_id=uid,
-                                name=(name or "")[:128],
-                                username=username or "",
-                                lang=lang or "",
-                                ref_by=ref,
-                            ))
-                        else:
-                            row.name = (name or "")[:128]
-                            row.username = username or ""
-                    except Exception:
-                        pass
-                await s.commit()
-            _fail_streak = 0
-        except asyncio.TimeoutError:
-            # لا توجد عناصر، تابع الانتظار
-            _fail_streak = 0
-            continue
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            _fail_streak += 1
-            wait = min(2 ** _fail_streak, 30)
-            log.warning("user batch worker error (streak=%d, wait=%ds): %s", _fail_streak, wait, e)
-            await asyncio.sleep(wait)
-
 
 
 class M:
@@ -172,34 +120,46 @@ class M:
 
 # ───────────────────────── المستخدمون والبوابة ─────────────────────────
 async def ensure_user(m: M, ref: int = 0) -> bool:
-    global _BATCH_WORKER_STARTED
-    if not _BATCH_WORKER_STARTED:
-        _BATCH_WORKER_STARTED = True
-        asyncio.create_task(_user_batch_worker())
-
+    """يسجّل مستخدم الصانع مباشرة في قاعدة البيانات (لا طابور يضيع عند إعادة التشغيل) ويبلغ المدير بالجديد.
+    ذاكرة مؤقتة تتجاوز قاعدة البيانات لمن سُجّل في هذه الجلسة، فلا عبء على الرسائل المتكررة."""
     key = (m.fid, m.uid)
     if not ref and key in _SEEN_USERS:
         return False
     if len(_SEEN_USERS) > 200000:
         _SEEN_USERS.clear()
+    is_new = False
+    for attempt in range(3):
+        try:
+            async with db.Session() as s:
+                row = await s.get(db.MUser, (m.fid, m.uid))
+                is_new = row is None
+                if is_new:
+                    row = db.MUser(factory_id=m.fid, user_id=m.uid, ref_by=ref if ref != m.uid else 0)
+                    s.add(row)
+                row.name = (m.user.full_name or "")[:128] if m.user else ""
+                row.username = (m.user.username or "")[:64] if m.user else ""
+                if row.lang:
+                    m.lang = row.lang
+                    m.udata["mlang"] = row.lang
+                await s.commit()
+            break
+        except Exception as e:  # noqa: BLE001
+            if attempt == 2:
+                log.warning("ensure_user failed for %s: %s", key, e)
+                return False
+            await asyncio.sleep(0.05 * (attempt + 1))
     _SEEN_USERS.add(key)
-
-    # وضع المستخدم في الطابور الخلفي الفوري دون أي قفل لقاعدة البيانات
-    name = (m.user.full_name or "")[:128] if m.user else ""
-    username = m.user.username or "" if m.user else ""
-    _USER_BATCH_QUEUE.put_nowait((m.fid, m.uid, name, username, m.lang, ref if ref != m.uid else 0))
-
     if m.fid == 0 and not config.ADMIN_ID:
         config.ADMIN_ID = m.uid
-        async def _set_admin():
-            try:
-                await db.kv_set(0, "sys:admin", m.uid)
-                await m.bot.send_message(m.uid, "👑 أنت أول من فتح البوت، فأصبحت <b>مدير المنصة</b>.\nسيظهر لك زر «لوحة الإدارة» في القائمة الرئيسية.", parse_mode=ParseMode.HTML)
-            except Exception:
-                pass
-        asyncio.create_task(_set_admin())
-
-    return True
+        await db.kv_set(0, "sys:admin", m.uid)
+        try:
+            await m.bot.send_message(m.uid, "👑 أنت أول من فتح البوت، فأصبحت <b>مدير المنصة</b>.\nسيظهر لك زر «لوحة الإدارة» في القائمة الرئيسية.", parse_mode=ParseMode.HTML)
+        except TelegramError:
+            pass
+    if is_new:
+        await m.notify_admin(f"🆕 مستخدم جديد في الصانع: {esc(m.user.full_name)} (<code>{m.uid}</code>)"
+                             + (f"\n🎁 عبر دعوة: <code>{ref}</code>" if ref else ""), "user")
+    return is_new
 
 
 MAINTENANCE_MSG_AR = (
@@ -265,34 +225,38 @@ MAINTENANCE_MSG_EN = (
 
 async def gate(m: M) -> bool:
     """يعيد True إن سُمح للمستخدم بالمتابعة (غير محظور، لا صيانة، ومشترك في قنوات الصانع)."""
-    # السماح الحصري لآيدي المدير المحدد ومدير المنصة فقط
-    if m.uid in config.ADMIN_IDS or (config.ADMIN_ID and m.uid == config.ADMIN_ID):
+    if m.is_admin or m.uid in config.ADMIN_IDS:
         return True
-
-    # أي مستخدم آخر غير هذا الآيدي: البوت متوقف نهائياً بالنسبة له
-    if m.q:
-        if m.q.data == "m:maint_check":
-            await m.answer(
-                m.t("🛠️ أعمال الصيانة والتطوير مستمرة. سيتم إطلاق البوت والتطبيق قريباً جداً!",
-                    "🛠️ Maintenance & development in progress. Launching very soon!"),
-                alert=True
-            )
-        else:
-            await m.answer(
-                m.t("🛠️ البوت متوقف حالياً وفي وضع الصيانة والتطوير الشامل.",
-                    "🛠️ The bot is currently stopped under maintenance."),
-                alert=True
-            )
+    p = await platform.get(m.fid)
+    if m.uid in p["banned"] or (m.fid and m.uid in (await platform.get(0))["banned"]):
+        text = m.t("🚫 تم إيقاف حسابك في هذا الصانع.", "🚫 Your account is suspended here.")
+        await m.answer(text, True) if m.q else await m.send(text)
         return False
-
-    btns = [
-        [B(m.t("🔄 فحص الحالة (تحديث)", "🔄 Check Status (Refresh)"), "m:maint_check")]
-    ]
-    if config.UPDATES_URL and m.fid == 0:
-        btns.append([B(m.t("📢 قناة التحديثات والأخبار", "📢 Updates Channel"), url=config.UPDATES_URL)])
-    await m.send(m.t(MAINTENANCE_MSG_AR, MAINTENANCE_MSG_EN), kb(btns))
-    return False
-
+    if p.get("maintenance"):
+        if m.q:
+            await m.answer(m.t("🛠️ أعمال الصيانة والتطوير مستمرة. سيتم الإطلاق قريباً جداً!",
+                               "🛠️ Maintenance in progress. Launching very soon!"), True)
+            return False
+        btns = [[B(m.t("🔄 فحص الحالة (تحديث)", "🔄 Check Status (Refresh)"), "m:maint_check")]]
+        if config.UPDATES_URL and m.fid == 0:
+            btns.append([B(m.t("📢 قناة التحديثات والأخبار", "📢 Updates Channel"), url=config.UPDATES_URL)])
+        await m.send(m.t(MAINTENANCE_MSG_AR, MAINTENANCE_MSG_EN), kb(btns))
+        return False
+    missing = []
+    for x in p["fs"]:
+        try:
+            cm = await m.bot.get_chat_member(x["chat_id"], m.uid)
+            if cm.status in ("left", "kicked"):
+                missing.append(x)
+        except TelegramError:
+            continue
+    if missing:
+        rows = [[B(f"📢 {x['title']}", url=x["url"])] for x in missing if x.get("url")]
+        rows.append([B(m.t("✅ اشتركت، افتح الصانع", "✅ Joined, open the maker"), "m:home", style="success")])
+        await m.answer()
+        await m.send(m.t("🔐 للاستخدام المجاني، اشترك في قناتنا أولاً ثم اضغط الزر.", "🔐 To use the maker for free, join our channel first, then tap the button."), kb(rows))
+        return False
+    return True
 
 
 async def my_bots(m: M) -> list[db.Bot]:
@@ -428,11 +392,14 @@ async def home(m: M, *, new: bool = False) -> None:
     if config.PRIVACY_URL and m.fid == 0:
         links.append(f'<a href="{config.PRIVACY_URL}">{T("🔏 الخصوصية", "🔏 Privacy")}</a>')
     tail = ("\n" + " · ".join(links)) if links else ""
+    from .modules import ledger as _ledger
+    seller_bal = await _ledger.get_seller_balance_usd(m.uid)
     try:
         await m.show(head + body + tail, kb([
             [B(T("🛍️ فتح تطبيق المتجر المصغر (Mini App)", "🛍️ Open Store Mini App"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/app", style="primary")] if config.PUBLIC_URL else None,
             [B(T("➕ ابنِ بوتاً جديداً", "➕ Build a new bot"), "m:new", style="success")],
             [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T("📊 لوحتي", "📊 My dashboard"), "m:stats")],
+            [B(T(f"💰 رصيدي: ${seller_bal:,.2f}", f"💰 Balance: ${seller_bal:,.2f}"), "m:wal")],
             [B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref"), B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
             [B(T("🆘 مساعدة", "🆘 Help"), "m:more"), B(T("🖥 لوحتي على الويب", "🖥 My web dashboard"), "m:web") if bots and web.enabled() else None],
             [
@@ -997,7 +964,10 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if lk is not None and lk["mode"] != "maint" and await get_bot(m, int(arg)) is not None:
                 await m.answer(T("🔒 البوت مغلق من الإدارة، وهذا الإجراء متوقف حتى يُعاد فتحه.", "🔒 The bot is closed by the platform; this action is locked until it reopens."), True)
                 return await bot_card(m, int(arg))
-        if act == "home":
+        if act.startswith("wal"):
+            from . import wallet
+            return await wallet.cb(m, act, arg)
+        if act in ("home", "maint_check"):
             await home(m)
         elif act == "new":
             await pick_type(m)
@@ -1282,6 +1252,10 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
         await m.send(T("🤔 لم أفهم. اختر من الأزرار:", "🤔 I didn't get that. Use the buttons:"), _home_kb(m))
         return True
     k = st["k"]
+    if k.startswith("wal_"):
+        from . import wallet
+        await wallet.on_input(m, st, text)
+        return True
     if k.startswith("adm_"):
         if m.is_admin:
             await admin.admin_input(m, st, text)
@@ -1479,6 +1453,11 @@ async def apply_menu(app: Application) -> None:
         was = bool(await db.kv_get(0, "sys:menu_web", False))
         if web.https():
             await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp("🛍️ المتجر", WebAppInfo(f"{config.PUBLIC_URL}/app")))
+            for aid in {config.ADMIN_ID, *config.ADMIN_IDS} - {0}:
+                try:   # المدير: زر القائمة يفتح لوحة الإدارة (يتبع الرابط الجديد عند تغيّره)
+                    await app.bot.set_chat_menu_button(chat_id=aid, menu_button=MenuButtonWebApp("🛡️ لوحة الإدارة", WebAppInfo(f"{config.PUBLIC_URL}/admin_app")))
+                except TelegramError:
+                    pass
             if not was:
                 await db.kv_set(0, "sys:menu_web", True)
         elif was:
@@ -1495,18 +1474,10 @@ async def set_commands(app: Application) -> None:
         await app.bot.set_my_commands([BotCommand("start", "القائمة الرئيسية")])
         if config.ADMIN_ID:
             await app.bot.set_my_commands([BotCommand("start", "القائمة الرئيسية"), BotCommand("admin", "لوحة الإدارة")], scope=BotCommandScopeChat(config.ADMIN_ID))
-            if web.https():
-                try:
-                    await app.bot.set_chat_menu_button(chat_id=config.ADMIN_ID, menu_button=MenuButtonWebApp("🛡️ لوحة الإدارة", WebAppInfo(f"{config.PUBLIC_URL}/admin_app")))
-                except Exception:
-                    pass
     except TelegramError:
         pass
-    try:
-        import asyncio
-        asyncio.create_task(auto_approve_all_users(app.bot))
-    except Exception:
-        pass
+    # ملاحظة: القبول الجماعي لكل المستخدمين × كل القنوات لا يُشغَّل عند الإقلاع (آلاف الطلبات وحظر من تيليجرام).
+    # الطلبات الجديدة تُقبل لحظياً عبر on_chat_join_request، والقبول الجماعي متاح للمدير بالأمر /approve.
 
 
 async def on_chat_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1651,6 +1622,9 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("admin", _cmd_admin, filters.ChatType.PRIVATE))
     app.add_handler(CommandHandler("approve", _cmd_approve_all, filters.ChatType.PRIVATE))
     app.add_handler(CommandHandler("accept", _cmd_approve_all, filters.ChatType.PRIVATE))
+    from . import wallet
+    app.add_handler(PreCheckoutQueryHandler(wallet.on_precheckout))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, wallet.on_paid))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(ManagedBotUpdatedHandler(on_managed_bot))
     app.add_handler(ChatJoinRequestHandler(on_chat_join_request))

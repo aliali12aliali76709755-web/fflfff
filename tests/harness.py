@@ -38,7 +38,7 @@ async def boot(caps: dict | None = None, admin: int = ADMIN, web: bool = False, 
     await tg.start()
     tmp = tempfile.mkdtemp(prefix="forge_")
     os.environ.update(BOT_API_BASE=tg.base, BOT_API_FILE_BASE=tg.file_base, MAKER_TOKEN=MAKER, ADMIN_ID=str(admin),
-                      DATA_DIR=tmp, DATABASE_URL=f"sqlite+aiosqlite:///{tmp}/t.db", DEFAULT_LANG="ar",
+                      DATA_DIR=tmp, DATABASE_URL=f"sqlite+aiosqlite:///{tmp}/t.db", DEFAULT_LANG="ar", MAINTENANCE="0", PROVIDERS_MOCK="1",
                       WEB_PORT=str(free_port()) if web else "0", WEB_HOST="127.0.0.1", PUBLIC_URL=public_url,
                       AUTO_TUNNEL="1" if tunnel else "0", CLOUDFLARED=tunnel)
     from telegram.ext import Application

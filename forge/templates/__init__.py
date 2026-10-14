@@ -18,7 +18,7 @@ CATEGORIES = [
     ("pro", "🏭", "منصات", "Platforms"),
 ]
 CAT_OF = {
-    "biz": ["store", "smm", "tgstars", "sms", "digital", "qrmenu", "booking", "vip", "tickets", "forms"],
+    "biz": ["megastore", "smmsms", "store", "smm", "tgstars", "sms", "digital", "qrmenu", "booking", "vip", "tickets", "forms"],
     "aud": ["post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper"],
     "media": ["downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam"],
     "util": ["translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid"],
@@ -27,9 +27,11 @@ CAT_OF = {
     "pro": ["maker"],
 }
 # قوالب مقترحة للمبتدئ حين لا توجد بيانات استخدام بعد
-STARTERS = ["store", "smm", "tgstars", "sms", "digital", "contact", "buttons", "downloader", "joinreq", "vip", "quran", "booking"]
+STARTERS = ["megastore", "smmsms", "store", "smm", "tgstars", "sms", "digital", "contact", "buttons", "downloader", "joinreq", "vip", "quran", "booking"]
 # ثلاث مزايا مختصرة تظهر في بطاقة كل قالب
 FEATS = {
+    "megastore": ["4 أقسام: ألعاب، تفاعل، أرقام، نجوم", "محفظة واحدة ومتجر مصغّر موحّد", "المنتجات والمزودون من المنصة"],
+    "smmsms": ["تفاعل لكل المنصات + أرقام تفعيل", "محفظة واحدة للقسمين", "متجر مصغّر داخل تيليجرام"],
     "digital": ["شحن شدات ببجي، جواهر فري فاير، وروبلوكس", "اشتراكات نتفلكس، سبوتيفاي، ويوتيوب بريميوم", "مخزون بطاقات آيتونز وجوجل بلاي بتسليم فوري"],
     "sms": ["أرقام تفعيل لعشرات الدول (العراق، مصر، أمريكا...)", "دعم تفعيل تلغرام وواتساب وجوجل وتيك توك", "استرجاع فوري وتلقائي للرصيد إذا لم يصل الكود"],
     "tgstars": ["شحن نجوم تيليجرام من 50 حتى 10,000+ نجمة", "اشتراكات بريميوم الرسمية (3 و6 و12 شهراً)", "تفعيل باسم المستخدم فقط وبدون كلمات مرور"],
@@ -75,6 +77,8 @@ FEATS = {
 
 # جملة موجّهة لعضو البوت (لا لصانعه): تُستخدم وصفاً افتراضياً للبوت في تيليجرام وفي صفحته على الويب
 PITCH = {
+    "megastore": ("كل ما تحتاجه في متجر واحد: شحن ألعاب واشتراكات، تفاعل، أرقام تفعيل، ونجوم تيليجرام.", "Everything in one store: games, subscriptions, social boost, numbers and Telegram Stars."),
+    "smmsms": ("زيادة التفاعل لكل المنصات وأرقام التفعيل معاً بمحفظة واحدة.", "Social boost for every platform plus activation numbers, one wallet."),
     "digital": ("شحن الألعاب واشتراكات التطبيقات والبطاقات الرقمية بسهولة.", "Game top-up, app subscriptions and digital vouchers made easy."),
     "sms": ("أرقام وهمية لتفعيل التطبيقات مع استرجاع فوري إذا لم يصل الكود.", "Virtual numbers for app activation with instant auto-refund if SMS fails."),
     "tgstars": ("شحن نجوم تيليجرام واشتراكات بريميوم وهدايا لحسابك أو لأصدقائك.", "Top up Telegram Stars, Premium and gifts for your account or friends."),
@@ -318,7 +322,7 @@ class Items:
 
 # ترتيب العرض مطابق لترتيب القائمة (14 في الصفحة)
 ORDER = [
-    "store", "smm", "tgstars", "sms", "digital", "qrmenu", "booking", "vip", "tickets", "forms",
+    "megastore", "smmsms", "store", "smm", "tgstars", "sms", "digital", "qrmenu", "booking", "vip", "tickets", "forms",
     "post", "channel", "joinreq", "contact", "buttons", "sarahah", "whisper",
     "downloader", "compress", "convert", "mediaedit", "sticker", "img2pdf", "pdftools", "voice", "ocr", "shazam",
     "translate", "shortener", "tempmail", "proxy", "wallets", "decor", "whatsapp", "getid",

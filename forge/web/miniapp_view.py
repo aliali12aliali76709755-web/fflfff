@@ -471,6 +471,22 @@ HTML_SHELL = """<!DOCTYPE html>
                 <div class="font-mono text-[11px] break-all">{{ order.delivery_data }}</div>
               </div>
 
+              <!-- رقم التفعيل: النسخ، فحص الكود، الإلغاء والاسترجاع -->
+              <div v-if="order.tpl_key === 'sms' && order.phone && order.phone !== '-'" class="bg-sky-950/40 border border-sky-500/30 rounded-lg p-2 text-xs text-sky-100 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold">📱 الرقم: <span class="font-mono">{{ order.phone }}</span></span>
+                  <button @click="copyToClipboard(order.phone)" class="text-[10px] bg-sky-800/50 px-1.5 py-0.5 rounded">نسخ 📋</button>
+                </div>
+                <div v-if="order.sms_code" class="flex items-center justify-between bg-emerald-900/40 rounded p-1.5">
+                  <span class="font-bold">🔑 الكود: <span class="font-mono text-emerald-300 text-sm">{{ order.sms_code }}</span></span>
+                  <button @click="copyToClipboard(order.sms_code)" class="text-[10px] bg-emerald-800/50 px-1.5 py-0.5 rounded">نسخ 📋</button>
+                </div>
+                <div v-if="order.status === 'waiting_sms'" class="flex gap-2">
+                  <button @click="checkSmsCode(order)" class="flex-1 py-1.5 bg-emerald-600 rounded-lg font-bold text-[11px]">🔄 فحص الكود</button>
+                  <button @click="cancelSmsOrder(order)" class="flex-1 py-1.5 bg-rose-700/70 rounded-lg font-bold text-[11px]">↩️ إلغاء واسترجاع</button>
+                </div>
+              </div>
+
               <!-- Rejection note if canceled / refunded -->
               <div v-if="order.rejection_reason" class="bg-rose-950/40 border border-rose-500/30 rounded-lg p-2 text-xs text-rose-200">
                 <span class="font-bold">ملاحظة: </span>{{ order.rejection_reason }}
@@ -3526,26 +3542,27 @@ HTML_SHELL = """<!DOCTYPE html>
               body: JSON.stringify({ stars: amount })
             });
             const json = await res.json();
-            if (json.success || json.ok) {
-              if (json.invoice_link && tg?.openInvoice) {
-                tg.openInvoice(json.invoice_link, (status) => {
-                  if (status === 'paid') {
-                    if (json.new_balance_usd !== undefined) {
-                      user.value.balance = Number(json.new_balance_usd);
-                    }
-                    alert(`تم شحن ${amount} نجمة بنجاح إلى رصيدك! ⭐`);
-                    showDepositModal.value = false;
-                  }
-                });
-              } else {
-                if (json.new_balance_usd !== undefined) {
-                  user.value.balance = Number(json.new_balance_usd);
+            if ((json.success || json.ok) && json.invoice_link) {
+              // الرصيد يُشحن في السيرفر فقط بعد تأكيد تيليجرام للدفع؛ هنا نعيد قراءة الرصيد الحقيقي
+              const refreshBalance = async () => {
+                try {
+                  const r = await fetch('/api/miniapp/account', { headers: { 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' } });
+                  const j = await r.json();
+                  if (j.user && j.user.balance_usd !== undefined) user.value.balance = Number(j.user.balance_usd);
+                } catch (e) { /* تجاهل */ }
+              };
+              const onPaid = (status) => {
+                if (status === 'paid') {
+                  showDepositModal.value = false;
+                  setTimeout(refreshBalance, 1500);
+                  setTimeout(refreshBalance, 5000);
+                  alert(`تم الدفع ✅ سيُضاف رصيد ${amount} نجمة خلال ثوانٍ ⭐`);
                 }
-                alert(json.message || `تم شحن ${amount} نجمة بنجاح! ⭐`);
-                showDepositModal.value = false;
-              }
+              };
+              if (tg?.openInvoice) tg.openInvoice(json.invoice_link, onPaid);
+              else window.open(json.invoice_link, '_blank');
             } else {
-              alert(json.error || 'فشل إنشاء فاتورة النجوم');
+              alert(json.message || json.error || 'فشل إنشاء فاتورة النجوم');
             }
           } catch {
             alert('حدث خطأ أثناء معالجة شحن النجوم');
@@ -3634,8 +3651,34 @@ HTML_SHELL = """<!DOCTYPE html>
           }
         };
 
+        const smsCall = async (path, order) => {
+          const initData = tg?.initData || '';
+          const res = await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData, 'x-store-id': store.value?.botId || 'default' },
+            body: JSON.stringify({ order_id: order.order_id })
+          });
+          return res.json();
+        };
+        const checkSmsCode = async (order) => {
+          try {
+            const j = await smsCall('/api/miniapp/sms/check', order);
+            if (j.code) { order.sms_code = j.code; order.status = 'completed'; }
+            else alert(j.message || 'لم يصل الكود بعد ⏳');
+          } catch { alert('تعذّر الفحص، حاول مجدداً'); }
+        };
+        const cancelSmsOrder = async (order) => {
+          if (!confirm('إلغاء الرقم واسترجاع المبلغ؟')) return;
+          try {
+            const j = await smsCall('/api/miniapp/sms/cancel', order);
+            alert(j.message || (j.ok ? 'تم الاسترجاع' : 'تعذّر الإلغاء'));
+            if (j.ok) { order.status = 'canceled'; if (j.new_balance_usd !== undefined) user.value.balance = Number(j.new_balance_usd); }
+          } catch { alert('تعذّر الإلغاء، حاول مجدداً'); }
+        };
+
         const getStatusLabelAr = (status) => {
           const map = {
+            waiting_sms: 'بانتظار الكود 📱',
             pending: 'بانتظار التنفيذ ⏳',
             queued: 'بانتظار التنفيذ ⏳',
             processing: 'قيد التنفيذ ⚙️',
@@ -3650,7 +3693,7 @@ HTML_SHELL = """<!DOCTYPE html>
         const getStatusBadgeClass = (status) => {
           if (status === 'completed') return 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40';
           if (status === 'processing') return 'bg-blue-950/60 text-blue-300 border-blue-500/40';
-          if (status === 'pending' || status === 'queued') return 'bg-amber-950/60 text-amber-300 border-amber-500/40';
+          if (status === 'pending' || status === 'queued' || status === 'waiting_sms') return 'bg-amber-950/60 text-amber-300 border-amber-500/40';
           if (status === 'refunded') return 'bg-purple-950/60 text-purple-300 border-purple-500/40';
           return 'bg-rose-950/60 text-rose-300 border-rose-500/40';
         };
@@ -5033,6 +5076,8 @@ HTML_SHELL = """<!DOCTYPE html>
           getCalculatedTotal,
           submitOrder,
           getStatusLabelAr,
+          checkSmsCode,
+          cancelSmsOrder,
           getStatusBadgeClass,
           getReferralLink,
           copyToClipboard,

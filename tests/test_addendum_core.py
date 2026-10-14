@@ -110,21 +110,80 @@ async def test_atomic_dual_refund_workflow():
         s.add(order)
         await s.commit()
 
-    # 3. Perform dual refund
+    # 3. شراء حقيقي أولاً: الزبون يدفع 5$ والبائع تُخصم منه تكلفة المنصة 3$
+    await ledger.credit_user(bot_id, buyer_id, 5.0, "deposit")
+    await ledger.credit_seller(seller_id, 3.0, "deposit")
+    ok_p, why, bal_after = await ledger.purchase(bot_id=bot_id, buyer_id=buyer_id, price_usd=5.0,
+                                                 seller_id=seller_id, platform_cost_usd=3.0, order_id=ord_id)
+    assert ok_p and why == "ok" and bal_after == 0.0
+    assert await ledger.get_seller_balance_usd(seller_id) == 0.0
+    # تكرار نفس الطلب لا يخصم مرتين
+    ok_dup, why_dup, _ = await ledger.purchase(bot_id=bot_id, buyer_id=buyer_id, price_usd=5.0,
+                                               seller_id=seller_id, platform_cost_usd=3.0, order_id=ord_id)
+    assert ok_dup and why_dup == "duplicate"
+
+    # 4. الاسترجاع المزدوج يعيد ما دُفع فعلاً بالضبط
     ok, msg, res = await ledger.atomic_dual_refund(ord_id, reason="غير متوفر")
     assert ok is True
     assert res["buyer_refund_usd"] == 5.0
     assert res["seller_refund_usd"] == 3.0
+    assert await ledger.get_user_balance_usd(bot_id, buyer_id) == 5.0
+    assert await ledger.get_seller_balance_usd(seller_id) == 3.0
 
-    # 4. Check balances
-    bal_buyer = await ledger.get_user_balance_usd(bot_id, buyer_id)
-    bal_seller = await ledger.get_seller_balance_usd(seller_id)
-    assert bal_buyer >= 5.0
-    assert bal_seller >= 3.0
-
-    # 5. Check Idempotency - cannot refund again
+    # 5. لا يتكرر الاسترجاع
     ok_retry, msg_retry, _ = await ledger.atomic_dual_refund(ord_id, reason="إعادة محاولة")
     assert ok_retry is False
+    assert await ledger.get_user_balance_usd(bot_id, buyer_id) == 5.0
+
+
+@pytest.mark.anyio
+async def test_refund_never_pays_unpaid_order():
+    """طلب لم يُدفع (أو دُفع جزئياً) لا يولّد رصيداً من العدم لأي طرف."""
+    await db.init()
+    uid = int(time.time() * 1000) % 900000000 + 55000
+    bot_id, buyer_id, seller_id = uid + 10, uid + 1, uid + 2
+    async with db.Session() as s:
+        s.add(db.Bot(id=bot_id, owner_id=seller_id, username=f"t_{bot_id}", token="tok", template="digital"))
+        s.add(db.ServiceOrder(order_id=f"FREE-{uid}", tpl_key="digital", bot_id=bot_id, user_id=buyer_id,
+                              service_id="x", service_name="x", target="x", price_user_usd=9.0,
+                              cost_platform_usd=7.0, cost_provider_usd=6.0, status="pending"))
+        await s.commit()
+    ok, _, res = await ledger.atomic_dual_refund(f"FREE-{uid}")
+    assert ok and res["buyer_refund_usd"] == 0.0 and res["seller_refund_usd"] == 0.0
+    assert await ledger.get_user_balance_usd(bot_id, buyer_id) == 0.0
+    assert await ledger.get_seller_balance_usd(seller_id) == 0.0
+
+
+@pytest.mark.anyio
+async def test_purchase_is_all_or_nothing():
+    """إن لم يكفِ رصيد البائع لا يُخصم شيء من الزبون، وإن لم يكفِ رصيد الزبون لا يُخصم شيء من البائع."""
+    await db.init()
+    uid = int(time.time() * 1000) % 900000000 + 66000
+    bot_id, buyer_id, seller_id = uid + 10, uid + 1, uid + 2
+    await ledger.credit_user(bot_id, buyer_id, 10.0, "deposit")
+    await ledger.credit_seller(seller_id, 1.0, "deposit")
+    ok, why, bal = await ledger.purchase(bot_id=bot_id, buyer_id=buyer_id, price_usd=8.0,
+                                         seller_id=seller_id, platform_cost_usd=5.0, order_id=f"A-{uid}")
+    assert not ok and why == "seller_insufficient" and bal == 10.0
+    assert await ledger.get_seller_balance_usd(seller_id) == 1.0
+
+    await ledger.credit_seller(seller_id, 10.0, "deposit")
+    ok, why, bal = await ledger.purchase(bot_id=bot_id, buyer_id=buyer_id, price_usd=50.0,
+                                         seller_id=seller_id, platform_cost_usd=5.0, order_id=f"B-{uid}")
+    assert not ok and why == "insufficient_balance" and bal == 10.0
+    assert await ledger.get_seller_balance_usd(seller_id) == 11.0
+
+
+@pytest.mark.anyio
+async def test_concurrent_debits_never_overspend():
+    """عشرون خصماً متزامناً على رصيد يكفي خمسة فقط: ينجح خمسة بالضبط ولا يصبح الرصيد سالباً."""
+    import asyncio
+    await db.init()
+    uid = int(time.time() * 1000) % 900000000 + 77000
+    await ledger.credit_user(uid, uid, 5.0, "deposit")
+    res = await asyncio.gather(*[ledger.debit_user(uid, uid, 1.0, "order") for _ in range(20)])
+    assert sum(1 for ok, _, _ in res if ok) == 5
+    assert await ledger.get_user_balance_usd(uid, uid) == 0.0
 
 
 @pytest.mark.anyio
@@ -175,3 +234,41 @@ def test_bulk_import_quick_text_and_excel():
     rows, errs = BulkImportManager.parse_excel_or_csv(excel_bytes, "template.xlsx")
     assert len(rows) >= 5
     assert len(errs) == 0
+
+
+@pytest.mark.anyio
+async def test_price_floor_and_catalog_mapping():
+    """البائع لا يبيع أبداً بأقل من سعر المنصة، والمدير يربط المنتجات بأرقام خدمات المزود وتكلفتها الحقيقية."""
+    from forge.modules import catalog
+    from forge.modules.markup import MarkupManager
+    from forge.modules.providers.smm import SMMManager
+    from forge.modules.providers.sms import SMSManager
+    await db.init()
+    uid = int(time.time() * 1000) % 900000000 + 88000
+    bot_id, owner = uid + 10, uid + 2
+    async with db.Session() as s:
+        s.add(db.Bot(id=bot_id, owner_id=owner, username=f"fl_{bot_id}", token="tok", template="smm"))
+        await s.commit()
+    await MarkupManager.set_margin_rule("tpl:smm", "percent", 50.0, admin_id=1)
+    await MarkupManager.set_margin_rule("tpl:sms", "percent", 50.0, admin_id=1)
+    await db.kv_set(bot_id, "smm:margin", {"type": "percent", "val": 0.0})        # البائع بلا ربح
+    await db.kv_set(bot_id, "sms:margin", {"type": "percent", "val": 0.0})
+    await db.kv_set(bot_id, "smm:services_override", {"ig_likes_hq": {"custom_price_usd": 0.01}})  # سعر أقل من التكلفة
+    cat = {x["id"]: x for x in await SMMManager.get_services_catalog(bot_id)}
+    for x in cat.values():
+        assert x["price_per_1k_usd"] >= round(x["base_cost_per_1k"] * 1.5, 4) - 0.0001
+    # ربط بالمزود وتكلفة حقيقية وإخفاء
+    upd, errs = catalog.parse_lines("ig_likes_hq | 4455 | 0.30\nig_followers_fast | off\nbad line without pipe")
+    assert len(upd) == 2 and len(errs) == 1
+    for iid, e in upd:
+        await catalog.set_entry("smm", iid, **e)
+    cat = {x["id"]: x for x in await SMMManager.get_services_catalog(bot_id)}
+    assert "ig_followers_fast" not in cat
+    assert cat["ig_likes_hq"]["base_cost_per_1k"] == 0.30 and cat["ig_likes_hq"]["price_per_1k_usd"] >= 0.45
+    assert catalog.provider_service(await catalog.get_map("smm"), "ig_likes_hq") == "4455"
+    # الأرقام: سعر مخصص منخفض لا يكسر الأرضية
+    await db.kv_set(bot_id, "sms:overrides", {"iq_tg": {"price_usd": 0.01}})
+    base = await SMSManager.platform_base("iq", "tg")
+    assert await SMSManager.calculate_number_price(bot_id, "iq", "tg") >= round(base * 1.5, 2)
+    await db.kv_set(0, "sys:markup_rules", {})
+    await db.kv_set(0, "smm:catalog_map", {})

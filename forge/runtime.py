@@ -219,7 +219,19 @@ class Manager:
             from .web import server as webserver
             self.web = await webserver.start(self)
         except Exception:
+            log.exception("web server failed to start; bots keep running")
             self.web = None
+            return
+        # نفق https تلقائي (اختياري، للتشغيل من جهاز شخصي بلا نطاق): AUTO_TUNNEL=1 ولا يوجد PUBLIC_URL
+        if config.PUBLIC_URL or not config.AUTO_TUNNEL:
+            return
+        try:
+            from .web.tunnel import Tunnel
+            self.tunnel = Tunnel(self._on_tunnel_url)
+            self._tunnel_task = asyncio.create_task(self.tunnel.start())
+            await asyncio.wait({self._tunnel_task}, timeout=12)
+        except Exception:
+            log.exception("auto tunnel failed; sites stay local")
 
     async def _on_tunnel_url(self, url: str) -> None:
         """رابط النفق يتغير مع كل تشغيل: نعتمده رابطاً عاماً ونعيد ضبط أزرار القوائم."""

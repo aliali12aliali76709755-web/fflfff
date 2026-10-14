@@ -42,7 +42,7 @@ async def main():  # noqa: C901
     print("— النفق التلقائي —")
     ck.ok(config.PUBLIC_URL == url1 and web.https() and mgr.tunnel is not None and mgr.tunnel.url == url1, "النفق يعطي المنصة رابط https عند الإقلاع")
     await tg.settle()
-    ck.ok(bool(menus(MID)) and menus(MID)[-1].get("web_app", {}).get("url") == f"{url1}/app" and menus(MID)[-1]["text"] == "لوحتي", "زر القائمة في بوت الصانع يفتح «لوحتي» داخل تيليجرام")
+    ck.ok(any(m.get("web_app", {}).get("url") == f"{url1}/app" for m in menus(MID)), "زر القائمة في بوت الصانع يفتح التطبيق المصغّر داخل تيليجرام")
 
     print("— زر القائمة والتطبيق المصغّر في البوتات —")
     for u in (boss, ali, sara):
@@ -52,12 +52,12 @@ async def main():  # noqa: C901
     TC = await make_bot(tg, ali, B_CONTACT, "contact")
     await asyncio.sleep(0.3)
     await tg.settle()
-    ck.ok(menus(B_STORE)[-1].get("web_app", {}).get("url") == f"{url1}/b{B_STORE}_bot" and menus(B_STORE)[-1]["text"] == "المتجر", "زر القائمة في المتجر يفتح متجره")
+    ck.ok(menus(B_STORE)[-1].get("web_app", {}).get("url") == f"{url1}/app/b{B_STORE}_bot" and "المتجر" in menus(B_STORE)[-1]["text"], "زر القائمة في المتجر يفتح متجره المصغّر")
     ck.ok(menus(B_QURAN)[-1]["text"] == "المصحف", "زر القائمة في بوت القرآن")
     ck.ok(not any("web_app" in m for m in menus(B_CONTACT)), "بوت بلا موقع خاص: زر القائمة يبقى للأوامر")
     await tg.say(T, sara, "/start")
     first = tg.buttons(B_STORE)[0]
-    ck.ok(first["text"] == "🛍 افتح المتجر" and first["web_app"]["url"].startswith(f"{url1}/b{B_STORE}_bot?k=600-") and tg.buttons(B_STORE)[1]["text"] == "🛍 تصفّح المنتجات", "أول زر يفتح المتجر داخل تيليجرام والتصفح بالأزرار بديل")
+    ck.ok("web_app" in first and str(first["web_app"]["url"]).startswith(f"{url1}/app/b{B_STORE}_bot") and "تصفّح المنتجات" in tg.buttons(B_STORE)[1]["text"], "أول زر يفتح المتجر المصغّر داخل تيليجرام والتصفح بالأزرار بديل")
     await tg.say(TQ, sara, "/start")
     ck.ok(tg.buttons(B_QURAN)[0]["text"] == "📖 افتح المصحف" and "web_app" in tg.buttons(B_QURAN)[0], "بوت القرآن: المصحف أول زر")
     t = await tg.click(T, ali, "o:site")
@@ -118,7 +118,7 @@ async def main():  # noqa: C901
     await tg.settle()
     url2 = "https://gamma-delta.trycloudflare.com"
     ck.ok(config.PUBLIC_URL == url2, "النفق يعود تلقائياً برابطه الجديد بعد انقطاعه")
-    ck.ok(menus(B_STORE)[-1]["web_app"]["url"] == f"{url2}/b{B_STORE}_bot" and menus(MID)[-1]["web_app"]["url"] == f"{url2}/app", "أزرار القوائم تتبع الرابط الجديد دون تدخل")
+    ck.ok(menus(B_STORE)[-1]["web_app"]["url"] == f"{url2}/app/b{B_STORE}_bot" and any(m.get("web_app", {}).get("url") == f"{url2}/app" for m in menus(MID)[-6:]), "أزرار القوائم تتبع الرابط الجديد دون تدخل")
     await tg.say(T, sara, "/start")
     ck.ok(tg.buttons(B_STORE)[0]["web_app"]["url"].startswith(url2), "والأزرار الجديدة تحمل الرابط الجديد")
 

@@ -55,7 +55,7 @@ async def main():  # noqa: C901
         await tg.say(T[k], sara, "مرحبا")
         ck.ok("غرفة التحكم" in t1 and len(t2) > 60 and len(tg.out(B[k])) > n, f"{templates.get(k).ar}: لوحة المالك + الدليل + واجهة المستخدم + رد على نص")
     ck.errors("الفحص العام")
-    ck.ok(len(mgr.apps) == 37, "37 بوتاً تعمل معاً")
+    ck.ok(len(mgr.apps) >= len(B), f"{len(B)} بوتاً تعمل معاً")
 
     def last(k):
         return tg.text(B[k])

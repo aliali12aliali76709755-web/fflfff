@@ -307,19 +307,17 @@ class Digital(Tpl):
             await c.edit(text, kb([[B(t("❌ إلغاء", "❌ Cancel"), "t:deposit")]]))
 
         elif act == "stars_buy":
-            stars_num = int(a[1])
-            ok, tx, new_bal = await payments.process_stars_deposit(c.bot_id, c.uid, stars_num)
-            if ok:
-                bal_str = await ledger.get_user_balance_display(c.bot_id, c.uid)
-                await c.edit(
-                    ui.head(t("✅ تم الشحن بنجاح!", "✅ Top-up Successful!")) +
-                    t(f"تم شحن <b>{stars_num} ⭐</b> إلى محفظتك بنجاح!\n\n💰 <b>رصيدك الجديد:</b> <code>{bal_str}</code>",
-                      f"Added <b>{stars_num} ⭐</b> to wallet!\nNew balance: <code>{bal_str}</code>"),
-                    kb([[B(t("🎮 شحن الألعاب", "🎮 Game Top-Up"), "t:cat:games", style="success")],
-                        [B(t("💼 المحفظة", "💼 Wallet"), "t:wallet")]])
-                )
-            else:
-                await c.answer(t("فشل شحن النجوم", "Stars top-up failed"), True)
+            # يُرسل فاتورة نجوم فقط؛ الرصيد يُشحن تلقائياً عند تأكيد تيليجرام للدفع (on_successful_payment)
+            try:
+                stars_num = int(a[1])
+            except (IndexError, ValueError):
+                return
+            try:
+                sent = await payments.send_stars_invoice(c.bot, c.uid, c.bot_id, c.uid, stars_num)
+            except Exception:
+                sent = False
+            await c.answer(t("📩 أرسلنا لك فاتورة النجوم، ادفعها ويُشحن رصيدك فوراً.", "📩 Invoice sent — pay it and your balance is topped up instantly.")
+                           if sent else t("تعذّر إنشاء فاتورة النجوم", "Could not create the Stars invoice"), not sent)
 
         # ── سجل الطلبات ──
         elif act == "orders":
@@ -624,7 +622,7 @@ class Digital(Tpl):
 
             elif sub == "rcpt_ok":
                 rcpt_id = a[2]
-                ok, msg, new_bal = await payments.approve_receipt(rcpt_id)
+                ok, msg, new_bal = await payments.approve_receipt(rcpt_id, bot_id=c.bot_id)
                 if ok:
                     await c.answer(t("تمت الموافقة وشحن الرصيد! ✅", "Approved & Credited! ✅"), True)
                     r = await payments.get_receipt(rcpt_id)
@@ -643,7 +641,7 @@ class Digital(Tpl):
 
             elif sub == "rcpt_no":
                 rcpt_id = a[2]
-                ok, msg = await payments.reject_receipt(rcpt_id, reason="رفض بواسطة الإدارة")
+                ok, msg = await payments.reject_receipt(rcpt_id, reason="رفض بواسطة الإدارة", bot_id=c.bot_id)
                 if ok:
                     await c.answer(t("تم رفض الإيصال", "Receipt rejected"), True)
                     await self.cb(c, ["adm", "rcpts"])
@@ -1153,24 +1151,35 @@ class Digital(Tpl):
             await c.answer(t("رصيدك غير كافٍ", "Insufficient balance"), True)
             return
 
-        ord_key = f"dig_{uuid.uuid4().hex[:10]}"
+        ord_key = draft.get("ord_key") or f"dig_{uuid.uuid4().hex[:10]}"
+        draft["ord_key"] = ord_key  # نفس الرقم عند الضغط المكرر = لا خصم مزدوج
 
-        # 1. خصم الرصيد ذرياً
-        ok_debit, tx, new_bal = await ledger.debit_user(
-            c.bot_id,
-            c.uid,
-            final_usd,
-            kind="order_digital",
-            ref_id=ord_key,
-            description=f"طلب {draft['sname']} ({draft['target']})",
-        )
-        if not ok_debit:
-            await c.answer(t("فشل خصم الرصيد", "Debit failed"), True)
-            return
-
-        # 2. فحص هل يوجد كود فوري في المخزون؟
+        # 1. حجز كود من مخزون البائع إن وجد (منتج البائع نفسه = بلا تكلفة منصة)
         voucher_code = await DigitalManager.get_voucher_from_stock(c.bot_id, draft["sid"])
         order_status = "completed" if voucher_code else "queued"
+        if voucher_code:
+            platform_fee_usd = 0.0
+        else:
+            base = next((float(x.get("base_cost_usd", 0.0)) for x in await DigitalManager.get_services_catalog(c.bot_id) if x.get("id") == draft["sid"]), 0.0)
+            platform_fee_usd = await ledger.platform_cost_for(c.owner_id, base, tpl_key="digital", product_id=str(draft["sid"]))
+
+        # 2. خصم ذري واحد: الزبون (سعر البيع) + البائع (سعر المنصة)
+        ok_debit, why, new_bal = await ledger.purchase(
+            bot_id=c.bot_id, buyer_id=c.uid, price_usd=final_usd, seller_id=c.owner_id,
+            platform_cost_usd=platform_fee_usd, order_id=ord_key, kind="order_digital",
+            description=f"طلب {draft['sname']} ({draft['target']})",
+        )
+        if not ok_debit or why == "duplicate":
+            if voucher_code:
+                await DigitalManager.return_voucher_to_stock(c.bot_id, draft["sid"], voucher_code)
+            if why == "duplicate":
+                await c.answer(t("تم تنفيذ هذا الطلب مسبقاً ✅", "Order already placed ✅"), True)
+            elif why == "seller_insufficient":
+                await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
+                await c.answer(t("الخدمة غير متوفرة مؤقتاً، رصيدك محفوظ.", "Service temporarily unavailable; your balance is safe."), True)
+            else:
+                await c.answer(t("رصيدك غير كافٍ", "Insufficient balance"), True)
+            return
 
         # 3. حفظ الطلب في قاعدة البيانات
         bot_cur = await currency.get_bot_currency(c.bot_id)
@@ -1181,12 +1190,13 @@ class Digital(Tpl):
                 bot_id=c.bot_id,
                 user_id=c.uid,
                 tpl_key="digital",
+                seller_id=c.owner_id,
                 service_id=draft["sid"],
                 service_name=draft["sname"],
                 target=draft["target"],
                 quantity=1,
                 cost_provider_usd=0.0,
-                cost_platform_usd=0.0,
+                cost_platform_usd=platform_fee_usd,
                 price_user_usd=final_usd,
                 currency=bot_cur,
                 price_user_currency=cur_price,

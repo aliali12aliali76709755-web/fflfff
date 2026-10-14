@@ -13,7 +13,7 @@ from sqlalchemy import desc, func, select
 from .. import config, db, ui
 from ..modules import currency, discounts, ledger, markup, order_dispatch, payments, promo, tickets
 from ..modules.providers.digital import DigitalManager
-from ..modules.providers.sms import SMSManager
+from ..modules.providers.sms import SMS_APPS, SMS_COUNTRIES, SMSManager
 from ..modules.providers.smm import SMMManager
 from ..modules.providers.tgstars import TGStarsManager
 from . import media_pipe
@@ -443,7 +443,7 @@ async def api_store_info(req: web.Request) -> web.Response:
             "currencySymbol": cur_info.get("symbol", "$"),
             "exchangeRate": float(live_rates.get(bot_cur, 1.0)),
             "themeSettings": merged_theme,
-            "maintenanceMode": bool(ctx.uid != 8625825633 and not config.is_admin(ctx.uid)),
+            "maintenanceMode": await _store_in_maintenance(ctx),
             "forceChannel": "",
             "reviewsEnabled": True,
             "referralRewardPercent": 5,
@@ -497,7 +497,7 @@ async def api_auth(req: web.Request) -> web.Response:
                 "storeName": theme_cfg.get("store_name") or bot.name or bot.username,
                 "templateType": bot.template,
                 "themeSettings": theme_cfg,
-                "maintenanceMode": bool(ctx.uid != 8625825633 and not config.is_admin(ctx.uid)),
+                "maintenanceMode": await _store_in_maintenance(ctx),
                 "forceChannel": ""
             }
         }
@@ -518,8 +518,9 @@ async def get_store_catalog(req: web.Request) -> web.Response:
     tpl_key = bot.template
     categories = []
     products = []
+    parts = TEMPLATE_PARTS.get(tpl_key, (tpl_key,))   # القوالب المدمجة تعرض أقسامها كلها
 
-    if tpl_key == "digital":
+    if "digital" in parts:
         raw_svcs = await DigitalManager.get_services_catalog(bot.id)
         # تجميع الفئات
         cat_map = {
@@ -564,8 +565,7 @@ async def get_store_catalog(req: web.Request) -> web.Response:
                 "requirements": [{"name": "target", "label": s.get("field_ar", "بيانات الطلب"), "type": "text", "required": True}] if s.get("field_ar") else [],
             })
 
-    elif tpl_key == "sms":
-        from ..modules.providers.sms import SMS_APPS, SMS_COUNTRIES
+    if "sms" in parts:
         categories = [{"id": c_code, "name": f"{c_info['flag']} {c_info['name_ar']}", "icon": c_info["flag"]} for c_code, c_info in SMS_COUNTRIES.items()]
         for c_code in SMS_COUNTRIES.keys():
             for app_code, a_info in SMS_APPS.items():
@@ -591,7 +591,7 @@ async def get_store_catalog(req: web.Request) -> web.Response:
                     "requirements": [],
                 })
 
-    elif tpl_key == "smm":
+    if "smm" in parts:
         from ..modules.providers.smm import PLATFORMS
         raw_svcs = await SMMManager.get_services_catalog(bot.id)
         categories = [{"id": p_key, "name": f"{p['emoji']} {p['name_ar']}", "icon": p["emoji"]} for p_key, p in PLATFORMS.items()]
@@ -621,7 +621,7 @@ async def get_store_catalog(req: web.Request) -> web.Response:
                 "requirements": [{"name": "target_url", "label": "رابط الحساب أو المنشور", "type": "url", "required": True}],
             })
 
-    elif tpl_key == "tgstars":
+    if "tgstars" in parts:
         raw_svcs = await TGStarsManager.get_services_catalog(bot.id)
         categories = [
             {"id": "stars", "name": "⭐ نجوم تيليجرام", "icon": "⭐"},
@@ -776,11 +776,210 @@ async def get_store_catalog(req: web.Request) -> web.Response:
 # 3. إرسال الطلبات الذري (Atomic Ordering & Idempotency)
 # ─────────────────────────────────────────────────────────────
 
+async def _store_in_maintenance(ctx) -> bool:
+    """المتجر مغلق للزبائن إن كانت المنصة في صيانة ما قبل الإطلاق أو أغلقته الإدارة أو فعّل البائع الصيانة.
+    المالك والمدير يدخلان دائماً."""
+    if ctx.is_admin or ctx.is_owner:
+        return False
+    try:
+        from .. import plat as platform
+        if (await platform.get(0)).get("maintenance"):
+            return True
+        if platform.lock_of(await platform.adm(ctx.bot.id)) is not None:
+            return True
+        core = await db.kv_get(ctx.bot.id, "core", {}) or {}
+        return bool((core.get("maint") or {}).get("on"))
+    except Exception:
+        return False
+
+
+async def _notify_seller_low_balance(bot: db.Bot, needed_usd: float) -> None:
+    """ينبّه البائع (مرة كل ساعة كحد أقصى) أن رصيده في الصانع لا يكفي لتكلفة المنصة."""
+    try:
+        key = "sys:lowbal_notified"
+        last = float(await db.kv_get(bot.id, key, 0) or 0)
+        if time.time() - last < 3600:
+            return
+        await db.kv_set(bot.id, key, time.time())
+        from ..runtime import manager
+        app = manager.apps.get(bot.id)
+        if app and app.bot:
+            await app.bot.send_message(bot.owner_id, f"⚠️ فشل طلب لزبونك لأن رصيدك في الصانع لا يكفي تكلفة المنصة (${needed_usd:.2f}).\nاشحن رصيدك في الصانع ليستمر البيع.")
+    except Exception as e:
+        log.debug("low balance notify failed: %s", e)
+
+
+MAX_QTY = 1_000_000
+# القوالب المدمجة وأقسامها
+TEMPLATE_PARTS = {"smmsms": ("smm", "sms"), "megastore": ("digital", "smm", "sms", "tgstars")}
+
+
+class _Quote:
+    """تسعير بند واحد في السيرفر فقط — لا يُقبل أي سعر قادم من المتصفح."""
+    __slots__ = ("ok", "error", "name", "price_usd", "platform_cost_usd", "voucher", "voucher_src", "status", "tpl")
+
+    def __init__(self):
+        self.ok, self.error, self.name = False, "invalid_product", ""
+        self.price_usd = self.platform_cost_usd = 0.0
+        self.voucher, self.voucher_src, self.status, self.tpl = "", "", "queued", ""
+
+
+async def _quote_item(bot: db.Bot, product_id: str, quantity: int, price_option_id: str = "") -> _Quote:
+    q = _Quote()
+    pid = str(product_id or "")
+    if not pid or quantity < 1 or quantity > MAX_QTY:
+        q.error = "invalid_quantity" if pid else "missing_product"
+        return q
+    owner = bot.owner_id
+    parts = TEMPLATE_PARTS.get(bot.template, (bot.template,))   # القوالب المدمجة تجمع عدة أقسام
+    if "digital" in parts:
+        svc = next((x for x in await DigitalManager.get_services_catalog(bot.id) if x["id"] == pid), None)
+        if svc:
+            q.tpl, q.name = "digital", svc["name_ar"]
+            q.price_usd = await discounts.DiscountManager.apply_discount(bot.id, "digital", pid, svc["price_usd"]) * quantity
+            q.platform_cost_usd = await ledger.platform_cost_for(owner, float(svc.get("base_cost_usd", 0.0)) * quantity,
+                                                                 tpl_key="digital", product_id=pid)
+    if "sms" in parts and not q.name:
+        sp = pid.split("_")
+        if len(sp) == 2 and sp[0] in SMS_COUNTRIES and sp[1] in SMS_APPS:
+            q.tpl, q.name = "sms", f"رقم {sp[1]} ({sp[0]})"
+            q.price_usd = await SMSManager.calculate_number_price(bot.id, sp[0], sp[1]) * quantity
+            q.platform_cost_usd = await ledger.platform_cost_for(owner, await SMSManager.platform_base(sp[0], sp[1]) * quantity,
+                                                                 tpl_key="sms", product_id=pid)
+    if "smm" in parts and not q.name:
+        svc = next((x for x in await SMMManager.get_services_catalog(bot.id) if x["id"] == pid), None)
+        if svc:
+            if quantity < int(svc.get("min", 1)) or quantity > int(svc.get("max", MAX_QTY)):
+                q.error = "invalid_quantity"
+                return q
+            q.tpl, q.name = "smm", svc["name_ar"]
+            q.price_usd = svc["price_per_1k_usd"] * quantity / 1000.0
+            q.platform_cost_usd = await ledger.platform_cost_for(owner, float(svc.get("base_cost_per_1k", 0.0)) * quantity / 1000.0,
+                                                                 tpl_key="smm", product_id=pid)
+    if "tgstars" in parts and not q.name:
+        svc = next((x for x in await TGStarsManager.get_services_catalog(bot.id) if x["id"] == pid), None)
+        if svc:
+            q.tpl, q.name = "tgstars", svc["name_ar"]
+            q.price_usd = svc["price_usd"] * quantity
+            q.platform_cost_usd = await ledger.platform_cost_for(owner, float(svc.get("base_cost_usd", 0.0)) * quantity,
+                                                                 tpl_key="tgstars", product_id=pid)
+
+    if not q.name:
+        # الكتالوج العام للمنصة: سعر المنصة على البائع = cost_price، وسعر البيع = تسعير البائع (لا يقل عن سعر المنصة)
+        m_found = next((m for m in await get_master_catalog_items() if str(m.get("id")) == pid and m.get("active", True)), None)
+        if m_found:
+            opts = m_found.get("price_options") or []
+            opt = next((o for o in opts if o.get("id") == price_option_id), None) if price_option_id else None
+            cost_p = float((opt or {}).get("costPrice") or m_found.get("cost_price", 0.85))
+            ov = ((await db.kv_get(bot.id, "store:product_overrides", {}) or {}).get(pid) or {})
+            if ov.get("hidden") or ov.get("active") is False:
+                return q
+            if ov.get("margin") is not None:
+                user_p = cost_p + max(float(ov["margin"]), 0.0)
+            elif ov.get("selling_price") is not None or ov.get("userPrice") is not None:
+                user_p = max(float(ov.get("selling_price") or ov.get("userPrice")), cost_p + 0.10)
+            else:
+                user_p = float((opt or {}).get("userPrice") or m_found.get("base_user_price", round(cost_p * 1.15, 2)))
+            q.tpl, q.name = "master", m_found.get("name_ar") or m_found.get("name", "منتج")
+            q.price_usd = round(max(user_p, cost_p), 4) * quantity
+            q.platform_cost_usd = round(cost_p * quantity, 4)
+        else:
+            # منتجات البائع الخاصة: ملكه بالكامل، لا تكلفة منصة
+            custom = await db.kv_get(bot.id, "store:custom_products", []) or []
+            cp = next((x for x in custom if str(x.get("id")) == pid and x.get("active", True) is not False), None)
+            if not cp:
+                return q
+            opts = cp.get("priceOptions") or []
+            sel = next((o for o in opts if o.get("id") == price_option_id), None) if price_option_id else (opts[0] if opts else None)
+            unit = float((sel or {}).get("userPrice") or cp.get("price_usd", 1.0))
+            q.tpl, q.name = "custom", cp.get("name", "منتج")
+            q.price_usd = unit * quantity
+            q.platform_cost_usd = 0.0
+
+    q.price_usd = round(q.price_usd, 4)
+    q.platform_cost_usd = round(q.platform_cost_usd, 4)
+    if q.price_usd <= 0:
+        q.error = "invalid_price"
+        return q
+    q.ok, q.error = True, ""
+    return q
+
+
+async def _reserve_voucher(bot: db.Bot, q: _Quote, product_id: str, quantity: int) -> None:
+    """يحجز كوداً فورياً من مخزون البائع (لكمية 1 فقط). كود من مخزون البائع = منتجه = بلا تكلفة منصة."""
+    if quantity != 1:
+        return
+    if q.tpl == "digital":
+        code = await DigitalManager.get_voucher_from_stock(bot.id, product_id)
+        if code:
+            q.voucher, q.voucher_src, q.status, q.platform_cost_usd = code, "digital", "completed", 0.0
+    elif q.tpl == "custom":
+        async with _custom_stock_lock(bot.id):
+            custom = await db.kv_get(bot.id, "store:custom_products", []) or []
+            cp = next((x for x in custom if str(x.get("id")) == str(product_id)), None)
+            if cp and cp.get("is_instant") and cp.get("stock_codes"):
+                q.voucher = cp["stock_codes"].pop(0)
+                q.voucher_src, q.status = "custom", "completed"
+                await db.kv_set(bot.id, "store:custom_products", custom)
+
+
+async def _release_voucher(bot: db.Bot, q: _Quote, product_id: str) -> None:
+    """يعيد الكود المحجوز إن فشل الدفع."""
+    if not q.voucher:
+        return
+    if q.voucher_src == "digital":
+        await DigitalManager.return_voucher_to_stock(bot.id, product_id, q.voucher)
+    elif q.voucher_src == "custom":
+        async with _custom_stock_lock(bot.id):
+            custom = await db.kv_get(bot.id, "store:custom_products", []) or []
+            cp = next((x for x in custom if str(x.get("id")) == str(product_id)), None)
+            if cp is not None:
+                cp.setdefault("stock_codes", []).insert(0, q.voucher)
+                await db.kv_set(bot.id, "store:custom_products", custom)
+    q.voucher = ""
+
+
+_CUSTOM_LOCKS: dict[int, Any] = {}
+
+
+def _custom_stock_lock(bot_id: int):
+    import asyncio
+    lk = _CUSTOM_LOCKS.get(bot_id)
+    if lk is None:
+        lk = _CUSTOM_LOCKS[bot_id] = asyncio.Lock()
+    return lk
+
+
+async def _auto_dispatch(bot: db.Bot, order_id: str, tpl: str, product_id: str, target: str, quantity: int) -> bool:
+    """يرسل طلبات التفاعل والنجوم للمزود تلقائياً. يعيد False إن فشل كل المزودين."""
+    try:
+        if tpl == "smm":
+            ok, prov_oid, prov_name, prov_cost = await SMMManager.dispatch_order_with_failover(bot.id, product_id, target, quantity)
+        elif tpl == "tgstars":
+            ok, prov_oid, prov_name, prov_cost = await TGStarsManager.dispatch_order_with_failover(bot.id, product_id, target, quantity)
+        else:
+            return True
+    except Exception as e:
+        log.warning("auto dispatch %s failed: %s", order_id, e)
+        ok, prov_oid, prov_name, prov_cost = False, "", "", 0.0
+    if ok:
+        async with db.Session() as s:
+            row = (await s.execute(select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id))).scalars().first()
+            if row is not None:
+                row.status, row.provider_name, row.provider_order_id = "processing", prov_name, str(prov_oid)
+                row.cost_provider_usd = float(prov_cost or 0.0)
+                await s.commit()
+    return ok
+
+
 async def create_store_order(req: web.Request) -> web.Response:
     """ينشئ طلباً جديداً مع التحقق الصارم من الرصيد والأسعار ومنع التكرار."""
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
     bot = ctx.bot
+    if await _store_in_maintenance(ctx):
+        return web.json_response({"ok": False, "success": False, "error": "maintenance",
+                                  "message": "المتجر في صيانة حالياً، حاول لاحقاً."}, status=503)
 
     try:
         data = await req.json()
@@ -814,152 +1013,124 @@ async def create_store_order(req: web.Request) -> web.Response:
                 }
             })
 
-    product_id = data.get("product_id") or data.get("productId")
+    product_id = str(data.get("product_id") or data.get("productId") or "")
     target_data = str(data.get("target") or data.get("targetUrl") or "").strip()
     if not target_data and data.get("userInputs"):
         u_in = data.get("userInputs")
         if isinstance(u_in, dict):
-            target_data = next((str(v) for v in u_in.values() if v), "") or json.dumps(u_in)
-    quantity = int(data.get("quantity") or 1)
+            target_data = next((str(v) for v in u_in.values() if v), "") or json.dumps(u_in, ensure_ascii=False)
+    target_data = target_data[:255]
+    try:
+        quantity = int(data.get("quantity") or 1)
+    except (TypeError, ValueError):
+        quantity = 0
 
-    if not product_id:
-        return web.json_response({"ok": False, "error": "missing_product", "message": "المنتج غير محدد"}, status=400)
+    # تسعير صارم في السيرفر
+    qt = await _quote_item(bot, product_id, quantity, str(data.get("priceOptionId") or data.get("price_option_id") or ""))
+    if not qt.ok:
+        msg = {"missing_product": "المنتج غير محدد", "invalid_quantity": "الكمية غير صالحة"}.get(qt.error, "المنتج غير موجود")
+        return web.json_response({"ok": False, "success": False, "error": qt.error, "message": msg}, status=400 if qt.error != "invalid_product" else 404)
+    if qt.tpl in ("smm", "tgstars") and not target_data:
+        return web.json_response({"ok": False, "success": False, "error": "missing_target", "message": "أدخل الرابط أو اسم المستخدم"}, status=400)
 
-    # إعادة حساب السعر دائماً في السيرفر
-    final_usd = 0.0
-    product_name = ""
-    order_status = "queued"
-    voucher_code = ""
+    final_usd = qt.price_usd
+    product_name = qt.name
 
-    if bot.template == "digital":
-        raw_svcs = await DigitalManager.get_services_catalog(bot.id)
-        svc = next((s for s in raw_svcs if s["id"] == product_id), None)
-        if svc:
-            base_price = svc["price_usd"]
-            final_usd = await discounts.DiscountManager.apply_discount(bot.id, "digital", product_id, base_price)
-            product_name = svc["name_ar"]
-            voucher_code = await DigitalManager.get_voucher_from_stock(bot.id, product_id)
-            if voucher_code:
-                order_status = "completed"
-
-    elif bot.template == "sms":
-        parts = str(product_id).split("_")
-        if len(parts) >= 2:
-            c_code, app_code = parts[0], parts[1]
-            final_usd = await SMSManager.calculate_number_price(bot.id, c_code, app_code)
-            product_name = f"رقم {app_code} ({c_code})"
-
-    elif bot.template == "smm":
-        raw_svcs = await SMMManager.get_services_catalog(bot.id)
-        svc = next((s for s in raw_svcs if s["id"] == product_id), None)
-        if svc:
-            final_usd = (svc["price_per_1k_usd"] * quantity) / 1000.0
-            product_name = svc["name_ar"]
-
-    elif bot.template == "tgstars":
-        raw_svcs = await TGStarsManager.get_services_catalog(bot.id)
-        svc = next((s for s in raw_svcs if s["id"] == product_id), None)
-        if svc:
-            final_usd = svc["price_usd"]
-            product_name = svc["name_ar"]
-
-    # فحص الكتالوج العام أو المنتجات المخصصة للبائع
-    if not product_name:
-        master_items = await get_master_catalog_items()
-        m_found = next((m for m in master_items if str(m.get("id")) == str(product_id)), None)
-        if m_found:
-            overrides = await db.kv_get(bot.id, "store:product_overrides", {}) or {}
-            ov = overrides.get(str(product_id), {})
-            cost_p = float(m_found.get("cost_price", 0.85))
-            if ov.get("margin") is not None:
-                user_p = round(cost_p + float(ov["margin"]), 2)
-            elif ov.get("selling_price") is not None or ov.get("userPrice") is not None:
-                raw_p = float(ov.get("selling_price") or ov.get("userPrice"))
-                user_p = round(max(raw_p, cost_p + 0.10), 2)
-            else:
-                user_p = float(m_found.get("base_user_price", round(cost_p * 1.15, 2)))
-            final_usd = user_p * quantity
-            product_name = m_found.get("name_ar") or m_found["name"]
-        else:
-            custom_prods = await db.kv_get(bot.id, "store:custom_products", []) or []
-            cp = next((p for p in custom_prods if str(p.get("id")) == str(product_id)), None)
-            if not cp:
-                return web.json_response({"ok": False, "error": "invalid_product", "message": "المنتج غير موجود"}, status=404)
-
-            p_opt_id = data.get("priceOptionId") or data.get("price_option_id")
-            price_opts = cp.get("priceOptions") or []
-            sel_opt = next((o for o in price_opts if o.get("id") == p_opt_id), None) if p_opt_id else (price_opts[0] if price_opts else None)
-            unit_price = float(sel_opt.get("userPrice") or cp.get("price_usd", 1.0)) if sel_opt else float(cp.get("price_usd", 1.0))
-            final_usd = unit_price * quantity
-            product_name = cp["name"]
-            codes = cp.get("stock_codes") or []
-            if cp.get("is_instant") and codes:
-                voucher_code = codes.pop(0)
-                await db.kv_set(bot.id, "store:custom_products", custom_prods)
-                order_status = "completed"
-
-    # تطبيق كود الخصم إن وجد
+    # كود الخصم (يُحسب الآن ويُسجَّل استخدامه فقط بعد نجاح الدفع)
     coupon_code = str(data.get("coupon_code") or data.get("coupon") or "").strip().upper()
     discount_usd = 0.0
     if coupon_code:
-        valid_c, disc_val, c_msg = await promo.validate_promo(bot.id, ctx.uid, coupon_code, final_usd, str(product_id))
+        valid_c, disc_val, _c_msg = await promo.validate_promo(bot.id, ctx.uid, coupon_code, final_usd, product_id)
         if valid_c and disc_val > 0:
-            discount_usd = disc_val
+            discount_usd = min(float(disc_val), final_usd)
             final_usd = max(0.0, round(final_usd - discount_usd, 4))
-            await promo.record_promo_applied(bot.id, ctx.uid, coupon_code, discount_usd=discount_usd)
 
-    # فحص الرصيد المتاح
-    user_bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
-    if user_bal < final_usd:
-        return web.json_response({
-            "ok": False,
-            "success": False,
-            "error": "insufficient_balance",
-            "message": f"رصيدك الحالي (${user_bal:.2f}) غير كافٍ. المطلوب: ${final_usd:.2f}",
-        }, status=402)
-
-    # خصم الرصيد ذرياً عبر Ledger
-    ok_debit, tx, new_bal = await ledger.debit_user(
-        bot_id=bot.id,
-        user_id=ctx.uid,
-        amount_usd=final_usd,
-        kind=f"order_{bot.template}",
-        ref_id=idempotency_key,
-        description=f"طلب {product_name}",
+    # حجز الكود الفوري ثم الخصم الذري للطرفين (الزبون + سعر المنصة على البائع)
+    await _reserve_voucher(bot, qt, product_id, quantity)
+    voucher_code, order_status = qt.voucher, qt.status
+    if final_usd <= 0:
+        await _release_voucher(bot, qt, product_id)
+        return web.json_response({"ok": False, "success": False, "error": "invalid_price", "message": "السعر غير صالح"}, status=400)
+    ok_debit, why, new_bal = await ledger.purchase(
+        bot_id=bot.id, buyer_id=ctx.uid, price_usd=final_usd, seller_id=bot.owner_id,
+        platform_cost_usd=qt.platform_cost_usd, order_id=idempotency_key,
+        kind=f"order_{bot.template}", description=f"طلب {product_name}",
     )
-    if not ok_debit:
-        return web.json_response({"ok": False, "success": False, "error": "debit_failed"}, status=500)
+    if not ok_debit or why == "duplicate":
+        await _release_voucher(bot, qt, product_id)
+        if why == "duplicate":
+            return web.json_response({"ok": True, "success": True, "order_id": idempotency_key, "is_duplicate": True,
+                                      "data": {"order_id": idempotency_key, "order_ref": idempotency_key}})
+        if why == "seller_insufficient":
+            await _notify_seller_low_balance(bot, qt.platform_cost_usd)
+            return web.json_response({"ok": False, "success": False, "error": "service_unavailable",
+                                      "message": "الخدمة غير متوفرة مؤقتاً، رصيدك محفوظ ولم يُخصم شيء."}, status=503)
+        bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
+        return web.json_response({"ok": False, "success": False, "error": "insufficient_balance",
+                                  "message": f"رصيدك الحالي (${bal:.2f}) غير كافٍ. المطلوب: ${final_usd:.2f}"}, status=402)
+    if coupon_code and discount_usd > 0:
+        await promo.record_promo_applied(bot.id, ctx.uid, coupon_code, discount_usd=discount_usd)
 
     # إنشاء سجل الطلب
     bot_cur = await currency.get_bot_currency(bot.id)
+    cur_price = await currency.usd_to_currency(final_usd, bot_cur, bot_id=bot.id)
     async with db.Session() as s:
         order = db.ServiceOrder(
             order_id=idempotency_key,
             bot_id=bot.id,
             user_id=ctx.uid,
-            tpl_key=bot.template,
-            service_id=str(product_id),
-            service_name=product_name,
+            seller_id=bot.owner_id,
+            tpl_key=qt.tpl if qt.tpl in ("digital", "smm", "sms", "tgstars") else bot.template,
+            service_id=product_id,
+            service_name=product_name[:255],
             target=target_data,
             quantity=quantity,
             cost_provider_usd=0.0,
-            cost_platform_usd=0.0,
+            cost_platform_usd=qt.platform_cost_usd,
             price_user_usd=final_usd,
             currency=bot_cur,
-            price_user_currency=final_usd,
+            price_user_currency=cur_price,
             status=order_status,
             provider_name="InternalFulfillment",
             provider_order_id=idempotency_key,
+            discount_code=coupon_code if discount_usd > 0 else "",
+            discount_amount=discount_usd,
             details={
                 **({"voucher": voucher_code} if voucher_code else {}),
-                **({"is_gift": True, "gift_recipient": str(data.get("gift_recipient") or data.get("giftRecipient") or ""), "gift_message": str(data.get("gift_message") or data.get("giftMessage") or ""), "gift_theme": str(data.get("gift_theme") or data.get("giftTheme") or "party")} if (data.get("is_gift") or data.get("isGift")) else {}),
+                **({"is_gift": True, "gift_recipient": str(data.get("gift_recipient") or data.get("giftRecipient") or "")[:64], "gift_message": str(data.get("gift_message") or data.get("giftMessage") or "")[:500], "gift_theme": str(data.get("gift_theme") or data.get("giftTheme") or "party")[:20]} if (data.get("is_gift") or data.get("isGift")) else {}),
                 **({"coupon_code": coupon_code, "discount_usd": discount_usd} if (coupon_code and discount_usd > 0) else {}),
                 **({"user_inputs": data.get("userInputs") or data.get("requirements")} if (data.get("userInputs") or data.get("requirements")) else {}),
             },
-            created=dt.datetime.utcnow(),
         )
         s.add(order)
         await s.commit()
+
+    # أرقام التفعيل: نحجز الرقم فوراً من المزود ونعيده للزبون، وإن تعذّر يُسترجع للطرفين
+    sms_phone = ""
+    if qt.tpl == "sms":
+        c_code, _, app_code = product_id.partition("_")
+        ok_r, act_id, sms_phone, prov_name, prov_cost = await SMSManager.rent_number_with_failover(bot.id, c_code, app_code)
+        if not ok_r:
+            await ledger.atomic_dual_refund(idempotency_key, reason="لا توجد أرقام متاحة حالياً")
+            return web.json_response({"ok": False, "success": False, "error": "no_numbers",
+                                      "message": "لا توجد أرقام متاحة حالياً لهذه الدولة والتطبيق، وأُعيد المبلغ لرصيدك."}, status=503)
+        async with db.Session() as s_:
+            row = (await s_.execute(select(db.ServiceOrder).where(db.ServiceOrder.order_id == idempotency_key))).scalars().first()
+            if row is not None:
+                row.target, row.provider_name, row.provider_order_id = sms_phone, prov_name, str(act_id)
+                row.cost_provider_usd, row.status = float(prov_cost or 0), "waiting_sms"
+                row.tpl_key = "sms"
+                await s_.commit()
+        order_status = "waiting_sms"
+
+    # التفاعل والنجوم: تنفيذ آلي فوري عبر المزود، وإن فشل الجميع يُسترجع للطرفين
+    if qt.tpl in ("smm", "tgstars"):
+        if await _auto_dispatch(bot, idempotency_key, qt.tpl, product_id, target_data, quantity):
+            order_status = "processing"
+        else:
+            await ledger.atomic_dual_refund(idempotency_key, reason="تعذّر تنفيذ الطلب لدى المزود")
+            return web.json_response({"ok": False, "success": False, "error": "provider_failed",
+                                      "message": "تعذّر تنفيذ الطلب حالياً، وأُعيد المبلغ كاملاً لرصيدك."}, status=503)
 
     # منح نسبة الإحالة للمُحيل عند نجاح الطلب
     try:
@@ -970,8 +1141,8 @@ async def create_store_order(req: web.Request) -> web.Response:
     # توجيه الطلب إلى قناة الطلبات الفورية إن وجد
     if order_status == "queued":
         try:
-            from ..child import app_for
-            bot_app = app_for(bot.id)
+            from ..runtime import manager
+            bot_app = manager.apps.get(bot.id)
             if bot_app:
                 bot_api = bot_app.bot
                 await order_dispatch.OrderDispatcher.dispatch_new_order(
@@ -991,6 +1162,7 @@ async def create_store_order(req: web.Request) -> web.Response:
         "order_id": idempotency_key,
         "status": order_status,
         "voucher": voucher_code,
+        "phone": sms_phone,
         "new_balance_usd": new_bal,
         "data": {
             "order_id": idempotency_key,
@@ -999,7 +1171,8 @@ async def create_store_order(req: web.Request) -> web.Response:
             "voucher": voucher_code,
             "remainingBalance": str(new_bal),
         },
-        "message": "تم تأكيد طلبك بنجاح!" if order_status == "completed" else "تم إنشاء الطلب بنجاح وهو قيد التنفيذ!",
+        "message": ("تم حجز الرقم ✅ انسخه واطلب الكود ثم اضغط «فحص الكود» من طلباتي." if order_status == "waiting_sms"
+                    else "تم تأكيد طلبك بنجاح!" if order_status == "completed" else "تم إنشاء الطلب بنجاح وهو قيد التنفيذ!"),
     })
 
 
@@ -1019,8 +1192,9 @@ async def get_user_orders(req: web.Request) -> web.Response:
     res = []
     for o in orders:
         details = o.details or {}
-        voucher = details.get("voucher") or details.get("code") or details.get("delivery_text") or ""
+        voucher = details.get("voucher") or details.get("code") or details.get("delivery_text") or o.delivery_text or details.get("sms_code") or ""
         rejection_reason = o.refund_reason or details.get("rejection_reason") or ""
+        safe_details = {k: details[k] for k in ("is_gift", "gift_recipient", "gift_message", "gift_theme", "sms_code") if k in details}
         res.append({
             "id": o.id,
             "order_id": o.order_id,
@@ -1035,6 +1209,10 @@ async def get_user_orders(req: web.Request) -> web.Response:
             "voucher": voucher,
             "delivery_data": voucher,
             "rejection_reason": rejection_reason,
+            "details": safe_details,
+            "tpl_key": o.tpl_key,
+            "phone": o.target if o.tpl_key == "sms" else "",
+            "sms_code": details.get("sms_code", ""),
             "created": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
         })
     return web.json_response({
@@ -1043,6 +1221,53 @@ async def get_user_orders(req: web.Request) -> web.Response:
         "orders": res,
         "data": res,
     })
+
+
+async def _own_sms_order(ctx, order_id: str):
+    async with db.Session() as s:
+        o = (await s.execute(select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id))).scalars().first()
+    if o is None or o.bot_id != ctx.bot.id or o.user_id != ctx.uid or o.tpl_key != "sms":
+        return None
+    return o
+
+
+async def sms_check_endpoint(req: web.Request) -> web.Response:
+    """يفحص وصول كود التفعيل لرقم اشتراه الزبون من التطبيق المصغّر."""
+    ctx = await authenticate_miniapp_request(req, req.match_info.get("bot_username") or req.headers.get("x-store-id") or "default")
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    o = await _own_sms_order(ctx, str(body.get("order_id") or ""))
+    if o is None:
+        return web.json_response({"ok": False, "error": "not_found"}, status=404)
+    code = (o.details or {}).get("sms_code", "")
+    if not code and o.status == "waiting_sms":
+        res = await SMSManager.check_sms_code(ctx.bot.id, o.provider_order_id, o.provider_name)
+        if res.get("status") == "received" and res.get("code"):
+            code = str(res["code"])[:32]
+            async with db.Session() as s:
+                row = (await s.execute(select(db.ServiceOrder).where(db.ServiceOrder.order_id == o.order_id))).scalars().first()
+                if row is not None and row.status == "waiting_sms":
+                    row.details = dict(row.details or {}, sms_code=code)
+                    row.status = "completed"
+                    await s.commit()
+    return web.json_response({"ok": True, "success": True, "code": code, "status": "completed" if code else o.status,
+                              "message": f"الكود: {code}" if code else "لم يصل الكود بعد، أعد الفحص بعد قليل ⏳"})
+
+
+async def sms_cancel_endpoint(req: web.Request) -> web.Response:
+    """يلغي رقماً لم يصله كود ويسترجع المبلغ كاملاً."""
+    ctx = await authenticate_miniapp_request(req, req.match_info.get("bot_username") or req.headers.get("x-store-id") or "default")
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    o = await _own_sms_order(ctx, str(body.get("order_id") or ""))
+    if o is None:
+        return web.json_response({"ok": False, "error": "not_found"}, status=404)
+    ok, msg, bal = await SMSManager.cancel_number_and_refund(ctx.bot.id, ctx.uid, o.order_id, reason="إلغاء من الزبون قبل وصول الكود")
+    return web.json_response({"ok": ok, "success": ok, "message": msg, "new_balance_usd": bal}, status=200 if ok else 400)
 
 
 async def get_user_account(req: web.Request) -> web.Response:
@@ -1069,6 +1294,14 @@ async def get_user_account(req: web.Request) -> web.Response:
     terms_text = store_settings.get("terms_text") or "جميع الخدمات مضمونة ويتم تسليمها وفق الشروط المعتمدة. للاستفسار يرجى التواصل مع الدعم."
     policy_text = store_settings.get("policy_text") or "في حال تعذر تنفيذ الخدمة أو تأخرها يتم استرجاع المبلغ كاملاً إلى محفظتك في البوت تلقائياً."
 
+    async with db.Session() as s:
+        earned_usd = round(float((await s.execute(
+            select(func.coalesce(func.sum(db.LedgerEntry.amount_usd), 0)).where(
+                db.LedgerEntry.bot_id == ctx.bot.id, db.LedgerEntry.user_id == ctx.uid,
+                db.LedgerEntry.direction == "credit", db.LedgerEntry.kind == "referral_reward",
+            )
+        )).scalar() or 0), 2)
+
     txs = await ledger.get_user_transactions(ctx.bot.id, ctx.uid, limit=30)
     tx_items = []
     for t in txs:
@@ -1094,7 +1327,7 @@ async def get_user_account(req: web.Request) -> web.Response:
         "currency": bot_cur,
         "referral_link": f"https://t.me/{ctx.bot.username}?start=sl_{ctx.uid}",
         "invited_count": invited_count,
-        "earned_usd": round(invited_count * 0.10, 2),
+        "earned_usd": earned_usd,
         "support_url": support_url,
         "terms_text": terms_text,
         "policy_text": policy_text,
@@ -1106,7 +1339,7 @@ async def get_user_account(req: web.Request) -> web.Response:
         "success": True,
         "user": account_dict,
         "data": account_dict,
-        "settings": store_settings,
+        "settings": {**store_settings, "terms_text": terms_text, "policy_text": policy_text, "support_url": support_url},
     })
 
 
@@ -1257,40 +1490,37 @@ async def deposit_stars_endpoint(req: web.Request) -> web.Response:
     except Exception:
         body = {}
 
-    stars_amount = int(body.get("stars") or body.get("amount") or 50)
-    if stars_amount <= 0:
-        stars_amount = 50
+    try:
+        stars_amount = int(body.get("stars") or body.get("amount") or 0)
+    except (TypeError, ValueError):
+        stars_amount = 0
+    if not (payments.STARS_MIN <= stars_amount <= payments.STARS_MAX):
+        return web.json_response({"ok": False, "success": False, "error": "invalid_amount",
+                                  "message": f"عدد النجوم يجب أن يكون بين {payments.STARS_MIN} و {payments.STARS_MAX}"}, status=400)
 
+    # ننشئ رابط الفاتورة فقط. الرصيد لا يُشحن هنا أبداً — يُشحن عند وصول تأكيد الدفع من تيليجرام إلى البوت.
     invoice_link = None
     try:
         from ..runtime import manager
         bot_app = manager.apps.get(bot.id)
         if bot_app and bot_app.bot:
-            from telegram import LabeledPrice
-            invoice_link = await bot_app.bot.create_invoice_link(
-                title=f"شحن {stars_amount} ⭐ في {bot.name or 'المتجر'}",
-                description=f"شحن فوري لرصيد المحفظة بالنجوم بقيمة {stars_amount} نجمة تيليجرام",
-                payload=f"dep_stars_{bot.id}_{ctx.uid}_{stars_amount}_{uuid.uuid4().hex[:6]}",
-                currency="XTR",
-                prices=[LabeledPrice(f"{stars_amount} Stars", stars_amount)],
-            )
+            invoice_link = await payments.create_stars_invoice_link(
+                bot_app.bot, bot.id, ctx.uid, stars_amount, title=f"شحن {stars_amount} ⭐")
     except Exception as e:
         log.warning("Could not generate Stars invoice link: %s", e)
+    if not invoice_link:
+        return web.json_response({"ok": False, "success": False, "error": "invoice_failed",
+                                  "message": "تعذّر إنشاء فاتورة النجوم حالياً"}, status=503)
 
-    ok, tx, new_bal = await payments.process_stars_deposit(bot.id, ctx.uid, stars_amount)
-
+    usd_preview = round(stars_amount * payments.STAR_RATE_USD, 2)
     return web.json_response({
         "ok": True,
         "success": True,
         "invoice_link": invoice_link,
         "stars_amount": stars_amount,
-        "new_balance_usd": new_bal,
-        "message": f"تم معالجة شحن {stars_amount} نجمة بنجاح! ⭐",
-        "data": {
-            "invoice_link": invoice_link,
-            "stars_amount": stars_amount,
-            "new_balance_usd": new_bal,
-        }
+        "usd_value": usd_preview,
+        "message": f"ادفع الفاتورة ({stars_amount} ⭐) ويُضاف ${usd_preview} لرصيدك تلقائياً.",
+        "data": {"invoice_link": invoice_link, "stars_amount": stars_amount, "usd_value": usd_preview},
     })
 
 
@@ -1299,6 +1529,9 @@ async def checkout_cart_order(req: web.Request) -> web.Response:
     bot_u = req.match_info.get("bot_username") or req.query.get("store_id") or req.query.get("start_param") or req.headers.get("x-store-id") or "default"
     ctx = await authenticate_miniapp_request(req, bot_u)
     bot = ctx.bot
+    if await _store_in_maintenance(ctx):
+        return web.json_response({"ok": False, "success": False, "error": "maintenance",
+                                  "message": "المتجر في صيانة حالياً، حاول لاحقاً."}, status=503)
 
     try:
         body = await req.json()
@@ -1308,71 +1541,96 @@ async def checkout_cart_order(req: web.Request) -> web.Response:
     cart_items = body.get("items") or []
     if not isinstance(cart_items, list) or not cart_items:
         return web.json_response({"ok": False, "success": False, "error": "السلة فارغة"}, status=400)
+    if len(cart_items) > 50:
+        return web.json_response({"ok": False, "success": False, "error": "too_many_items", "message": "الحد الأقصى 50 عنصراً في السلة"}, status=400)
 
-    # حساب إجمالي السعر
-    total_cost = 0.0
+    # تسعير كل بند في السيرفر (يُتجاهل أي سعر مرسل من المتصفح)
+    quotes = []
     for it in cart_items:
-        qty = max(1, int(it.get("quantity", 1)))
-        price = float(it.get("price", it.get("price_usd", 1.0)))
-        total_cost += price * qty
+        if not isinstance(it, dict):
+            return web.json_response({"ok": False, "success": False, "error": "bad_item"}, status=400)
+        pid = str(it.get("productId") or it.get("product_id") or it.get("id") or "")
+        try:
+            qty = int(it.get("quantity", 1))
+        except (TypeError, ValueError):
+            qty = 0
+        qt = await _quote_item(bot, pid, qty, str(it.get("priceOptionId") or it.get("price_option_id") or ""))
+        if not qt.ok:
+            return web.json_response({"ok": False, "success": False, "error": qt.error,
+                                      "message": f"عنصر غير صالح في السلة: {pid}"}, status=400)
+        tgt = it.get("target") or it.get("userInputs") or ""
+        if isinstance(tgt, dict):
+            tgt = json.dumps(tgt, ensure_ascii=False)
+        if qt.tpl in ("smm", "tgstars") and not tgt:
+            return web.json_response({"ok": False, "success": False, "error": "missing_target",
+                                      "message": f"أدخل الرابط أو اسم المستخدم لـ {qt.name}"}, status=400)
+        quotes.append((pid, qty, str(tgt)[:255], qt))
 
+    total_cost = round(sum(q.price_usd for *_, q in quotes), 4)
     user_bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
     if user_bal < total_cost:
         return web.json_response({
-            "ok": False,
-            "success": False,
-            "error": "insufficient_balance",
-            "message": f"رصيدك الحالي (${user_bal:.2f}) غير كافٍ لإتمام السلة (${total_cost:.2f})"
+            "ok": False, "success": False, "error": "insufficient_balance",
+            "message": f"رصيدك الحالي (${user_bal:.2f}) غير كافٍ لإتمام السلة (${total_cost:.2f})",
         }, status=402)
 
-    batch_ref = f"CART-{int(time.time())}-{uuid.uuid4().hex[:6]}"
-    ok_debit, tx, new_bal = await ledger.debit_user(
-        bot_id=bot.id,
-        user_id=ctx.uid,
-        amount_usd=total_cost,
-        kind=f"order_{bot.template}",
-        ref_id=batch_ref,
-        description=f"طلب سلة مشتريات ({len(cart_items)} عناصر)",
-    )
-    if not ok_debit:
-        return web.json_response({"ok": False, "success": False, "error": "debit_failed"}, status=500)
-
+    batch_ref = str(body.get("idempotency_key") or req.headers.get("X-Idempotency-Key") or f"CART-{int(time.time())}-{uuid.uuid4().hex[:6]}")[:48]
     bot_cur = await currency.get_bot_currency(bot.id)
-    created_orders = []
-
-    async with db.Session() as s:
-        for idx, it in enumerate(cart_items):
-            p_name = it.get("name") or it.get("nameAr") or "منتج"
-            p_id = it.get("productId") or it.get("id") or str(idx)
-            qty = max(1, int(it.get("quantity", 1)))
-            p_price = float(it.get("price", it.get("price_usd", 1.0))) * qty
-            target_data = it.get("target") or it.get("userInputs") or ""
-            if isinstance(target_data, dict):
-                target_data = json.dumps(target_data, ensure_ascii=False)
-
-            order = db.ServiceOrder(
-                order_id=f"{batch_ref}-{idx+1}",
-                bot_id=bot.id,
-                user_id=ctx.uid,
-                tpl_key=bot.template,
-                service_id=str(p_id),
-                service_name=p_name,
-                target=str(target_data),
-                quantity=qty,
-                cost_provider_usd=0.0,
-                cost_platform_usd=0.0,
-                price_user_usd=p_price,
-                currency=bot_cur,
-                price_user_currency=p_price,
-                status="queued",
-                provider_name="InternalFulfillment",
-                provider_order_id=f"{batch_ref}-{idx+1}",
-                details={"batch": batch_ref},
-                created=dt.datetime.now(dt.timezone.utc),
-            )
+    created_orders: list[db.ServiceOrder] = []
+    paid_ids: list[str] = []
+    fail_reason = ""
+    for idx, (pid, qty, tgt, qt) in enumerate(quotes):
+        oid = f"{batch_ref}-{idx + 1}"
+        await _reserve_voucher(bot, qt, pid, qty)
+        ok_p, why, new_bal = await ledger.purchase(
+            bot_id=bot.id, buyer_id=ctx.uid, price_usd=qt.price_usd, seller_id=bot.owner_id,
+            platform_cost_usd=qt.platform_cost_usd, order_id=oid, kind=f"order_{bot.template}",
+            description=f"سلة {batch_ref}: {qt.name}",
+        )
+        if not ok_p:
+            await _release_voucher(bot, qt, pid)
+            fail_reason = why
+            break
+        if why == "duplicate":
+            continue
+        paid_ids.append(oid)
+        order = db.ServiceOrder(
+            order_id=oid, bot_id=bot.id, user_id=ctx.uid, seller_id=bot.owner_id,
+            tpl_key=qt.tpl if qt.tpl in ("digital", "smm", "sms", "tgstars") else bot.template,
+            service_id=pid, service_name=qt.name[:255], target=tgt, quantity=qty,
+            cost_provider_usd=0.0, cost_platform_usd=qt.platform_cost_usd, price_user_usd=qt.price_usd,
+            currency=bot_cur, price_user_currency=await currency.usd_to_currency(qt.price_usd, bot_cur, bot_id=bot.id),
+            status=qt.status, provider_name="InternalFulfillment", provider_order_id=oid,
+            details={"batch": batch_ref, **({"voucher": qt.voucher} if qt.voucher else {})},
+        )
+        async with db.Session() as s:
             s.add(order)
-            created_orders.append(order)
-        await s.commit()
+            await s.commit()
+        created_orders.append(order)
+
+    if fail_reason:
+        # السلة كلها أو لا شيء: استرجاع ما دُفع من بنود قبل الفشل
+        for oid in paid_ids:
+            await ledger.atomic_dual_refund(oid, reason="إلغاء السلة لتعذّر إتمام أحد عناصرها")
+        if fail_reason == "seller_insufficient":
+            await _notify_seller_low_balance(bot, sum(q.platform_cost_usd for *_, q in quotes))
+            return web.json_response({"ok": False, "success": False, "error": "service_unavailable",
+                                      "message": "الخدمة غير متوفرة مؤقتاً، رصيدك محفوظ ولم يُخصم شيء."}, status=503)
+        return web.json_response({"ok": False, "success": False, "error": "insufficient_balance",
+                                  "message": "رصيدك غير كافٍ لإتمام السلة، لم يُخصم شيء."}, status=402)
+
+    # تنفيذ آلي للتفاعل والنجوم، ومن يفشل يُسترجع وحده
+    failed_items = 0
+    for o in created_orders:
+        if o.status == "queued" and o.tpl_key in ("smm", "tgstars"):
+            if await _auto_dispatch(bot, o.order_id, o.tpl_key, o.service_id, o.target, o.quantity):
+                o.status = "processing"
+            else:
+                await ledger.atomic_dual_refund(o.order_id, reason="تعذّر تنفيذ الطلب لدى المزود")
+                o.status = "refunded"
+                failed_items += 1
+    new_bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
+    created_orders = [o for o in created_orders if o.status == "queued"]
 
     try:
         from ..runtime import manager
@@ -1393,7 +1651,7 @@ async def checkout_cart_order(req: web.Request) -> web.Response:
     return web.json_response({
         "ok": True,
         "success": True,
-        "message": f"تم تأكيد وشراء عناصر السلة بنجاح ({len(cart_items)} عناصر)! 🎉",
+        "message": f"تم تأكيد وشراء عناصر السلة بنجاح ({len(cart_items)} عناصر)! 🎉" + (f" (أُعيد مبلغ {failed_items} عنصر تعذّر تنفيذه)" if failed_items else ""),
         "batch_ref": batch_ref,
         "total_amount": total_cost,
         "new_balance_usd": new_bal,
@@ -3603,22 +3861,21 @@ async def action_seller_payment_receipt(req: web.Request) -> web.Response:
             return web.json_response({"ok": False, "error": "already_processed", "message": f"تمت معالجة الإيصال مسبقاً ({rcpt.status})"}, status=400)
 
         if action == "approve":
-            rcpt.status = "approved"
-            ok_credit, tx, new_bal = await ledger.credit_user(
-                bot_id=ctx.bot.id,
-                user_id=rcpt.user_id,
-                amount_usd=rcpt.amount_usd,
-                kind="manual_deposit",
-                ref_id=rcpt.receipt_id,
-                description=f"إيداع يدوي مؤكد عبر {rcpt.method}",
-            )
-            await s.commit()
+            amt = body.get("amount_usd")
+            try:
+                amt = float(amt) if amt not in (None, "") else None
+            except (TypeError, ValueError):
+                return web.json_response({"ok": False, "error": "bad_amount"}, status=400)
+            ok_credit, msg_c, new_bal = await payments.approve_receipt(receipt_id, str(body.get("note") or ""),
+                                                                     bot_id=ctx.bot.id, amount_usd=amt)
+            if not ok_credit:
+                return web.json_response({"ok": False, "error": "approve_failed", "message": msg_c}, status=400)
             return web.json_response({
                 "ok": True,
                 "success": True,
                 "status": "approved",
                 "new_balance_usd": new_bal,
-                "message": f"تم تأكيد الدفع وشحن ${rcpt.amount_usd:.2f} للمستخدم بنجاح ✅"
+                "message": f"تم تأكيد الدفع وشحن ${(amt if amt is not None else rcpt.amount_usd):.2f} للمستخدم بنجاح ✅"
             })
         else:
             rcpt.status = "rejected"
@@ -3645,9 +3902,13 @@ async def spin_wheel_endpoint(req: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "wheel_disabled", "message": "عجلة الحظ غير مفعلة في هذا المتجر حالياً"}, status=400)
 
     cooldown_key = f"wheel:spin:{ctx.bot.id}:{ctx.uid}"
-    last_spin = await db.kv_get(ctx.bot.id, cooldown_key, 0)
     now_ts = int(time.time())
-    if now_ts - int(last_spin) < 86400 and not ctx.is_admin:
+    async with _custom_stock_lock(-abs(ctx.uid) - 1):   # قفل لكل مستخدم: نقرتان متزامنتان = تدويرة واحدة
+        last_spin = await db.kv_get(ctx.bot.id, cooldown_key, 0)
+        blocked = now_ts - int(last_spin or 0) < 86400 and not ctx.is_admin
+        if not blocked:
+            await db.kv_set(ctx.bot.id, cooldown_key, now_ts)   # نحجز التدويرة قبل منح الجائزة
+    if blocked:
         remaining_hours = int((86400 - (now_ts - int(last_spin))) / 3600)
         return web.json_response({
             "ok": False,
@@ -3666,8 +3927,19 @@ async def spin_wheel_endpoint(req: web.Request) -> web.Response:
     prizes = seller_settings.get("wheel_prizes") or default_prizes
 
     import random
-    won_prize = random.choice(prizes)
-    won_index = prizes.index(won_prize)
+    won_prize = dict(random.choice(prizes))
+    won_index = prizes.index(next(p for p in prizes if p.get("id") == won_prize.get("id"))) if won_prize.get("id") else 0
+
+    # جوائز الرصيد للزبائن الحقيقيين فقط (شحنوا مرة واحدة على الأقل) وبسقف $5، حماية للبائع من الحسابات الوهمية
+    if won_prize.get("type") == "credit":
+        won_prize["val"] = min(float(won_prize.get("val", 0) or 0), 5.0)
+        async with db.Session() as s_:
+            has_dep = (await s_.execute(select(func.count(db.LedgerEntry.id)).where(
+                db.LedgerEntry.bot_id == ctx.bot.id, db.LedgerEntry.user_id == ctx.uid,
+                db.LedgerEntry.direction == "credit", db.LedgerEntry.kind.in_(("deposit", "deposit_stars", "deposit_manual")),
+            ))).scalar() or 0
+        if not has_dep:
+            won_prize.update(type="coupon", val=10.0, label="خصم 10% 🎟️")
 
     coupon_code = ""
     if won_prize.get("type") == "credit" and float(won_prize.get("val", 0)) > 0:
@@ -3691,7 +3963,6 @@ async def spin_wheel_endpoint(req: web.Request) -> web.Response:
             expires_at=(dt.datetime.utcnow() + dt.timedelta(days=7)).strftime("%Y-%m-%d"),
         )
 
-    await db.kv_set(ctx.bot.id, cooldown_key, now_ts)
     new_bal = await ledger.get_user_balance_usd(ctx.bot.id, ctx.uid)
     return web.json_response({
         "ok": True,
@@ -3792,6 +4063,10 @@ def setup_routes(app: web.Application) -> None:
 
     app.router.add_get("/api/miniapp/orders", get_user_orders)
     app.router.add_get(f"/api/miniapp/{u}/orders", get_user_orders)
+    app.router.add_post("/api/miniapp/sms/check", sms_check_endpoint)
+    app.router.add_post(f"/api/miniapp/{u}/sms/check", sms_check_endpoint)
+    app.router.add_post("/api/miniapp/sms/cancel", sms_cancel_endpoint)
+    app.router.add_post(f"/api/miniapp/{u}/sms/cancel", sms_cancel_endpoint)
     app.router.add_get("/api/miniapp/orders/my", get_user_orders)
     app.router.add_get(f"/api/miniapp/{u}/orders/my", get_user_orders)
 

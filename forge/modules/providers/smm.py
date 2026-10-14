@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import json
 import logging
 import re
@@ -225,15 +226,15 @@ class SMMManager:
     @classmethod
     async def get_configured_providers(cls, bot_id: int) -> list[BaseSMMAdapter]:
         """يجلب قائمة المزودين المهيئين للبوت أو المزود الافتراضي."""
-        providers_conf = await db.kv_get(bot_id, "smm:providers", [])
+        # المزودون على مستوى المنصة فقط (bot_id=0) يديرهم مدير المنصة — المنتجات من المنصة لكل المتاجر
+        providers_conf = await db.kv_get(0, "smm:providers", []) or []
         adapters: list[BaseSMMAdapter] = []
         if isinstance(providers_conf, list):
             for p in providers_conf:
                 if p.get("on", True) and p.get("api_url") and p.get("api_key"):
                     adapters.append(StandardSMMAdapter(p.get("name", "Custom"), p["api_url"], p["api_key"]))
-
-        # إذا لم يتم ربط أي مزود مخصص، نستخدم المحاكي القياسي الافتراضي
-        if not adapters:
+        # المحاكي للاختبارات فقط (PROVIDERS_MOCK=1). في الإنتاج بلا مزود = لا بيع، بدل تسليم طلبات وهمية مدفوعة.
+        if not adapters and os.environ.get("PROVIDERS_MOCK") == "1":
             adapters.append(MockSMMAdapter())
         return adapters
 
@@ -246,14 +247,18 @@ class SMMManager:
         margin_conf = await db.kv_get(bot_id, "smm:margin", {"type": "percent", "val": 30.0})
 
         catalog = list(MOCK_CATALOG)
+        from .. import catalog as _cat
+        from ..markup import floor_pricer
+        cmap = await _cat.get_map("smm")
+        floor = await floor_pricer(bot_id, "smm")
         services = []
         for s in catalog:
             sid = s["id"]
             over = custom_overrides.get(sid, {})
-            if over.get("hide", False):
+            if over.get("hide", False) or _cat.is_off(cmap, sid):
                 continue
 
-            base_cost = float(s["rate_per_1k"])
+            base_cost = _cat.effective_cost(cmap, sid, s["rate_per_1k"])
             # حساب سعر البيع بإضافة هامش ربح البائع
             if over.get("custom_price_usd") is not None:
                 final_usd = float(over["custom_price_usd"])
@@ -264,6 +269,9 @@ class SMMManager:
                     final_usd = round(base_cost * (1.0 + m_val / 100.0), 4)
                 else:
                     final_usd = round(base_cost + m_val, 4)
+
+            # أرضية السعر: لا يبيع البائع أبداً بأقل من سعر المنصة (لا خسارة عليه في أي بيعة)
+            final_usd = max(final_usd, round(floor(base_cost, sid) + 0.0049, 4) if base_cost > 0 else final_usd)
 
             item = dict(s)
             item["base_cost_per_1k"] = base_cost
@@ -291,10 +299,12 @@ class SMMManager:
         """
         providers = await cls.get_configured_providers(bot_id)
         last_error = ""
+        from .. import catalog as _cat
+        _ps = _cat.provider_service(await _cat.get_map("smm"), service_id)   # رقم الخدمة لدى المزود الحقيقي
 
         for prov in providers:
             try:
-                res = await prov.add_order(service_id, link, quantity)
+                res = await prov.add_order((service_id if isinstance(prov, MockSMMAdapter) else _ps), link, quantity)
                 log.info("SMM Order dispatched via provider %s (order: %s)", prov.name, res.get("order_id"))
                 return True, res.get("order_id", ""), prov.name, float(res.get("cost", 0.0))
             except Exception as e:

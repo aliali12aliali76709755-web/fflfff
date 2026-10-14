@@ -7,6 +7,8 @@ import time
 
 from sqlalchemy import select
 
+import os
+
 from . import config, db
 
 PROMO_DEFAULT = {
@@ -24,7 +26,8 @@ DEFAULT = {
     "max_bots": None,    # None = من .env
     "limits": {},        # حد بوتات خاص بمستخدم: {"<user_id>": n}
     "blocked_bots": [],  # بوتات محظورة نهائياً من التسجيل
-    "maintenance": True, # وضع الصيانة والتوقف مفعّل لجميع المستخدمين عدا الآيدي المسموح 8625825633
+    # وضع الصيانة: مفعّل افتراضياً حتى الإطلاق (MAINTENANCE=0 في .env أو زر الإيقاف في لوحة الإدارة يفتحه للجميع)
+    "maintenance": os.environ.get("MAINTENANCE", "1") == "1",
     "promo": PROMO_DEFAULT,
     "notify": {"user": True, "bot": True, "daily": True},   # إشعارات المدير
 }

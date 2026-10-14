@@ -15,6 +15,17 @@ from .. import ledger
 
 log = logging.getLogger("forge.digital")
 
+# قفل المخزون: يمنع تسليم نفس الكود لزبونين يشتريان في نفس اللحظة
+_STOCK_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _stock_lock(bot_id: int, service_id: str) -> asyncio.Lock:
+    k = f"{bot_id}:{service_id}"
+    lk = _STOCK_LOCKS.get(k)
+    if lk is None:
+        lk = _STOCK_LOCKS[k] = asyncio.Lock()
+    return lk
+
 DIGITAL_CATALOG: list[dict[str, Any]] = [
     # ── ألعاب (Game Top-Up) ──
     {
@@ -90,14 +101,18 @@ class DigitalManager:
         custom_overrides = await db.kv_get(bot_id, "digital:services_override", {})
         margin_conf = await db.kv_get(bot_id, "digital:margin", {"type": "percent", "val": 20.0})
 
+        from .. import catalog as _cat
+        from ..markup import floor_pricer
+        cmap = await _cat.get_map("digital")
+        floor = await floor_pricer(bot_id, "digital")
         services = []
         for s in DIGITAL_CATALOG:
             sid = s["id"]
             over = custom_overrides.get(sid, {})
-            if over.get("hide", False):
+            if over.get("hide", False) or _cat.is_off(cmap, sid):
                 continue
 
-            base_cost = float(s["rate_usd"])
+            base_cost = _cat.effective_cost(cmap, sid, s["rate_usd"])
             if over.get("custom_price_usd") is not None:
                 final_usd = float(over["custom_price_usd"])
             else:
@@ -107,6 +122,9 @@ class DigitalManager:
                     final_usd = round(base_cost * (1.0 + m_val / 100.0), 2)
                 else:
                     final_usd = round(base_cost + m_val, 2)
+
+            # أرضية السعر: لا يبيع البائع أبداً بأقل من سعر المنصة (لا خسارة عليه في أي بيعة)
+            final_usd = max(final_usd, round(floor(base_cost, sid) + 0.0049, 2) if base_cost > 0 else final_usd)
 
             item = dict(s)
             item["base_cost_usd"] = base_cost
@@ -121,25 +139,39 @@ class DigitalManager:
     async def get_voucher_from_stock(cls, bot_id: int, service_id: str) -> str | None:
         """يسحب كوداً من مخزون البطاقات الرقمية إن وجد."""
         key = f"digital:stock:{service_id}"
-        stock: list[str] = await db.kv_get(bot_id, key, [])
-        if stock and isinstance(stock, list) and len(stock) > 0:
-            code = stock.pop(0)
-            await db.kv_set(bot_id, key, stock)
-            log.info("Dispatched digital voucher from stock for bot %d service %s", bot_id, service_id)
-            return code
+        async with _stock_lock(bot_id, service_id):
+            stock: list[str] = await db.kv_get(bot_id, key, []) or []
+            if isinstance(stock, list) and stock:
+                code = stock.pop(0)
+                await db.kv_set(bot_id, key, stock)
+                log.info("Dispatched digital voucher from stock for bot %d service %s", bot_id, service_id)
+                return code
         return None
+
+    @classmethod
+    async def return_voucher_to_stock(cls, bot_id: int, service_id: str, code: str) -> None:
+        """يعيد كوداً محجوزاً للمخزون إن فشل الدفع بعد سحبه."""
+        key = f"digital:stock:{service_id}"
+        async with _stock_lock(bot_id, service_id):
+            stock: list[str] = await db.kv_get(bot_id, key, []) or []
+            if code not in stock:
+                stock.insert(0, code)
+                await db.kv_set(bot_id, key, stock)
 
     @classmethod
     async def add_vouchers_to_stock(cls, bot_id: int, service_id: str, codes: list[str]) -> int:
         """يضيف أكواداً إلى مخزون خدمة محددة."""
         key = f"digital:stock:{service_id}"
-        stock: list[str] = await db.kv_get(bot_id, key, []) or []
-        for c in codes:
-            clean = c.strip()
-            if clean and clean not in stock:
-                stock.append(clean)
-        await db.kv_set(bot_id, key, stock)
-        return len(stock)
+        async with _stock_lock(bot_id, service_id):
+            stock: list[str] = await db.kv_get(bot_id, key, []) or []
+            seen = set(stock)
+            for c in codes:
+                clean = c.strip()
+                if clean and clean not in seen:
+                    stock.append(clean)
+                    seen.add(clean)
+            await db.kv_set(bot_id, key, stock)
+            return len(stock)
 
     @classmethod
     async def get_stock_count(cls, bot_id: int, service_id: str) -> int:
@@ -165,28 +197,16 @@ class DigitalManager:
 
     @classmethod
     async def cancel_and_refund(cls, bot_id: int, order_id: str, reason: str = "تعذر الشحن") -> tuple[bool, str, float]:
-        """يلغي الطلب ويسترجع رصيد الزبون كاملاً في المحفظة."""
+        """يلغي الطلب ويسترجع للطرفين ذرياً (الزبون + تكلفة المنصة على البائع)."""
         async with db.Session() as s:
-            res = await s.execute(db.select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id))
-            ord_row = res.scalars().first()
-            if not ord_row:
+            ord_row = (await s.execute(db.select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id))).scalars().first()
+            if not ord_row or ord_row.bot_id != bot_id:
                 return False, "الطلب غير موجود", 0.0
-            if ord_row.status in ("completed", "canceled"):
+            if ord_row.status in ("completed", "canceled", "refunded"):
                 return False, f"تمت معالجة الطلب مسبقاً ({ord_row.status})", 0.0
-
-            refund_amt = ord_row.price_user_usd
-            ok_ref, tx, new_bal = await ledger.credit_user(
-                bot_id,
-                ord_row.user_id,
-                refund_amt,
-                kind="digital_refund",
-                ref_id=order_id,
-                description=f"استرجاع رصيد طلب {ord_row.service_name} ({reason})",
-            )
-            if not ok_ref:
-                return False, "فشل استرجاع الرصيد", 0.0
-
-            ord_row.status = "canceled"
-            ord_row.details = dict(ord_row.details or {}, refund_reason=reason, refund_tx=tx)
-            await s.commit()
+            buyer = ord_row.user_id
+        ok, msg, _res = await ledger.atomic_dual_refund(order_id, reason=reason)
+        if not ok:
+            return False, msg, 0.0
+        new_bal = await ledger.get_user_balance_usd(bot_id, buyer)
         return True, "تم إلغاء الطلب واسترجاع الرصيد للزبون", new_bal

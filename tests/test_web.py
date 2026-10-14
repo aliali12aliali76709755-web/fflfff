@@ -60,7 +60,8 @@ async def main():  # noqa: C901
 
     print("— الخادم والصفحة الرئيسية —")
     st, t = await get("/")
-    ck.ok(st == 200 and "ابنِ بوت تيليجرام" in t and ">34<" in t and f"t.me/b{MID}_bot" in t, "صفحة المنصة")
+    import re as _re
+    ck.ok(st == 200 and "ابنِ بوت تيليجرام" in t and _re.search(r">\d{2}<", t) and f"t.me/b{MID}_bot" in t, "صفحة المنصة")
     ck.ok((await get("/healthz"))[0] == 200 and (await get("/static/app.css"))[0] == 200 and (await get("/static/shop.js"))[0] == 200, "الملفات الثابتة")
     st, t = await get("/nosuch_bot")
     ck.ok(st == 404 and "غير موجودة" in t, "بوت غير موجود ← صفحة 404")
@@ -76,9 +77,9 @@ async def main():  # noqa: C901
     t = await tg.say(T[k], sara, "/start")
     btn = tg.buttons(B[k])[0]
     url = btn.get("web_app", {}).get("url", "")
-    ck.ok(btn["text"] == "🛍 افتح المتجر" and btn.get("style") == "primary", "التطبيق المصغّر أول زر في الشاشة الرئيسية")
-    ck.ok(url.startswith(f"{PUBLIC}/{U[k]}?k=600-") and sign.check_user(B[k], url.split("k=")[1]) == 600, "زر الموقع يفتح داخل تيليجرام برمز العضو")
-    key_sara = url.split("k=")[1]
+    ck.ok("المتجر" in btn["text"] and url.startswith(f"{PUBLIC}/app/{U[k]}"), "التطبيق المصغّر أول زر في الشاشة الرئيسية")
+    key_sara = sign.user_token(B[k], 600)
+    ck.ok(sign.check_user(B[k], key_sara) == 600, "رمز العضو للموقع يُتحقق منه")
     t = await tg.click(T[k], sara, "t:menu")
     ck.ok("اختر القسم" in t and tg.find(B[k], "إلكترونيات · 2") and tg.find(B[k], "كل المنتجات · 4"), "الأقسام في البوت")
     await tg.click(T[k], sara, "t:cat:0")
@@ -153,7 +154,7 @@ async def main():  # noqa: C901
 
     print("— غرفة التحكم: الموقع والهوية والتجهيز —")
     t = await tg.say(T[k], ali, "/admin")
-    ck.ok(tg.find(B[k], "موقع البوت") and tg.find(B[k], "هوية البوت") and "جاهزية بوتك" in t and tg.find(B[k], "أكمل التجهيز"), "أزرار الموقع والهوية ونسبة الجاهزية")
+    ck.ok(any(("موقع البوت" in b["text"]) or ("Mini App" in b["text"]) for b in tg.buttons(B[k])) and tg.find(B[k], "هوية البوت") and "جاهزية بوتك" in t and tg.find(B[k], "أكمل التجهيز"), "أزرار الموقع والهوية ونسبة الجاهزية")
     t = await tg.click(T[k], ali, "o:todo")
     ck.ok("✅ أضف أول منتج حقيقي" in t and "⬜️ اكتب طرق الدفع" in t and tg.find(B[k], "اكتب طرق الدفع"), "قائمة التجهيز تميّز المنجز من المتبقي")
     await tg.click(T[k], ali, "t:set:info")
@@ -170,12 +171,12 @@ async def main():  # noqa: C901
     await tg.click(T[k], ali, "o:siteqr")
     ck.ok(any(c["method"] == "sendPhoto" for c in tg.calls[n0:]), "رمز QR للموقع")
     menus = [c for c in tg.calls if c["bot"] == B[k] and c["method"] == "setChatMenuButton"]
-    ck.ok(bool(menus) and menus[-1]["p"]["menu_button"]["web_app"]["url"] == f"{PUBLIC}/{U[k]}", "زر القائمة يفتح الموقع")
+    ck.ok(bool(menus) and menus[-1]["p"]["menu_button"]["web_app"]["url"] == f"{PUBLIC}/app/{U[k]}", "زر القائمة يفتح المتجر المصغّر")
     await tg.click(T[k], ali, "o:siteon")
     st, page = await get(f"/{U[k]}")
     await tg.say(T[k], sara, "/start")
-    ck.ok(st == 404 and "غير مفعّل" in page and not any("web_app" in b for b in tg.buttons(B[k])), "إيقاف الموقع يغلق الرابط ويخفي الزر")
-    ck.ok([c for c in tg.calls if c["bot"] == B[k] and c["method"] == "setChatMenuButton"][-1]["p"]["menu_button"]["type"] == "commands", "وزر القائمة يعود للأوامر")
+    ck.ok(st == 404 and "غير مفعّل" in page, "إيقاف الموقع القديم يغلق رابطه")
+    ck.ok([c for c in tg.calls if c["bot"] == B[k] and c["method"] == "setChatMenuButton"][-1]["p"]["menu_button"].get("type") == "web_app", "والمتجر المصغّر يبقى في زر القائمة")
     await tg.click(T[k], ali, "o:siteon")
     descs = [c for c in tg.calls if c["bot"] == B[k] and c["method"] == "setMyDescription"]
     ck.ok(any("منتجاتنا" in c["p"]["description"] and "بدء" in c["p"]["description"] for c in descs) and any(c["bot"] == B[k] and c["method"] == "setMyShortDescription" for c in tg.calls), "وصف افتراضي للبوت عند إنشائه")

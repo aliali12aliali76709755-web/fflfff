@@ -94,21 +94,25 @@ class Shop(Tpl):
     def cart(self, c: Ctx) -> dict:
         return c.x.user_data.setdefault(f"cart_{self.ns}", {})
 
+    @staticmethod
+    def is_usd_price(p_str: str) -> bool:
+        """السعر بالدولار إن كتبه المالك بـ $ أو USD أو رقماً مجرداً. أي عملة أخرى كتبها (ل.س، د.ع…) تبقى كما هي."""
+        u = price_unit(p_str).upper()
+        return u in ("", "$", "USD", "US$")
+
     async def format_item_price(self, c: Ctx, item: dict) -> str:
         from ..modules import currency
         p_str = str(item.get("price", ""))
         num = price_num(p_str)
-        if num > 0:
-            bot_cur = await currency.get_bot_currency(c.bot_id)
-            if bot_cur != "USD" or "$" in p_str or p_str.replace(".", "", 1).isdigit():
-                return await currency.format_price_for_bot(c.bot_id, num)
+        if num > 0 and self.is_usd_price(p_str):
+            return await currency.format_price_for_bot(c.bot_id, num)
         return p_str
 
     async def lines_of(self, c, cart: dict) -> tuple[list[dict], float, str]:
         """يحوّل سلة {رقم الصنف: الكمية} إلى سطور مع الإجمالي. يتجاهل ما حُذف أو أُخفي."""
         from ..modules import currency
         items = {x["id"]: x for x in await self.visible(c)}
-        lines, total_usd = [], 0.0
+        lines, total_usd, total_raw, raw_unit, mixed = [], 0.0, 0.0, "", False
         bot_cur = await currency.get_bot_currency(c.bot_id)
         for sid, q in list(cart.items())[:60]:
             sid, q = str(sid), str(q)
@@ -117,17 +121,27 @@ class Shop(Tpl):
             if it is None or q <= 0:
                 continue
             q = min(q, 99)
-            num = price_num(it.get("price", ""))
-            total_usd += num * q
+            p_str = str(it.get("price", ""))
+            num = price_num(p_str)
+            if self.is_usd_price(p_str):
+                total_usd += num * q
+            else:
+                u = price_unit(p_str)
+                if raw_unit and u != raw_unit:
+                    mixed = True
+                raw_unit = raw_unit or u
+                total_raw += num * q
             p_disp = await self.format_item_price(c, it)
             lines.append({"id": it["id"], "name": it["name"], "price": p_disp, "qty": q})
 
+        # أصناف بعملة كتبها المالك (ل.س مثلاً): الإجمالي بعملتهم نفسها دون أي تحويل
+        if total_raw and not total_usd and not mixed:
+            return lines, total_raw, raw_unit
         if bot_cur != "USD":
             conv_total = await currency.usd_to_currency(total_usd, bot_cur, c.bot_id)
             info = currency.CURRENCIES.get(bot_cur, {})
             unit = info.get("symbol", bot_cur)
-            return lines, conv_total, unit
-
+            return lines, conv_total + (total_raw if raw_unit == unit else 0.0), unit
         return lines, total_usd, "$"
 
     async def place_order(self, c, lines: list[dict], total: float, unit: str, note: str, name: str, src: str = "bot") -> tuple[int, dict]:

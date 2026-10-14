@@ -271,6 +271,9 @@ async def daily_report(mgr) -> None:
 
 # ───────────────────────── الرئيسية ─────────────────────────
 async def admin_home(m: mk.M) -> None:
+    async with db.Session() as _s:
+        pend_rc = (await _s.execute(select(func.count(db.PaymentReceipt.id)).where(
+            db.PaymentReceipt.bot_id == 0, db.PaymentReceipt.status == "pending"))).scalar() or 0
     m.clear_state()
     fid = m.fid
     day0 = dt.datetime.combine(db.now().date(), dt.time())
@@ -311,6 +314,7 @@ async def admin_home(m: mk.M) -> None:
         [B("⚙️ إعدادات المنصة", "m:adm:s"), B("📜 سجل الإدارة", "m:adm:log")],
         [B(f"🐞 البلاغات ({reports})", "m:adm:rep"), B(f"🧯 الأخطاء ({len(errors.RECENT)})", "m:adm:err") if fid == 0 else None],
         [B("🛍️ الكتالوج الرقمي العام", "m:adm:catalog"), B("🖥 لوحة الويب", "m:adm:web")] if fid == 0 else [B("🖥 لوحة الويب", "m:adm:web")],
+        [B(f"💳 شحن البائعين ({pend_rc})", "m:walpm"), B("📈 الأرباح والهوامش", "m:walfin")] if fid == 0 else None,
         [B("🌐 حالة الويب", "m:adm:wb"), B("🔄 تحديث", "m:adm:home")] if fid == 0 else [B("🔄 تحديث", "m:adm:home")],
         [m.home_btn()]]))
 

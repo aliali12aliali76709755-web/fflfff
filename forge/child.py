@@ -16,7 +16,8 @@ from telegram import Update
 from telegram.constants import ChatType, ParseMode
 from telegram.error import Forbidden, RetryAfter, TelegramError
 from telegram.ext import (Application, ApplicationHandlerStop, CallbackQueryHandler, ChatJoinRequestHandler, ChatMemberHandler,
-                          CommandHandler, ContextTypes, InlineQueryHandler, MessageHandler, TypeHandler, filters)
+                          CommandHandler, ContextTypes, InlineQueryHandler, MessageHandler, PreCheckoutQueryHandler,
+                          TypeHandler, filters)
 
 from . import config, db, errors, ui
 from . import plat as platform
@@ -64,6 +65,7 @@ async def touch(c: Ctx, *, start: bool = False, count: bool = True, source: str 
                     row = db.BUser(bot_id=c.bot_id, user_id=u.id, source=source[:32])
                     s.add(row)
                 row.name = (u.full_name or "")[:128]
+                row.username = (u.username or "")[:64]
                 if not row.lang:
                     row.lang = (u.language_code or "")[:8]
                 elif c.x and hasattr(c.x, "user_data") and c.x.user_data is not None:
@@ -369,22 +371,39 @@ async def apply_identity(app: Application, *, first: bool = False) -> None:
         log.debug("identity not applied for %s", app.bot_data.get("bot_id"))
 
 
+# قوالب التجارة: زر القائمة يفتح المتجر المصغّر (Mini App) المتكامل
+COMMERCE_TPLS = {"store", "digital", "smm", "sms", "tgstars", "smmsms", "megastore"}
+
+
 async def apply_menu_button(app: Application) -> None:
-    """زر القائمة بجانب خانة الكتابة: يفتح المتجر المصغر أو التطبيق المناسب لكل بوت أو يعرض الأوامر."""
+    """زر القائمة بجانب خانة الكتابة:
+    - قوالب التجارة ← المتجر المصغّر داخل تيليجرام.
+    - القوالب ذات الموقع (المصحف، المنيو، الحجز…) ← موقعها إن فعّله المالك.
+    - غير ذلك ← قائمة الأوامر.
+    يتطلب رابطاً عاماً https."""
     from telegram import MenuButtonCommands, MenuButtonWebApp, WebAppInfo
-    bot_id = app.bot_data.get("bot_id", 0)
+
+    from . import web
+    core, tpl = app.bot_data.get("core") or {}, app.bot_data.get("tpl")
+    key = getattr(tpl, "key", "")
     try:
-        bot_row = await db.get_bot(bot_id) if bot_id else None
-        if bot_row and config.PUBLIC_URL:
-            app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{bot_row.username}"
-            btn_text = "🛍 المتجر"
-            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text=btn_text, web_app=WebAppInfo(url=app_url)))
+        if key in COMMERCE_TPLS and web.https():
+            url = f"{config.PUBLIC_URL.rstrip('/')}/app/{app.bot.username}"
+            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp("🛍 المتجر", WebAppInfo(url)))
             app.bot_data["menu_web"] = True
-            return
-        await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
-        app.bot_data["menu_web"] = False
-    except Exception:
-        pass
+        elif tpl is not None and getattr(tpl, "site", False) and web.https() and site_conf(core)["on"] and site_conf(core)["menu"]:
+            label = {"qrmenu": "المنيو", "quran": "المصحف", "english": "تعلّم", "booking": "احجز"}.get(key, "الموقع")
+            await app.bot.set_chat_menu_button(menu_button=MenuButtonWebApp(label, WebAppInfo(web.site_url(app.bot.username))))
+            app.bot_data["menu_web"] = True
+        elif app.bot_data.get("menu_web") or core.get("menu_was"):
+            await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            app.bot_data["menu_web"] = False
+        want = bool(app.bot_data.get("menu_web"))
+        if bool(core.get("menu_was")) != want and app.bot_data.get("bot_id"):
+            core["menu_was"] = want
+            await db.kv_set(app.bot_data["bot_id"], "core", core)
+    except Exception:  # noqa: BLE001
+        log.debug("menu button not applied for %s", app.bot_data.get("bot_id"))
 
 
 async def scr_idn(c: Ctx) -> None:
@@ -468,11 +487,15 @@ def lock_text(lk: dict, lang: str, *, owner: bool = False) -> str:
     ar = lang == "ar"
     mode = lk["mode"]
     reason = (lk.get("reason") if ar else (lk.get("reason_en") or lk.get("reason"))) or ""
-    if mode in ("own", "maint"):
-        if reason:
-            return reason
-        from .maker import MAINTENANCE_MSG_AR, MAINTENANCE_MSG_EN
-        return MAINTENANCE_MSG_AR if ar else MAINTENANCE_MSG_EN
+    if lk.get("platform"):
+        # صيانة المنصة قبل الإطلاق
+        return ("🛠 <b>المتجر قيد التجهيز</b>\nنستعد للإطلاق وسنعود قريباً جداً، شكراً لصبرك." if ar
+                else "🛠 <b>Store is getting ready</b>\nWe're preparing for launch and will be back very soon.")
+    if mode == "own":
+        return reason or ("🛠 <b>البوت في صيانة</b>\nنعود قريباً، شكراً لصبرك." if ar else "🛠 <b>Under maintenance</b>\nWe'll be back soon, thanks for your patience.")
+    if mode == "maint":
+        s = ("🛠 <b>البوت في صيانة</b>\nأوقفته إدارة المنصة مؤقتاً للصيانة ويعود قريباً." if ar
+             else "🛠 <b>Under maintenance</b>\nThe platform paused this bot for maintenance. It will be back soon.")
     elif mode == "temp" and lk.get("until"):
         left = ui.dur(max(60, lk["until"] - time.time()), lang)
         s = (f"⏳ <b>البوت مغلق مؤقتاً</b>\nأغلقته إدارة المنصة.\n🔓 يعود للعمل بعد: <b>{left}</b>" if ar
@@ -489,28 +512,49 @@ def lock_text(lk: dict, lang: str, *, owner: bool = False) -> str:
 
 async def on_gate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """يسبق كل المعالجات: إن كان البوت مغلقاً أو في صيانة يرد بالإشعار ويوقف المعالجة."""
+    bd = context.bot_data
+    lk = current_lock(bd)
+    if lk is None:
+        # صيانة المنصة قبل الإطلاق (MAINTENANCE / زر الصيانة في لوحة الإدارة): المتاجر مغلقة للزبائن، مفتوحة لأصحابها
+        try:
+            p0 = await platform.get(0)
+            if p0.get("maintenance"):
+                lk = {"mode": "maint", "reason": "", "platform": True}
+        except Exception:
+            lk = None
+    if lk is None or update.my_chat_member is not None or update.chat_member is not None:
+        return
     user, chat = update.effective_user, update.effective_chat
     uid = user.id if user else 0
-    if uid in config.ADMIN_IDS or (config.ADMIN_ID and uid == config.ADMIN_ID):
+    core = bd.get("core") or {}
+    staff = bool(uid) and (uid == bd["owner_id"] or uid in core.get("admins", []))
+    sup = bool(uid) and uid == config.ADMIN_ID and not bd.get("factory_id") and (bd.get("adm") or {}).get("super")
+    if uid and (uid in config.ADMIN_IDS or uid == config.ADMIN_ID) and lk.get("platform"):
         return
-    if update.my_chat_member is not None or update.chat_member is not None:
+    if sup or (staff and lk["mode"] in ("maint", "own")):
         return
-    try:
-        from .maker import MAINTENANCE_MSG_AR
-        text = MAINTENANCE_MSG_AR
+    try:      # مهما حدث هنا، البوت المغلق لا يكمل المعالجة
+        forced = core.get("lang") or "auto"
+        lang = norm(user.language_code if (forced == "auto" and user) else (None if forced == "auto" else forced))
+        text = lock_text(lk, lang, owner=uid == bd["owner_id"])
         if update.inline_query is not None:
             await update.inline_query.answer([], cache_time=5)
         elif update.callback_query is not None:
-            await update.callback_query.answer("🛠️ البوت متوقف حالياً وفي وضع الصيانة والتطوير الشامل.", show_alert=True)
+            await update.callback_query.answer(re.sub(r"<[^>]+>", "", text)[:190], show_alert=True)
         elif update.message is not None and chat is not None and chat.type == ChatType.PRIVATE:
             ud = context.user_data if context.user_data is not None else {}
+            sig = (lk["mode"], lk.get("at"), lk.get("reason"))
             last = ud.get("lock_seen") or (None, 0)
-            if time.time() - last[1] > 8:
-                ud["lock_seen"] = ("maint", time.time())
-                await context.bot.send_message(chat.id, text, parse_mode=ParseMode.HTML)
+            if last[0] != sig or time.time() - last[1] > 8:      # لا نكرر الإشعار نفسه مع كل رسالة
+                ud["lock_seen"] = (sig, time.time())
+                mk = maker_app(bd)
+                markup = None
+                if uid == bd["owner_id"] and mk is not None and lk["mode"] in ("closed", "temp"):
+                    markup = kb([[B("🗂 افتح الصانع" if lang == "ar" else "🗂 Open the maker", url=f"https://t.me/{mk.bot.username}")]])
+                await context.bot.send_message(chat.id, text, parse_mode=ParseMode.HTML, reply_markup=markup)
     except TelegramError:
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001
         log.exception("lock notice failed")
     raise ApplicationHandlerStop
 
@@ -1755,11 +1799,56 @@ async def owner_input(c: Ctx, st: dict) -> None:  # noqa: C901
         await owner_home(c)
 
 
+async def on_precheckout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """يوافق على الدفع فقط إن كانت الفاتورة صادرة من هذا البوت لهذا المستخدم وبنفس المبلغ."""
+    from .modules import payments
+    q = update.pre_checkout_query
+    if q is None:
+        return
+    ok = payments.validate_precheckout(context.bot_data.get("bot_id", 0), q.from_user.id, q.invoice_payload,
+                                       q.currency, q.total_amount)
+    try:
+        if ok:
+            await q.answer(ok=True)
+        else:
+            await q.answer(ok=False, error_message="الفاتورة غير صالحة أو منتهية. أنشئ فاتورة جديدة من البوت.")
+    except TelegramError:
+        log.warning("pre_checkout answer failed", exc_info=True)
+
+
+async def on_successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """الشحن الحقيقي الوحيد بالنجوم: بعد تأكيد تيليجرام للدفع، ومحمي من التكرار بمعرّف الدفع."""
+    from .modules import ledger, payments
+    msg = update.effective_message
+    sp = msg.successful_payment if msg else None
+    if sp is None or update.effective_user is None:
+        return
+    bot_id = context.bot_data.get("bot_id", 0)
+    uid = update.effective_user.id
+    ok, _tx, _bal = await payments.credit_paid_stars(bot_id, uid, sp.invoice_payload, sp.currency,
+                                                      sp.total_amount, sp.telegram_payment_charge_id)
+    try:
+        if ok:
+            disp = await ledger.get_user_balance_display(bot_id, uid)
+            await msg.reply_text(f"✅ تم شحن {sp.total_amount} ⭐ بنجاح.\n💰 رصيدك الآن: {disp}")
+        else:
+            await msg.reply_text("⚠️ تعذّر تسجيل الدفع تلقائياً، تواصل مع الدعم مع رقم العملية:\n"
+                                 f"<code>{esc(sp.telegram_payment_charge_id)}</code>", parse_mode=ParseMode.HTML)
+            await context.bot.send_message(context.bot_data.get("owner_id", 0),
+                                           f"⚠️ دفع نجوم لم يُسجَّل تلقائياً من <code>{uid}</code> ({sp.total_amount} ⭐)\n"
+                                           f"رقم العملية: <code>{esc(sp.telegram_payment_charge_id)}</code>", parse_mode=ParseMode.HTML)
+    except TelegramError:
+        pass
+    raise ApplicationHandlerStop
+
+
 def register(app: Application, bot_row: db.Bot, tpl, core: dict) -> None:
     app.bot_data.update(bot_id=bot_row.id, owner_id=bot_row.owner_id, factory_id=bot_row.factory_id, core=core, tpl=tpl)
     app.bot_data.setdefault("adm", {})
     app.add_handler(TypeHandler(Update, on_gate), group=-1)     # الإغلاق والصيانة قبل أي شيء
     app.add_handler(TypeHandler(Update, on_after), group=1)     # رسالة الترويج بعد انتهاء الاستخدام
+    app.add_handler(PreCheckoutQueryHandler(on_precheckout))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, on_successful_payment))
     app.add_handler(CommandHandler("start", on_start))
     app.add_handler(CommandHandler("report", on_report))
     app.add_handler(CommandHandler(["admin", "panel"], on_admin))

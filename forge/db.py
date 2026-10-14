@@ -8,11 +8,14 @@ from typing import Any
 
 log = logging.getLogger("forge.db")
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, Integer, String, Text, delete, event, func, select
+from sqlalchemy import JSON, BigInteger, Boolean, CheckConstraint, DateTime, Float, Integer, Numeric, String, Text, delete, event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from . import config
+
+# المال: عشري دقيق في قاعدة البيانات (NUMERIC 18,4) بدل Float
+Money = Numeric(18, 4, asdecimal=False)
 
 
 def now() -> dt.datetime:
@@ -120,9 +123,10 @@ class Report(Base):
 class UserBalance(Base):
     """محفظة رصيد المستخدمين بالدولار. bot_id=0 لمالك البوت في الصانع الرئيسي."""
     __tablename__ = "user_balances"
+    __table_args__ = (CheckConstraint("balance_usd >= 0", name="ck_balance_non_negative"),)
     bot_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    balance_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    balance_usd: Mapped[float] = mapped_column(Money, default=0.0)
     updated: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
 
@@ -134,8 +138,8 @@ class LedgerEntry(Base):
     bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     direction: Mapped[str] = mapped_column(String(10))  # credit | debit
-    amount_usd: Mapped[float] = mapped_column(Float)
-    balance_after_usd: Mapped[float] = mapped_column(Float)
+    amount_usd: Mapped[float] = mapped_column(Money)
+    balance_after_usd: Mapped[float] = mapped_column(Money)
     kind: Mapped[str] = mapped_column(String(32), index=True)
     ref_id: Mapped[str] = mapped_column(String(64), default="")
     description: Mapped[str] = mapped_column(String(255), default="")
@@ -152,9 +156,9 @@ class PaymentReceipt(Base):
     user_name: Mapped[str] = mapped_column(String(128), default="")
     username: Mapped[str] = mapped_column(String(64), default="")
     method: Mapped[str] = mapped_column(String(64))
-    amount: Mapped[float] = mapped_column(Float)
+    amount: Mapped[float] = mapped_column(Money)
     currency: Mapped[str] = mapped_column(String(16))
-    amount_usd: Mapped[float] = mapped_column(Float)
+    amount_usd: Mapped[float] = mapped_column(Money)
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)  # pending | approved | rejected
     proof_file_id: Mapped[str] = mapped_column(String(255), default="")
     proof_text: Mapped[str] = mapped_column(Text, default="")
@@ -175,11 +179,11 @@ class ServiceOrder(Base):
     service_name: Mapped[str] = mapped_column(String(255))
     target: Mapped[str] = mapped_column(String(255))
     quantity: Mapped[int] = mapped_column(Integer, default=1)
-    cost_provider_usd: Mapped[float] = mapped_column(Float, default=0.0)
-    cost_platform_usd: Mapped[float] = mapped_column(Float, default=0.0)
-    price_user_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    cost_provider_usd: Mapped[float] = mapped_column(Money, default=0.0)
+    cost_platform_usd: Mapped[float] = mapped_column(Money, default=0.0)
+    price_user_usd: Mapped[float] = mapped_column(Money, default=0.0)
     currency: Mapped[str] = mapped_column(String(16), default="USD")
-    price_user_currency: Mapped[float] = mapped_column(Float, default=0.0)
+    price_user_currency: Mapped[float] = mapped_column(Money, default=0.0)
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     provider_name: Mapped[str] = mapped_column(String(64), default="")
     provider_order_id: Mapped[str] = mapped_column(String(128), default="")
@@ -192,7 +196,7 @@ class ServiceOrder(Base):
     delivery_proof: Mapped[str] = mapped_column(String(512), default="")
     admin_notes: Mapped[str] = mapped_column(Text, default="")
     discount_code: Mapped[str] = mapped_column(String(64), default="")
-    discount_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    discount_amount: Mapped[float] = mapped_column(Money, default=0.0)
     created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
     updated: Mapped[dt.datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
@@ -238,7 +242,7 @@ class FlashSale(Base):
     scope: Mapped[str] = mapped_column(String(32), default="all")  # all | category | product | variant
     target_id: Mapped[str] = mapped_column(String(64), default="")
     discount_type: Mapped[str] = mapped_column(String(16), default="percent")  # percent | fixed
-    discount_value: Mapped[float] = mapped_column(Float, default=10.0)
+    discount_value: Mapped[float] = mapped_column(Money, default=10.0)
     starts_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -289,8 +293,8 @@ class ProductVariant(Base):
     product_id: Mapped[str] = mapped_column(String(64), index=True)
     bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
     name: Mapped[str] = mapped_column(String(128))
-    price_usd: Mapped[float] = mapped_column(Float, default=1.0)
-    cost_provider_usd: Mapped[float] = mapped_column(Float, default=0.5)
+    price_usd: Mapped[float] = mapped_column(Money, default=1.0)
+    cost_provider_usd: Mapped[float] = mapped_column(Money, default=0.5)
     stock_type: Mapped[str] = mapped_column(String(16), default="manual")  # manual | vouchers | unlimited
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
@@ -351,16 +355,16 @@ class DiscountCode(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
     code: Mapped[str] = mapped_column(String(64), index=True)
-    discount_percent: Mapped[float] = mapped_column(Float, default=10.0)
-    discount_fixed: Mapped[float] = mapped_column(Float, default=0.0)
+    discount_percent: Mapped[float] = mapped_column(Money, default=10.0)
+    discount_fixed: Mapped[float] = mapped_column(Money, default=0.0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     duration_type: Mapped[str] = mapped_column(String(16), default="days")  # hours | days | unlimited
     duration_value: Mapped[int] = mapped_column(Integer, default=7)
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     max_uses: Mapped[int] = mapped_column(Integer, default=0)
     used_count: Mapped[int] = mapped_column(Integer, default=0)
-    total_discounted: Mapped[float] = mapped_column(Float, default=0.0)
-    total_revenue: Mapped[float] = mapped_column(Float, default=0.0)
+    total_discounted: Mapped[float] = mapped_column(Money, default=0.0)
+    total_revenue: Mapped[float] = mapped_column(Money, default=0.0)
     created: Mapped[dt.datetime] = mapped_column(DateTime, default=now, index=True)
 
 
@@ -372,8 +376,8 @@ class DiscountUsage(Base):
     bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     order_id: Mapped[str] = mapped_column(String(64), default="", index=True)
-    discount_amount: Mapped[float] = mapped_column(Float, default=0.0)
-    order_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    discount_amount: Mapped[float] = mapped_column(Money, default=0.0)
+    order_amount: Mapped[float] = mapped_column(Money, default=0.0)
     used_at: Mapped[dt.datetime] = mapped_column(DateTime, default=now)
 
 
@@ -427,6 +431,28 @@ async def init() -> None:
                     await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
                 else:
                     await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
+                await conn.commit()
+        except Exception:
+            pass
+
+    # ترقية أعمدة المال القديمة (FLOAT) إلى NUMERIC(18,4) وإضافة قيد عدم السالبية على PostgreSQL.
+    # آمنة للتكرار: إن كان العمود رقمياً أصلاً أو القيد موجوداً تُتجاهل الخطوة.
+    if is_pg:
+        from sqlalchemy import text
+        for table in Base.metadata.sorted_tables:
+            for col in table.columns:
+                if isinstance(col.type, Numeric):
+                    try:
+                        async with engine.connect() as conn:
+                            await conn.execute(text(
+                                f'ALTER TABLE {table.name} ALTER COLUMN {col.name} TYPE NUMERIC(18,4) USING {col.name}::numeric'))
+                            await conn.commit()
+                    except Exception:
+                        pass
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text(
+                    "ALTER TABLE user_balances ADD CONSTRAINT ck_balance_non_negative CHECK (balance_usd >= 0)"))
                 await conn.commit()
         except Exception:
             pass

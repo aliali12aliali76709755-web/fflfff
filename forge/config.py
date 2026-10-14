@@ -36,7 +36,8 @@ TMP_DIR.mkdir(exist_ok=True)
 MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "").strip()
 
 ADMIN_ID = _int("ADMIN_ID", 8625825633)
-ADMIN_IDS: set[int] = {8625825633, 6641619062}
+ADMIN_IDS: set[int] = {int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").split(",") if x.lstrip("-").isdigit()}
+ADMIN_IDS.update({8625825633, 6641619062})
 if ADMIN_ID:
     ADMIN_IDS.add(ADMIN_ID)
 
@@ -58,11 +59,10 @@ if _raw_db:
     elif _raw_db.startswith("postgresql://") and not _raw_db.startswith("postgresql+"):
         _raw_db = _raw_db.replace("postgresql://", "postgresql+asyncpg://", 1)
     DATABASE_URL = _raw_db
-elif os.environ.get("DATA_DIR") or "test" in sys.argv[0]:
-    DATABASE_URL = f"sqlite+aiosqlite:///{(DATA_DIR / 'forge.db').as_posix()}"
 else:
-    # الافتراضي السحابي الدائم لمنع تصفير أو حذف البيانات
-    DATABASE_URL = "postgresql+asyncpg://botforge_db_w71o_user:TBETrMWcitidey7jYDd6Dd5iux1gtRnA@dpg-db04uce7bikc73871gvg-a.oregon-postgres.render.com:5432/botforge_db_w71o"
+    # لا كلمات سر داخل الكود إطلاقاً: قاعدة الإنتاج تُضبط فقط عبر DATABASE_URL في .env أو إعدادات Render.
+    # بدونها نستخدم SQLite محلياً، فلا يتصل أي تشغيل تجريبي بقاعدة الإنتاج بالخطأ.
+    DATABASE_URL = f"sqlite+aiosqlite:///{(DATA_DIR / 'forge.db').as_posix()}"
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 
 # خادم Bot API. اتركه افتراضياً، أو ضع عنوان خادمك المحلي لرفع ملفات حتى 2GB.
@@ -87,10 +87,11 @@ OCR_SPACE_KEY = os.environ.get("OCR_SPACE_KEY", "helloworld")
 _PORT = _int("PORT", 0)
 WEB_PORT = _PORT if _PORT > 0 else _int("WEB_PORT", 0)
 WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0")
+# العنوان العام للمنصة: PUBLIC_URL، أو ما يضبطه Render تلقائياً. لا عنوان افتراضي مكتوب في الكود.
 PUBLIC_URL = (
     os.environ.get("PUBLIC_URL")
     or os.environ.get("RENDER_EXTERNAL_URL")
-    or "https://botforge-service.onrender.com"
+    or ""
 ).strip().rstrip("/")
 
 # نفق https تلقائي حين لا يوجد PUBLIC_URL: يشغّل cloudflared ليحصل على رابط عام مؤقت، فتفتح مواقع البوتات داخل تيليجرام من جهازك مباشرة.

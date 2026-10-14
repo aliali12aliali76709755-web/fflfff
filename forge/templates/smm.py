@@ -325,24 +325,17 @@ class Smm(Tpl):
 
         # ── شراء النجوم وشحنها ──
         elif act == "stars_buy":
-            stars_num = int(a[1])
-            # شحن النجوم الآلي عبر محرك المدفوعات المشترك
-            ok, tx, new_bal = await payments.process_stars_deposit(c.bot_id, c.uid, stars_num)
-            if ok:
-                bal_str = await ledger.get_user_balance_display(c.bot_id, c.uid)
-                await c.edit(
-                    ui.head(t("✅ تم الشحن بنجاح!", "✅ Top-up Successful!")) +
-                    t(
-                        f"تم شحن <b>{stars_num} ⭐</b> إلى محفظتك بنجاح!\n\n"
-                        f"💰 <b>رصيدك الجديد:</b> <code>{bal_str}</code>",
-                        f"Successfully added <b>{stars_num} ⭐</b> to your wallet!\n\n"
-                        f"💰 <b>New balance:</b> <code>{bal_str}</code>"
-                    ),
-                    kb([[B(t("🚀 تصفح الخدمات الآن", "🚀 Browse Services"), "t:cats", style="success")],
-                        [B(t("💼 المحفظة", "💼 Wallet"), "t:wallet")]])
-                )
-            else:
-                await c.answer(t("فشل شحن النجوم", "Stars top-up failed"), True)
+            # يُرسل فاتورة نجوم فقط؛ الرصيد يُشحن تلقائياً عند تأكيد تيليجرام للدفع (on_successful_payment)
+            try:
+                stars_num = int(a[1])
+            except (IndexError, ValueError):
+                return
+            try:
+                sent = await payments.send_stars_invoice(c.bot, c.uid, c.bot_id, c.uid, stars_num)
+            except Exception:
+                sent = False
+            await c.answer(t("📩 أرسلنا لك فاتورة النجوم، ادفعها ويُشحن رصيدك فوراً.", "📩 Invoice sent — pay it and your balance is topped up instantly.")
+                           if sent else t("تعذّر إنشاء فاتورة النجوم", "Could not create the Stars invoice"), not sent)
 
         # ── سجل الطلبات ──
         elif act == "orders":
@@ -557,8 +550,10 @@ class Smm(Tpl):
                     kb([[B(t("❌ إلغاء", "❌ Cancel"), f"t:adm:svc_edit:{sid}")]]))
 
             # 3. إعدادات مزودي الـ API
+            elif sub in ("provs", "prov_add", "prov_test") and not config.is_admin(c.uid):
+                await c.answer(t("🔌 المزودون تديرهم المنصة مركزياً، ومنتجاتك تعمل تلقائياً.", "🔌 Providers are managed centrally by the platform."), True)
             elif sub == "provs":
-                provs = await c.kv("smm:providers", [])
+                provs = (await db.kv_get(0, "smm:providers", []) or [])
                 lines = []
                 for i, p in enumerate(provs, 1):
                     lines.append(f"{i}. <b>{esc(p.get('name', 'Custom'))}</b> — URL: <code>{esc(p.get('api_url', ''))}</code>")
@@ -724,7 +719,7 @@ class Smm(Tpl):
 
             elif sub == "rcpt_ok":
                 rcpt_id = a[2]
-                ok, msg, new_bal = await payments.approve_receipt(rcpt_id)
+                ok, msg, new_bal = await payments.approve_receipt(rcpt_id, bot_id=c.bot_id)
                 if ok:
                     await c.answer(t("تمت الموافقة وشحن رصيد الزبون بنجاح! ✅", "Approved & credited successfully! ✅"), True)
                     # إشعار الزبون
@@ -752,7 +747,7 @@ class Smm(Tpl):
 
             elif sub == "rcpt_no":
                 rcpt_id = a[2]
-                ok, msg = await payments.reject_receipt(rcpt_id, reason="رفض بواسطة الإدارة")
+                ok, msg = await payments.reject_receipt(rcpt_id, reason="رفض بواسطة الإدارة", bot_id=c.bot_id)
                 if ok:
                     await c.answer(t("تم رفض الإيصال", "Receipt rejected"), True)
                     r = await payments.get_receipt(rcpt_id)
@@ -935,6 +930,7 @@ class Smm(Tpl):
                 "link": link,
                 "qty": qty,
                 "price_per_1k_usd": svc["price_per_1k_usd"],
+                "base_cost_per_1k": float(svc.get("base_cost_per_1k", 0.0) or 0.0),
                 "total_usd": total_usd,
                 "discount_usd": 0.0,
                 "final_usd": total_usd,
@@ -1105,9 +1101,9 @@ class Smm(Tpl):
                 await c.send(f"⚠️ فشل الاتصال بالمزود: {esc(str(e))}\nيرجى التأكد من الرابط والمفتاح والمحاولة مجدداً.")
                 return True
 
-            provs = await c.kv("smm:providers", [])
+            provs = (await db.kv_get(0, "smm:providers", []) or [])
             provs.append({"name": name, "api_url": api_url, "api_key": api_key, "on": True})
-            await c.kv_set("smm:providers", provs)
+            await db.kv_set(0, "smm:providers", provs)
             c.clear_state()
             await c.send(t(f"✅ تم ربط المزود {name} بنجاح! رصيده الحالي لدى الموقع: ${bal:,.2f}",
                            f"✅ Provider {name} added! Balance: ${bal:,.2f}"))
@@ -1202,36 +1198,34 @@ class Smm(Tpl):
             await self._show_order_review(c, draft)
             return
 
-        # 1. خصم رصيد المستخدم ذرياً
-        ord_key = f"ord_{uuid.uuid4().hex[:12]}"
-        ok_debit, tx, new_bal = await ledger.debit_user(
-            c.bot_id,
-            c.uid,
-            final_usd,
-            kind="order_smm",
-            ref_id=ord_key,
+        # 1. سعر المنصة على البائع = تكلفة المزود + هامش المنصة
+        ord_key = draft.get("ord_key") or f"ord_{uuid.uuid4().hex[:12]}"
+        draft["ord_key"] = ord_key  # نفس الرقم عند الضغط المكرر = لا خصم مزدوج
+        provider_cost_usd = round((draft["qty"] / 1000.0) * float(draft.get("base_cost_per_1k", 0.0)), 4)
+        platform_fee_usd = await ledger.platform_cost_for(c.owner_id, provider_cost_usd, tpl_key="smm",
+                                                          product_id=str(draft["svc_id"]))
+
+        # 2. خصم ذري واحد: الزبون (سعر البيع) + البائع (سعر المنصة) — إمّا الاثنان أو لا شيء
+        ok_debit, why, new_bal = await ledger.purchase(
+            bot_id=c.bot_id, buyer_id=c.uid, price_usd=final_usd, seller_id=c.owner_id,
+            platform_cost_usd=platform_fee_usd, order_id=ord_key, kind="order_smm",
             description=f"طلب {draft['svc_name']} (×{draft['qty']:,})",
         )
         if not ok_debit:
-            await c.answer(t("فشل خصم الرصيد، يرجى المحاولة لاحقاً", "Debit failed, please retry"), True)
-            return
-
-        # 2. فحص رصيد البائع في الصانع (إذا كان هناك رسم منصة مفروض)
-        # إذا تعذر، نسترجع رصيد الزبون فوراً ونعرض رسالة لبقة
-        platform_fee_usd = 0.0  # سيتم ربطه مستقبلاً بنظام رسوم المنصة
-        if platform_fee_usd > 0:
-            ok_seller, _, _ = await ledger.debit_seller(c.owner_id, platform_fee_usd, kind="platform_smm_fee", ref_id=ord_key)
-            if not ok_seller:
-                # استرجاع رصيد الزبون
-                await ledger.credit_user(c.bot_id, c.uid, final_usd, kind="order_refund", ref_id=ord_key, description="استرجاع فوري لتعذر الخدمة")
+            if why == "seller_insufficient":
                 await c.edit(
                     ui.head(t("⚠️ الخدمة غير متوفرة مؤقتاً", "⚠️ Service Temporarily Unavailable")) +
-                    t("نعتذر منك، الخدمة غير متوفرة في الوقت الحالي. تم حفظ رصيدك كاملاً ولم يُخصم أي شيء.",
+                    t("نعتذر منك، الخدمة غير متوفرة في الوقت الحالي. رصيدك محفوظ كاملاً ولم يُخصم أي شيء.",
                       "We apologize, this service is temporarily unavailable. Your full balance is safe."),
                     kb([[B(t("⬅️ الرئيسية", "⬅️ Home"), "t:home")]])
                 )
-                await c.notify_owner(f"⚠️ تنبيه للبائع: فشل تنفيذ طلب لزبونك #{ord_key} بسبب عدم كفاية رصيدك بالدولار في منصة الصانع!")
-                return
+                await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
+            else:
+                await c.answer(t("رصيدك غير كافٍ", "Insufficient balance"), True)
+            return
+        if why == "duplicate":
+            await c.answer(t("تم تنفيذ هذا الطلب مسبقاً ✅", "Order already placed ✅"), True)
+            return
 
         # 3. إرسال الطلب للمزود مع التبديل التلقائي
         disp_ok, prov_order_id, prov_name, prov_cost = await SMMManager.dispatch_order_with_failover(
@@ -1252,6 +1246,7 @@ class Smm(Tpl):
                 bot_id=c.bot_id,
                 user_id=c.uid,
                 tpl_key="smm",
+                seller_id=c.owner_id,
                 service_id=draft["svc_id"],
                 service_name=draft["svc_name"],
                 target=draft["link"],
@@ -1268,6 +1263,18 @@ class Smm(Tpl):
             )
             s.add(s_order)
             await s.commit()
+
+        if not disp_ok:
+            # تعذّر التنفيذ عند كل المزودين: استرجاع فوري للطرفين بدل ترك المال معلقاً
+            await ledger.atomic_dual_refund(ord_key, reason="تعذّر تنفيذ الطلب لدى المزود")
+            c.x.user_data.pop("smm_draft", None)
+            await c.edit(
+                ui.head(t("⚠️ الخدمة غير متوفرة مؤقتاً", "⚠️ Service Temporarily Unavailable")) +
+                t("تعذّر تنفيذ طلبك حالياً، وأُعيد المبلغ كاملاً إلى رصيدك.",
+                  "Your order could not be processed; the full amount was returned to your balance."),
+                kb([[B(t("⬅️ الرئيسية", "⬅️ Home"), "t:home")]])
+            )
+            return
 
         # 5. تسجيل استخدام كود الخصم إن وجد
         if draft.get("promo_code"):
@@ -1348,7 +1355,7 @@ class Smm(Tpl):
         rows = [
             [B(t("📈 هامش الربح والأسعار", "📈 Profit Margins"), "t:adm:margin"),
              B(t("📋 الخدمات (إخفاء/تعديل)", "📋 Manage Services"), "t:adm:svcs")],
-            [B(t("🔌 مزودو الـ API (SMM)", "🔌 API Providers"), "t:adm:provs"),
+            [B(t("🔌 مزودو الـ API (SMM)", "🔌 API Providers"), "t:adm:provs") if config.is_admin(c.uid) else None,
              B(t("💳 طرق الدفع والشحن", "💳 Payment Methods"), "t:adm:pay")],
             [B(t(f"🧾 طلبات الشحن المعلقة ({pending_rcpts})", f"🧾 Pending Receipts ({pending_rcpts})"), "t:adm:rcpts",
                style="warning" if pending_rcpts > 0 else "default"),
