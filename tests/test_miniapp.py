@@ -77,7 +77,7 @@ async def main():  # noqa: C901
     print("— الدخول إلى اللوحات بهوية تيليجرام —")
     async with http.get(f"{base}/app") as r:
         page = await r.text()
-        ck.ok(r.status == 200 and "/auth" in page and "initData" in page, "صفحة دخول الصانع")
+        ck.ok(r.status == 200 and "store2.js" in page and "telegram-web-app.js" in page, "صفحة التطبيق المصغّر الجديد")
     async with http.post(f"{base}/auth", json={"initData": init_data(tok(B_STORE), {"id": 500, "first_name": "Ali"})}) as r:
         ck.ok(r.status == 403, "هوية موقّعة بتوكن بوت آخر تُرفض")
     async with http.post(f"{base}/auth", json={"initData": init_data(MAKER, {"id": 500, "first_name": "Ali"}, age=90000)}) as r:

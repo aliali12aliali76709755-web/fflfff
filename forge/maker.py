@@ -396,19 +396,14 @@ async def home(m: M, *, new: bool = False) -> None:
     seller_bal = await _ledger.get_seller_balance_usd(m.uid)
     try:
         await m.show(head + body + tail, kb([
-            [B(T("🛍️ فتح تطبيق المتجر المصغر (Mini App)", "🛍️ Open Store Mini App"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/app", style="primary")] if config.PUBLIC_URL else None,
             [B(T("➕ ابنِ بوتاً جديداً", "➕ Build a new bot"), "m:new", style="success")],
-            [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T("📊 لوحتي", "📊 My dashboard"), "m:stats")],
-            [B(T(f"💰 رصيدي: ${seller_bal:,.2f}", f"💰 Balance: ${seller_bal:,.2f}"), "m:wal")],
+            [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T(f"💰 رصيدي ${seller_bal:,.2f}", f"💰 Balance ${seller_bal:,.2f}"), "m:wal")],
+            [B(T("📊 لوحتي", "📊 My dashboard"), "m:stats"), B(T("🖥 لوحتي على الويب", "🖥 Web dashboard"), "m:web") if bots and web.enabled() else None],
             [B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref"), B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
-            [B(T("🆘 مساعدة", "🆘 Help"), "m:more"), B(T("🖥 لوحتي على الويب", "🖥 My web dashboard"), "m:web") if bots and web.enabled() else None],
-            [
-                B(T("🛡️ تطبيق الأدمن المصغر", "🛡️ Admin Mini App"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/admin_app", style="primary") if config.PUBLIC_URL else None,
-                B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home", style="primary"),
-            ] if m.is_admin else None,
-            [
-                B(T("🛠️ إيقاف الصيانة (فتح للجميع)", "🛠️ Turn Off Maintenance") if is_maint else T("🛠️ تفعيل وضع الصيانة", "🛠️ Turn On Maintenance"), "m:adm:sm")
-            ] if m.is_admin else None,
+            [B(T("🆘 مساعدة", "🆘 Help"), "m:more")],
+            [B(T("🛡 لوحة الإدارة (التطبيق)", "🛡 Admin app"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/admin_app", style="primary")] if (m.is_admin and config.PUBLIC_URL) else None,
+            [B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home"),
+             B(T("🛠️ إيقاف الصيانة", "🛠️ Maintenance off") if is_maint else T("🛠️ تفعيل الصيانة", "🛠️ Maintenance on"), "m:adm:sm")] if m.is_admin else None,
         ]), new=new)
     except Exception as err:
         log.error("home show error: %s", err)

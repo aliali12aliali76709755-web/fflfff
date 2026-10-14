@@ -262,7 +262,7 @@ async def owner_home(c: Ctx) -> None:
         text += "\n\n🚀 " + t("جاهزية بوتك", "Setup progress") + f": <code>{ui.bar(done, len(todo))}</code> {round(done * 100 / len(todo))}%"
     app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{c.bot.username}?role=seller" if config.PUBLIC_URL else ""
     rows = list(rows) + [
-        [B(t("🛍️ افتح التطبيق المصغر ولوحة تحكم البائع (Mini App)", "🛍️ Open Store Mini App & Seller Panel"), web_app=app_url, style="primary")] if app_url else None,
+        [B(t("🛍️ افتح التطبيق المصغر ولوحة تحكم البائع (Mini App)", "🛍️ Open Store Mini App & Seller Panel"), web_app=app_url, style="primary")] if (app_url and c.tpl.key not in ("digital", "smm", "sms", "tgstars", "smmsms", "megastore")) else None,
         [B(t(f"🚀 أكمل التجهيز ({done}/{len(todo)})", f"🚀 Finish setup ({done}/{len(todo)})"), "o:todo", style="primary")] if todo and done < len(todo) else None,
         [B(t("🪪 هوية البوت", "🪪 Bot identity"), "o:idn")],
         [B(t("👁 جرّب كمستخدم", "👁 Try as a user"), "o:preview"), B(t("📖 شرح القالب", "📖 Template guide"), "o:tguide")],
@@ -944,15 +944,46 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if a[0] == "home":
                 c.clear_state()
                 await c.tpl.home(c)
+            elif a[0] == "acct":
+                from .templates._commerce import account_screen
+                await account_screen(c)
+            elif a[0] == "adv" and c.is_owner:
+                from .templates._commerce import advanced
+                await advanced(c)
+            elif a[0] == "faqv":
+                from .templates._commerce import faq_screen
+                await faq_screen(c, int(a[1]) if len(a) > 1 and a[1].isdigit() else None)
             elif a[0] == "support":
-                from .modules.store_front import StoreFront
-                await StoreFront.show_support_menu(c)
+                from .templates._commerce import support_screen
+                if not await support_screen(c):
+                    from .modules.store_front import StoreFront
+                    await StoreFront.show_support_menu(c)
             elif a[0] == "faq":
-                from .modules.store_front import StoreFront
-                await StoreFront.show_faq_list(c)
+                from .templates._commerce import faq_screen
+                if not await faq_screen(c):
+                    from .modules.store_front import StoreFront
+                    await StoreFront.show_faq_list(c)
             elif a[0] == "faq_view":
                 from .modules.store_front import StoreFront
                 await StoreFront.show_faq_item(c, int(a[1]) if len(a) > 1 and a[1].isdigit() else 0)
+            elif a[0] in ("rcpt_ok", "rcpt_no") and len(a) > 1:
+                # قبول/رفض إيصال شحن الزبون من إشعار البائع (المالك والمشرفون فقط)
+                if not c.is_owner:
+                    return
+                from .modules import payments as _pay
+                rc = await _pay.get_receipt(a[1])
+                if a[0] == "rcpt_ok":
+                    ok, msg, _bal = await _pay.approve_receipt(a[1], f"by {c.uid}", bot_id=c.bot_id)
+                    note = f"✅ تم قبول إيصالك وشحن رصيدك بـ ${float(rc.amount_usd):.2f}" if (ok and rc) else ""
+                else:
+                    ok, msg = await _pay.reject_receipt(a[1], f"by {c.uid}", bot_id=c.bot_id)
+                    note = "❌ تم رفض إيصال الشحن، تواصل مع الدعم." if ok else ""
+                await c.answer(msg, True)
+                if ok and rc is not None:
+                    try:
+                        await c.bot.send_message(rc.user_id, note)
+                    except TelegramError:
+                        pass
             elif a[0] == "tck_dept":
                 from .modules.store_front import StoreFront
                 await StoreFront.prompt_open_ticket(c, a[1] if len(a) > 1 else "tech")

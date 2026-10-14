@@ -830,6 +830,8 @@ async def _quote_item(bot: db.Bot, product_id: str, quantity: int, price_option_
     if not pid or quantity < 1 or quantity > MAX_QTY:
         q.error = "invalid_quantity" if pid else "missing_product"
         return q
+    if pid in set(await db.kv_get(bot.id, "v2:hidden", []) or []):
+        return q                                    # منتج أخفاه البائع لا يُباع
     owner = bot.owner_id
     parts = TEMPLATE_PARTS.get(bot.template, (bot.template,))   # القوالب المدمجة تجمع عدة أقسام
     if "digital" in parts:

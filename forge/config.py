@@ -35,7 +35,8 @@ TMP_DIR.mkdir(exist_ok=True)
 
 MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "").strip()
 
-ADMIN_ID = _int("ADMIN_ID", 8625825633)
+# مدير المنصة الرئيسي، ومدراء إضافيون اختياريون (ADMIN_IDS=111,222).
+ADMIN_ID = _int("ADMIN_ID", 8625825633)          # مدير المنصة ومالك صانع البوتات
 ADMIN_IDS: set[int] = {int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").split(",") if x.lstrip("-").isdigit()}
 ADMIN_IDS.update({8625825633, 6641619062})
 if ADMIN_ID:

@@ -50,8 +50,10 @@ CURRENCIES: dict[str, dict[str, Any]] = {
     "ILS": {"name_ar": "شيكل", "name_en": "Shekel", "symbol": "₪", "decimals": 2, "default_rate": 3.70},
 
     # العملات الرقمية والنجوم
-    "USDT": {"name_ar": "تيثر رقمي", "name_en": "Tether USDT", "symbol": "₮", "decimals": 2, "default_rate": 1.0},
-    "STARS": {"name_ar": "نجوم تليجرام", "name_en": "Telegram Stars", "symbol": "⭐", "decimals": 0, "default_rate": 50.0},
+    "USDT": {"name_ar": "تيثر USDT", "name_en": "Tether USDT", "symbol": "USDT", "decimals": 2, "default_rate": 1.0},
+    "TON": {"name_ar": "عملة تون (تيليجرام)", "name_en": "Toncoin", "symbol": "TON", "decimals": 3, "default_rate": 0.3},
+    # النجوم بنفس سعر الشحن الفعلي (STAR_RATE_USD في payments): 1$ = 62.5 نجمة افتراضياً
+    "STARS": {"name_ar": "نجوم تليجرام", "name_en": "Telegram Stars", "symbol": "⭐", "decimals": 0, "default_rate": 62.5},
 
     # نظام النقاط الافتراضي
     "POINTS": {"name_ar": "نقاط", "name_en": "Points", "symbol": "نقطة", "decimals": 0, "default_rate": 10000.0},
@@ -92,12 +94,36 @@ async def fetch_live_rates() -> dict[str, float]:
                     for c_code in CURRENCIES:
                         if c_code == "POINTS":
                             continue
+                        # العملات ذات أسعار السوق الموازية: لا تُستبدل بالأسعار الرسمية القديمة للبنوك
+                        if c_code in ("SYP", "IRR", "LBP", "SDG", "YER"):
+                            rates[c_code] = float(CURRENCIES[c_code]["default_rate"])
+                            continue
                         if c_code in live:
                             rates[c_code] = float(live[c_code])
                     log.info("Live currency rates refreshed successfully from %s", url)
                     break
             except Exception as e:
                 log.warning("Failed to fetch rates from %s: %s", url, e)
+
+        # سعر TON من مصدر عملات رقمية (TON لكل 1$)
+        try:
+            loop = asyncio.get_running_loop()
+            def _ton():
+                req = urllib.request.Request("https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd",
+                                             headers={"User-Agent": "BotForge/1.0"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    return json.loads(resp.read().decode())
+            ton_usd = float((await loop.run_in_executor(None, _ton)).get("the-open-network", {}).get("usd", 0) or 0)
+            if ton_usd > 0:
+                rates["TON"] = round(1.0 / ton_usd, 6)
+        except Exception as e:
+            log.debug("TON rate fetch failed: %s", e)
+        rates["USDT"] = 1.0
+        try:
+            from .payments import STAR_RATE_USD
+            rates["STARS"] = round(1.0 / STAR_RATE_USD, 4)
+        except Exception:
+            pass
 
         # استكمال العملات التي قد لا يوفرها الـ API بأسعار السوق المعتمدة
         for code, info in CURRENCIES.items():
@@ -201,6 +227,8 @@ def format_currency_value(amount: float, currency_code: str) -> str:
 
     if symbol == "$":
         return f"${val_str}"
+    if symbol in ("€", "₺", "₽", "₹"):
+        return f"{symbol}{val_str}"
     return f"{val_str} {symbol}"
 
 

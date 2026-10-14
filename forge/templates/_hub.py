@@ -49,19 +49,10 @@ class Hub(Tpl):
 
     # ── واجهة العضو ──
     async def home(self, c: Ctx) -> None:
+        from ._commerce import customer_home
         t = c.t
-        bal = await ledger.get_user_balance_display(c.bot_id, c.uid)
-        intro = await c.kv("hub:intro") or t(self.intro_ar, self.intro_en)
-        app_url = f"{config.PUBLIC_URL.rstrip('/')}/app/{c.bot.username}" if config.PUBLIC_URL else ""
-        secs = [B(t(*SEC_LABEL[k]), f"t:sec:{k}", style="success" if i == 0 else None) for i, (k, _) in enumerate(self.subs())]
-        sec_rows = [secs[i:i + 2] for i in range(0, len(secs), 2)]
-        rows = [[B(t("🛍 افتح المتجر", "🛍 Open the store"), web_app=app_url, style="primary")] if app_url else None,
-                *sec_rows,
-                [B(t("💳 شحن المحفظة", "💳 Top up"), "t:wallet"), B(t("📦 طلباتي", "📦 My orders"), "t:orders")],
-                [B(t("🎁 كود خصم", "🎁 Promo code"), "t:promo"), B(t("👥 اربح رصيداً", "👥 Earn credit"), "t:ref")],
-                [B(t("📞 الدعم", "📞 Support"), "t:support"), B(t("❓ الأسئلة الشائعة", "❓ FAQ"), "t:faq")],
-                c.tail()]
-        await c.edit(ui.head(c.brand) + f"{esc(intro)}\n\n💰 <b>{t('رصيدك:', 'Balance:')}</b> <code>{bal}</code>", kb(rows))
+        secs = [B(t(*SEC_LABEL[k]), f"t:sec:{k}") for k, _ in self.subs()]
+        await customer_home(c, self.key, browse=secs, intro_key="hub:intro", default_intro=t(self.intro_ar, self.intro_en))
 
     async def cb(self, c: Ctx, a: list[str]) -> None:
         if not a:
@@ -130,9 +121,13 @@ class Hub(Tpl):
         return InlineKeyboardButton.de_json(d, None)
 
     async def owner(self, c: Ctx) -> tuple[str, list]:
+        from ._commerce import owner_panel
+        return await owner_panel(c, rcpt_cb=f"t:@{CODES[self.parts[0]]}:adm:rcpts")
+
+    async def owner_legacy(self, c: Ctx) -> tuple[str, list]:
         texts, rows = [], []
         for k, sub in self.subs():
-            info, srows = await sub.owner(c)
+            info, srows = await getattr(sub, "owner_legacy", sub.owner)(c)
             if info:
                 texts.append(info)
             rows.append([B(f"── {c.t(*SEC_LABEL[k])} ──", "noop")])

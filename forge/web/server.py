@@ -278,14 +278,10 @@ def build(mgr) -> web.Application:
     app.router.add_static("/media/", media_pipe.MEDIA_DIR, append_version=False)
     app.router.add_get("/img/{bot_id}/{sig}/{fid}", image)
     # التطبيقات المصغرة ولوحة الأدمن (Telegram Mini Apps)
-    app.router.add_get("/store", miniapp_view.render_miniapp_view)
-    app.router.add_get("/store/", miniapp_view.render_miniapp_view)
-    app.router.add_get(f"/store/{u}", miniapp_view.render_miniapp_view)
-    app.router.add_get("/app", miniapp_view.render_miniapp_view)
-    app.router.add_get("/app/", miniapp_view.render_miniapp_view)
-    app.router.add_get(f"/app/{u}", miniapp_view.render_miniapp_view)
-    app.router.add_get("/admin_app", miniapp_view.render_miniapp_view)
-    app.router.add_get("/admin_app/", miniapp_view.render_miniapp_view)
+    from . import store_api, store_view
+    for pth in ("/store", "/store/", f"/store/{u}", "/app", "/app/", f"/app/{u}", "/admin_app", "/admin_app/"):
+        app.router.add_get(pth, store_view.render)
+    store_api.setup_routes(app)
     miniapp_api.setup_routes(app)
 
     dash.routes(app)

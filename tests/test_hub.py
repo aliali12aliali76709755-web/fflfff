@@ -25,7 +25,7 @@ async def main():  # noqa: C901
     ck.ok(all(any(x in l for l in labels) for x in ("الألعاب", "التفاعل", "أرقام التفعيل", "نجوم")), "الرئيسية تعرض الأقسام الأربعة")
     ck.ok("رصيدك" in t, "الرصيد في الرئيسية")
     t = await tg.click(T, sara, "t:sec:smm")
-    ck.ok(any("تصفح الخدمات" in b["text"] for b in tg.buttons(B_MEGA)), "قسم التفاعل يفتح واجهته")
+    ck.ok(any("تصفّح الخدمات" in b["text"] for b in tg.buttons(B_MEGA)), "قسم التفاعل يفتح واجهته")
     t = await tg.click(T, sara, "t:cats")
     ck.ok(len(tg.buttons(B_MEGA)) > 2, "أزرار القسم تعمل داخل القسم المفتوح")
     await tg.click(T, sara, "t:sec:sms")
@@ -38,6 +38,7 @@ async def main():  # noqa: C901
 
     print("— لوحة المالك المجمّعة —")
     t = await tg.say(T, ali, "/admin")
+    ck.ok("رصيدك في الصانع" in t and "اليوم" in t, "غرفة التحكم تعرض أرقام اليوم ورصيد الصانع")
     owner_btns = tg.buttons(B_MEGA)
     ck.ok(sum(1 for b in owner_btns if b["text"].startswith("──")) == 4, "لوحة المالك تجمع لوحات الأقسام الأربعة")
     tagged = [b for b in owner_btns if str(b.get("callback_data", "")).startswith("t:@")]

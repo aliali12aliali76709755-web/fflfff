@@ -46,6 +46,10 @@ class Digital(Tpl):
     # ───────────────────────────── واجهة المستخدم ─────────────────────────────
 
     async def home(self, c: Ctx) -> None:
+        from ._commerce import customer_home
+        await customer_home(c, self.key)
+
+    async def home_legacy(self, c: Ctx) -> None:
         bal_display = await ledger.get_user_balance_display(c.bot_id, c.uid)
         intro = await c.kv("digital:intro") or c.t(
             "مرحباً بك في بوت شحن الألعاب والخدمات الرقمية 🎮✨\nاشحن ألعابك المفضلة واشترك في أقوى التطبيقات وبطاقات الهدايا بأمان وسرعة فائقة.",
@@ -1285,6 +1289,10 @@ class Digital(Tpl):
         return False
 
     async def owner(self, c: Ctx) -> tuple[str, list]:
+        from ._commerce import owner_panel
+        return await owner_panel(c)
+
+    async def owner_legacy(self, c: Ctx) -> tuple[str, list]:
         t = c.t
         async with db.Session() as s:
             total_orders = (await s.execute(

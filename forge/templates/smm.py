@@ -49,6 +49,10 @@ class Smm(Tpl):
     # ───────────────────────────── واجهة المستخدم ─────────────────────────────
 
     async def home(self, c: Ctx) -> None:
+        from ._commerce import customer_home
+        await customer_home(c, self.key)
+
+    async def home_legacy(self, c: Ctx) -> None:
         bal_display = await ledger.get_user_balance_display(c.bot_id, c.uid)
         intro = await c.kv("smm:intro") or c.t(
             "مرحباً بك في بوت خدمات شبكات التواصل الاجتماعي 🚀\nاختر المنصة والخدمة المطلوبة، وسنقوم بتنفيذ طلبك بأعلى سرعة وضمان.",
@@ -1327,6 +1331,10 @@ class Smm(Tpl):
     # ───────────────────────── لوحة المالك في غرفة التحكم ─────────────────────────
 
     async def owner(self, c: Ctx) -> tuple[str, list]:
+        from ._commerce import owner_panel
+        return await owner_panel(c)
+
+    async def owner_legacy(self, c: Ctx) -> tuple[str, list]:
         t = c.t
         # جلب إحصائيات سريعة للبائع
         async with db.Session() as s:

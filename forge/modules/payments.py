@@ -208,7 +208,7 @@ async def reject_receipt(receipt_id: str, reason: str = "", *, bot_id: int | Non
     return True, "تم رفض الإيصال"
 
 
-STAR_RATE_USD = 0.016          # قيمة النجمة الواحدة بالدولار عند الشحن
+STAR_RATE_USD = float(__import__("os").environ.get("STAR_RATE_USD", "0.016") or 0.016)   # قيمة النجمة بالدولار عند الشحن
 STARS_MIN, STARS_MAX = 1, 10000
 
 
