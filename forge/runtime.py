@@ -215,18 +215,19 @@ class Manager:
         if not _web.enabled():        # المواقع معطّلة نهائياً: لا نشغّل خادم ويب ولا نفقاً
             self.web = None
             return
-        if self.web is not None:
-            return  # الخادم يعمل مسبقاً (مثلاً عبر run.py)
-        self.tunnel = None
-        try:
-            from .web import server as webserver
-            self.web = await webserver.start(self)
-        except Exception:
-            log.exception("web server failed to start; bots keep running")
-            self.web = None
-            return
+        if self.web is None:
+            self.tunnel = None
+            try:
+                from .web import server as webserver
+                self.web = await webserver.start(self)
+            except Exception:
+                log.exception("web server failed to start; bots keep running")
+                self.web = None
+                return
         # نفق https تلقائي (اختياري، للتشغيل من جهاز شخصي بلا نطاق): AUTO_TUNNEL=1 ولا يوجد PUBLIC_URL
         if config.PUBLIC_URL or not config.AUTO_TUNNEL:
+            return
+        if self.tunnel is not None:
             return
         try:
             from .web.tunnel import Tunnel
