@@ -135,28 +135,12 @@ async def fetch_live_rates() -> dict[str, float]:
         return _RATES_CACHE
 
 
-_BOT_CURRENCY_CACHE: dict[int, tuple[float, str]] = {}
-_MANUAL_RATES_CACHE: dict[int, tuple[float, dict]] = {}
-_POINTS_CACHE: dict[int, tuple[float, float | None]] = {}
-
-
-def invalidate_currency_cache(bot_id: int) -> None:
-    _BOT_CURRENCY_CACHE.pop(bot_id, None)
-    _MANUAL_RATES_CACHE.pop(bot_id, None)
-    _POINTS_CACHE.pop(bot_id, None)
-
-
 async def get_bot_currency(bot_id: int) -> str:
     """يعيد كود العملة المعتمد للبوت (USD افتراضياً)."""
     if bot_id == 0:
         return "USD"
-    hit = _BOT_CURRENCY_CACHE.get(bot_id)
-    if hit and time.time() - hit[0] < 60:
-        return hit[1]
     code = await db.kv_get(bot_id, "cur:code", "USD")
-    val = code if code in CURRENCIES else "USD"
-    _BOT_CURRENCY_CACHE[bot_id] = (time.time(), val)
-    return val
+    return code if code in CURRENCIES else "USD"
 
 
 async def set_bot_currency(bot_id: int, currency_code: str) -> bool:
@@ -164,22 +148,7 @@ async def set_bot_currency(bot_id: int, currency_code: str) -> bool:
     if currency_code not in CURRENCIES or bot_id == 0:
         return False
     await db.kv_set(bot_id, "cur:code", currency_code)
-    _BOT_CURRENCY_CACHE.pop(bot_id, None)
     return True
-
-
-async def get_manual_rates(bot_id: int) -> dict[str, float]:
-    """يعيد الأسعار اليدوية المحددة للبوت مع كاش في الذاكرة."""
-    if bot_id == 0:
-        return {}
-    hit = _MANUAL_RATES_CACHE.get(bot_id)
-    if hit and time.time() - hit[0] < 60:
-        return hit[1]
-    rates = await db.kv_get(bot_id, "cur:manual_rates", {}) or {}
-    if not isinstance(rates, dict):
-        rates = {}
-    _MANUAL_RATES_CACHE[bot_id] = (time.time(), rates)
-    return rates
 
 
 async def get_effective_rate(bot_id: int, currency_code: str) -> float:
@@ -190,23 +159,13 @@ async def get_effective_rate(bot_id: int, currency_code: str) -> float:
         return 1.0
 
     if currency_code == "POINTS":
-        hit = _POINTS_CACHE.get(bot_id)
-        if hit and time.time() - hit[0] < 60:
-            return hit[1] if hit[1] is not None else float(CURRENCIES["POINTS"]["default_rate"])
         points_per_usd = await db.kv_get(bot_id, "cur:points_per_usd", None)
-        parsed = None
-        if points_per_usd is not None:
-            try:
-                p = float(points_per_usd)
-                if p > 0:
-                    parsed = p
-            except (ValueError, TypeError):
-                pass
-        _POINTS_CACHE[bot_id] = (time.time(), parsed)
-        return parsed if parsed is not None else float(CURRENCIES["POINTS"]["default_rate"])
+        if points_per_usd is not None and float(points_per_usd) > 0:
+            return float(points_per_usd)
+        return float(CURRENCIES["POINTS"]["default_rate"])
 
-    manual_rates = await get_manual_rates(bot_id)
-    if currency_code in manual_rates:
+    manual_rates = await db.kv_get(bot_id, "cur:manual_rates", {})
+    if isinstance(manual_rates, dict) and currency_code in manual_rates:
         try:
             val = float(manual_rates[currency_code])
             if val > 0:
@@ -225,16 +184,14 @@ async def set_manual_rate(bot_id: int, currency_code: str, rate: float | None) -
     if currency_code == "POINTS":
         if rate and rate > 0:
             await db.kv_set(bot_id, "cur:points_per_usd", rate)
-        _POINTS_CACHE.pop(bot_id, None)
         return
 
-    manual_rates = dict(await get_manual_rates(bot_id))
+    manual_rates = dict(await db.kv_get(bot_id, "cur:manual_rates", {}) or {})
     if rate is None or rate <= 0:
         manual_rates.pop(currency_code, None)
     else:
         manual_rates[currency_code] = round(rate, 4)
     await db.kv_set(bot_id, "cur:manual_rates", manual_rates)
-    _MANUAL_RATES_CACHE[bot_id] = (time.time(), manual_rates)
 
 
 async def usd_to_currency(usd_amount: float, currency_code: str, bot_id: int) -> float:

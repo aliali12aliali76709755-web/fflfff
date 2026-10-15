@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import datetime as dt
 import logging
 from typing import Any
@@ -423,56 +424,77 @@ async def init() -> None:
         ("discount_amount", "FLOAT", "DEFAULT 0.0"),
     ]
 
-    try:
-        async with engine.connect() as conn:
-            from sqlalchemy import text
-            for col_name, col_type, col_default in cols:
-                try:
-                    if is_pg:
-                        await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
-                    else:
-                        await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
-                except Exception:
-                    pass
-            await conn.commit()
-    except Exception:
-        pass
+    for col_name, col_type, col_default in cols:
+        try:
+            async with engine.connect() as conn:
+                from sqlalchemy import text
+                if is_pg:
+                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
+                else:
+                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
+                await conn.commit()
+        except Exception:
+            pass
 
     # ترقية أعمدة المال القديمة (FLOAT) إلى NUMERIC(18,4) وإضافة قيد عدم السالبية على PostgreSQL.
-    # آمنة وتُنفّذ مرة واحدة فقط عبر فحص المفتاح sys:numeric_migrated
+    # آمنة للتكرار: إن كان العمود رقمياً أصلاً أو القيد موجوداً تُتجاهل الخطوة.
     if is_pg:
-        migrated = await kv_get(0, "sys:numeric_migrated", False)
-        if not migrated:
-            try:
-                async with engine.connect() as conn:
-                    from sqlalchemy import text
-                    for table in Base.metadata.sorted_tables:
-                        for col in table.columns:
-                            if isinstance(col.type, Numeric):
-                                try:
-                                    await conn.execute(text(
-                                        f'ALTER TABLE {table.name} ALTER COLUMN {col.name} TYPE NUMERIC(18,4) USING {col.name}::numeric'))
-                                except Exception:
-                                    pass
+        from sqlalchemy import text
+        for table in Base.metadata.sorted_tables:
+            for col in table.columns:
+                if isinstance(col.type, Numeric):
                     try:
-                        await conn.execute(text(
-                            "ALTER TABLE user_balances ADD CONSTRAINT ck_balance_non_negative CHECK (balance_usd >= 0)"))
+                        async with engine.connect() as conn:
+                            await conn.execute(text(
+                                f'ALTER TABLE {table.name} ALTER COLUMN {col.name} TYPE NUMERIC(18,4) USING {col.name}::numeric'))
+                            await conn.commit()
                     except Exception:
                         pass
-                    await conn.commit()
-            except Exception:
-                pass
-            await kv_set(0, "sys:numeric_migrated", True)
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text(
+                    "ALTER TABLE user_balances ADD CONSTRAINT ck_balance_non_negative CHECK (balance_usd >= 0)"))
+                await conn.commit()
+        except Exception:
+            pass
 
 
 # ───────────────────────── KV ─────────────────────────
+# كاش داخل العملية لقراءات KV (إعدادات تُقرأ مع كل ضغطة زر وتتغير نادراً). كل الكتابة تمر عبر kv_set
+# فيبقى الكاش صحيحاً؛ ونُرجع نسخة عميقة حتى لا يغيّر المستدعي ما في الكاش بالخطأ.
+import copy as _copy
+_KV_CACHE: dict[tuple[int, str], tuple[float, Any]] = {}
+_KV_TTL = 300.0
+_MISSING = object()
+
+
+def kv_invalidate(bot_id: int | None = None) -> None:
+    if bot_id is None:
+        _KV_CACHE.clear()
+        return
+    for k in [k for k in _KV_CACHE if k[0] == bot_id]:
+        _KV_CACHE.pop(k, None)
+
+
 async def kv_get(bot_id: int, key: str, default: Any = None) -> Any:
-    async with Session() as s:
-        row = await s.get(KV, (bot_id, key))
-        return default if row is None else row.value
+    hit = _KV_CACHE.get((bot_id, key))
+    now_t = time.monotonic()
+    if hit is not None and now_t - hit[0] < _KV_TTL:
+        val = hit[1]
+    else:
+        async with Session() as s:
+            row = await s.get(KV, (bot_id, key))
+            val = _MISSING if row is None else row.value
+        if len(_KV_CACHE) > 50000:
+            _KV_CACHE.clear()
+        _KV_CACHE[(bot_id, key)] = (now_t, val)
+    if val is _MISSING:
+        return default
+    return _copy.deepcopy(val) if isinstance(val, (dict, list)) else val
 
 
 async def kv_set(bot_id: int, key: str, value: Any) -> None:
+    _KV_CACHE.pop((bot_id, key), None)
     for attempt in range(3):
         try:
             async with Session() as s:
@@ -487,6 +509,7 @@ async def kv_set(bot_id: int, key: str, value: Any) -> None:
             if attempt == 2:
                 raise
             await asyncio.sleep(0.04 * (attempt + 1))
+    _KV_CACHE.pop((bot_id, key), None)
 
 
 
@@ -497,12 +520,14 @@ async def kv_all(bot_id: int) -> dict[str, Any]:
 
 
 async def kv_replace_all(bot_id: int, data: dict[str, Any]) -> None:
+    kv_invalidate(bot_id)
     async with Session() as s:
         await s.execute(delete(KV).where(KV.bot_id == bot_id, KV.key.notlike("sys:%")))
         for k, v in data.items():
             if not k.startswith("sys:"):
                 s.add(KV(bot_id=bot_id, key=k, value=v))
         await s.commit()
+    kv_invalidate(bot_id)
  
  
 async def get_bot(bot_id: int) -> Bot | None:

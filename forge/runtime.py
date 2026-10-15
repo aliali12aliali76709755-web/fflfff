@@ -175,6 +175,9 @@ class Manager:
         await db.init()
         await crypto.init()
         await platform.preload()
+        from .modules import smm_agg
+        await smm_agg.seed_once()          # أول تشغيل: ربط مواقع seed_providers.txt
+        await smm_agg.load()
         await self._start_web()
         if not config.ADMIN_ID:  # المدير يُحدَّد تلقائياً: أول من يفتح الصانع
             config.ADMIN_ID = int(await db.kv_get(0, "sys:admin", 0) or 0)
@@ -212,19 +215,18 @@ class Manager:
         if not _web.enabled():        # المواقع معطّلة نهائياً: لا نشغّل خادم ويب ولا نفقاً
             self.web = None
             return
-        if self.web is None:
-            self.tunnel = None
-            try:
-                from .web import server as webserver
-                self.web = await webserver.start(self)
-            except Exception:
-                log.exception("web server failed to start; bots keep running")
-                self.web = None
-                return
+        if self.web is not None:
+            return  # الخادم يعمل مسبقاً (مثلاً عبر run.py)
+        self.tunnel = None
+        try:
+            from .web import server as webserver
+            self.web = await webserver.start(self)
+        except Exception:
+            log.exception("web server failed to start; bots keep running")
+            self.web = None
+            return
         # نفق https تلقائي (اختياري، للتشغيل من جهاز شخصي بلا نطاق): AUTO_TUNNEL=1 ولا يوجد PUBLIC_URL
         if config.PUBLIC_URL or not config.AUTO_TUNNEL:
-            return
-        if self.tunnel is not None:
             return
         try:
             from .web.tunnel import Tunnel
@@ -263,6 +265,36 @@ class Manager:
         await admin.expire_locks(self)
         await admin.daily_report(self)
         await self._sweep()
+        from .modules import smm_agg
+        await smm_agg.maybe_refresh()      # مقارنة أسعار مواقع التفاعل كل 24 ساعة
+        await smm_agg.maybe_track(self._order_note)   # متابعة حالة الطلبات + الاسترجاع التلقائي
+
+    async def _order_note(self, o, kind: str) -> None:
+        app = self.apps.get(o.bot_id)
+        if app is None:
+            return
+        if kind == "sms_ready":
+            from .ui import B, kb
+            async with db.Session() as s:
+                b = await s.get(db.Bot, o.bot_id)
+            pre = "t:@s:" if b is not None and b.template in ("megastore", "smmsms") else "t:"
+            try:
+                await app.bot.send_message(
+                    o.user_id,
+                    f"✅ رقمك جاهز — طلب #{o.order_id[-8:]}\n📌 {o.service_name}\n\n📱 <code>{o.target}</code>\n\n"
+                    "انسخ الرقم وضعه في التطبيق، ثم اضغط «فحص الكود». إن لم يصل الكود يمكنك الإلغاء واسترجاع المبلغ كاملاً.",
+                    parse_mode="HTML",
+                    reply_markup=kb([[B("🔄 فحص الكود", f"{pre}check_sms:{o.order_id}")],
+                                     [B("❌ إلغاء واسترجاع", f"{pre}cancel_refund:{o.order_id}")]]))
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        txt = ("↩️ تم إلغاء طلبك #{oid} من المزود وأُعيد المبلغ لرصيدك." if kind == "refund"
+               else "⚠️ طلبك #{oid} نُفّذ جزئياً، وأُعيدت قيمة الكمية الناقصة لرصيدك.").format(oid=o.order_id[-8:])
+        try:
+            await app.bot.send_message(o.user_id, txt)
+        except Exception:  # noqa: BLE001
+            pass
 
     async def _sweep(self) -> None:
         """كل ساعة: حذف طلبات الويب وحجوزاته التي لم يؤكدها أصحابها خلال يومين."""

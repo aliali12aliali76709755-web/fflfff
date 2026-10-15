@@ -21,9 +21,9 @@ log = logging.getLogger("forge.sms")
 
 # قائمة الدول المدعومة وأعلامها
 SMS_COUNTRIES: dict[str, dict[str, Any]] = {
-    "iq": {"name_ar": "العراق", "name_en": "Iraq", "flag": "🇮🇶", "id": 11, "mult": 1.2},
+    "iq": {"name_ar": "العراق", "name_en": "Iraq", "flag": "🇮🇶", "id": 47, "mult": 1.2},
     "eg": {"name_ar": "مصر", "name_en": "Egypt", "flag": "🇪🇬", "id": 21, "mult": 1.0},
-    "sa": {"name_ar": "السعودية", "name_en": "Saudi Arabia", "flag": "🇸🇦", "id": 14, "mult": 1.5},
+    "sa": {"name_ar": "السعودية", "name_en": "Saudi Arabia", "flag": "🇸🇦", "id": 53, "mult": 1.5},
     "us": {"name_ar": "الولايات المتحدة", "name_en": "USA", "flag": "🇺🇸", "id": 187, "mult": 0.9},
     "gb": {"name_ar": "المملكة المتحدة", "name_en": "UK", "flag": "🇬🇧", "id": 16, "mult": 1.3},
     "ru": {"name_ar": "روسيا", "name_en": "Russia", "flag": "🇷🇺", "id": 0, "mult": 0.8},
@@ -207,10 +207,14 @@ class SMSManager:
         bot_id: int,
         country: str,
         app: str,
+        force: bool = False,
     ) -> tuple[bool, str, str, str, float]:
         """يطلب رقماً من المزود الأول، وإذا فشل يبدل للمزود الاحتياطي.
         يعيد (نجاح؟، activation_id، phone_number، provider_name، cost_usd).
         """
+        from .. import hold
+        if not force and await hold.enabled("sms"):
+            return True, "", "", hold.HOLD, 0.0   # معلّق حتى يوافق مدير المنصة
         providers = await cls.get_configured_providers(bot_id)
         last_error = ""
 
@@ -230,6 +234,9 @@ class SMSManager:
     @classmethod
     async def check_sms_code(cls, bot_id: int, activation_id: str, provider_name: str) -> dict[str, Any]:
         """يفحص وصول كود الـ SMS من المزود."""
+        from .. import hold
+        if hold.is_held(provider_name) or not activation_id:
+            return {"status": "waiting", "code": ""}
         providers = await cls.get_configured_providers(bot_id)
         prov = next((p for p in providers if p.name == provider_name), providers[0] if providers else None)
         if prov is None:
@@ -256,12 +263,16 @@ class SMSManager:
                 return False, "الطلب غير موجود", 0.0
             if ord_row.status in ("completed", "canceled", "refunded") or (ord_row.details or {}).get("sms_code"):
                 return False, f"تمت معالجة الطلب مسبقاً ({ord_row.status})", 0.0
+            from .. import hold
+            if ord_row.provider_name == hold.BUSY:
+                return False, "جارٍ تجهيز رقمك الآن، انتظر لحظات ثم حاول", 0.0
+            held = ord_row.provider_name == hold.HOLD
 
             # 1. إلغاء لدى المزود إن أمكن
             providers = await cls.get_configured_providers(bot_id)
             prov = next((p for p in providers if p.name == ord_row.provider_name), providers[0] if providers else None)
             try:
-                if prov is not None:
+                if prov is not None and not held and ord_row.provider_order_id:
                     await prov.cancel_number(ord_row.provider_order_id)
             except Exception:
                 pass

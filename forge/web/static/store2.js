@@ -26,6 +26,8 @@
       maint: "المتجر في صيانة حالياً، نعود قريباً", guest: "افتح المتجر من داخل تيليجرام لتتمكن من الشراء", error: "حدث خطأ، حاول مجدداً",
       orders_count: "طلباتك", spent: "مشترياتك", paid_stars: "تم الدفع ✅ سيُضاف الرصيد خلال ثوانٍ", open_invoice: "فتح الفاتورة",
       eta: "مدة التنفيذ", refill: "ضمان تعويض", method_instr: "التعليمات", account_no: "الحساب",
+      card_title: "رصيد المتجر", available: "الرصيد المتاح للاستخدام", suggest: "مقترحات:", results: "نتائج البحث",
+      platform_support: "دعم المنصة والشكاوى", made_with: "متجر مبني على",
     },
     en: {
       home: "Store", orders: "Orders", wallet: "Wallet", account: "Account", dash: "Dashboard", admin: "Admin",
@@ -47,6 +49,8 @@
       maint: "The store is under maintenance, back soon", guest: "Open the store inside Telegram to buy", error: "Something went wrong",
       orders_count: "Orders", spent: "Spent", paid_stars: "Paid ✅ balance arrives in seconds", open_invoice: "Open invoice",
       eta: "ETA", refill: "Refill guarantee", method_instr: "Instructions", account_no: "Account",
+      card_title: "Store balance", available: "Available balance", suggest: "Try:", results: "Results",
+      platform_support: "Platform support & complaints", made_with: "Store built on",
     },
   };
 
@@ -100,17 +104,24 @@
   function stLabel(s) { return t("st_" + s) || s; }
   function stTag(s) { return { completed: "ok", approved: "ok", processing: "info", waiting_sms: "warn", queued: "warn", pending: "warn" }[s] || "bad"; }
 
+  function applyBg() {
+    const b = S.store.bg;
+    if (b) { document.body.classList.add("has-bg"); document.body.style.backgroundImage =
+      "linear-gradient(color-mix(in srgb, var(--bg) 82%, transparent), color-mix(in srgb, var(--bg) 82%, transparent)), url('" + b.replace(/'/g, "") + "')"; }
+    else { document.body.classList.remove("has-bg"); document.body.style.backgroundImage = ""; }
+  }
   function applyTheme() {
     const scheme = S.store.theme && S.store.theme !== "auto" ? S.store.theme : (tg && tg.colorScheme) || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     document.documentElement.dataset.theme = scheme;
     document.documentElement.style.setProperty("--accent", S.store.accent || "#6d5dfc");
     document.documentElement.lang = S.lang; document.documentElement.dir = S.lang === "ar" ? "rtl" : "ltr";
     try { tg && tg.setHeaderColor && tg.setHeaderColor(scheme === "dark" ? "#0f1115" : "#f4f5f8"); } catch (e) {}
+    applyBg();
   }
 
   async function setPref(o) {
-    if (o.lang) S.lang = o.lang;
-    if (o.currency) S.cur = o.currency;
+    if (o.lang) { S.lang = o.lang; S.user.lang = o.lang; }
+    if (o.currency) { S.cur = o.currency; S.user.currency = o.currency; }
     applyTheme();
     if (!S.user.is_guest) await api("/prefs", { body: o });
   }
@@ -129,60 +140,177 @@
     template: `<div class="bars"><div v-for="x in series" :key="x.d" :title="x.d+': '+x.v" :style="{height:(x.v/mx*100)+'%'}"></div></div>`,
   };
 
+  // ───────────── البحث الذكي ─────────────
+  const SYN = [["ببجي", "pubg", "شدات", "uc", "بوبجي"], ["فري فاير", "freefire", "free fire", "جواهر", "فريفاير"], ["نتفلكس", "netflix", "نتفليكس"],
+    ["انستغرام", "انستا", "instagram", "insta", "انستقرام", "إنستغرام"], ["تيك توك", "tiktok", "تيكتوك", "تك توك"], ["تيليجرام", "تلغرام", "telegram", "تليجرام", "تلجرام"],
+    ["يوتيوب", "youtube", "يوتوب"], ["فيسبوك", "facebook", "فيس"], ["تويتر", "twitter", "x"], ["واتساب", "whatsapp", "واتس"], ["متابعين", "followers", "فولو", "متابع"],
+    ["لايكات", "likes", "اعجابات", "لايك", "إعجابات"], ["مشاهدات", "views", "مشاهده", "فيوز"], ["تعليقات", "comments"], ["اعضاء", "members", "أعضاء", "مشتركين", "subscribers"],
+    ["نجوم", "stars", "ستارز"], ["بريميوم", "premium", "بريمي"], ["هدايا", "gifts", "هديه", "هدية"], ["رقم", "ارقام", "number", "numbers", "تفعيل", "sms"],
+    ["سبوتيفاي", "spotify"], ["شات جي بي تي", "chatgpt", "gpt"], ["ايتونز", "itunes", "ابل", "apple"], ["جوجل بلاي", "google play", "قوقل"], ["روبلوكس", "roblox"]];
+  function norm(s) {
+    return String(s || "").toLowerCase().replace(/[ً-ْـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/\s+/g, " ").trim();
+  }
+  const SYNN = SYN.map((g) => g.map(norm));
+  function expand(tok) { const g = SYNN.find((x) => x.some((w) => w === tok || (tok.length >= 3 && w.startsWith(tok)))); return g || [tok]; }
+  function lev1(a, b) { // مسافة تحرير ≤ 1 (حرف ناقص/زائد/خاطئ)
+    if (Math.abs(a.length - b.length) > 1) return false; let i = 0, j = 0, e = 0;
+    while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++e > 1) return false;
+      if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } }
+    return e + (a.length - i) + (b.length - j) <= 1;
+  }
+  function searchScore(p, toks, idx) {
+    let score = 0;
+    for (const tk of toks) {
+      const alts = expand(tk); let hit = 0;
+      for (const a of alts) {
+        if (idx.name.includes(a)) { hit = Math.max(hit, 3); }
+        else if (idx.all.includes(a)) { hit = Math.max(hit, 2); }
+        else if (a.length >= 4 && idx.words.some((w) => lev1(w, a))) { hit = Math.max(hit, 1); }
+      }
+      if (!hit) return 0; score += hit;
+    }
+    return score;
+  }
+
+  // ───────────── بطاقة الرصيد البنكية ─────────────
+  const BankCard = {
+    setup() {
+      const masked = computed(() => "•••• " + String(S.user.uid || "").slice(-4));
+      return { S, t, money, masked, curInfo };
+    },
+    template: `<div class="bank" @click="S.tab='wallet'">
+      <div class="row sb"><div class="row" style="gap:10px"><div class="chipcard"></div><b style="font-size:15px">{{t('card_title')}}</b></div>
+        <span class="curtag">{{curInfo.code}}</span></div>
+      <div class="tiny" style="opacity:.8;margin-top:14px">{{t('available')}}</div>
+      <div class="bal">{{money(S.user.balance_usd)}}</div>
+      <div class="row sb bankfoot"><div><b>{{S.user.name}}</b><div v-if="S.user.username" class="tiny" style="opacity:.75" dir="ltr">@{{S.user.username}}</div></div>
+        <div class="num" dir="ltr">{{masked}}</div></div>
+    </div>`,
+  };
+
+  // ───────────── شريط الإعلانات + النص المتحرك ─────────────
+  const Ads = {
+    setup() {
+      const i = ref(0), el = ref(null);
+      const ads = computed(() => (S.store.ads || []).filter((a) => a && a.img));
+      let timer = null;
+      function go(n) { if (!el.value || !ads.value.length) return; i.value = (n + ads.value.length) % ads.value.length; el.value.scrollTo({ left: -i.value * el.value.clientWidth * (S.lang === 'ar' ? 1 : -1), behavior: "smooth" }); }
+      function onScroll() { if (el.value) i.value = Math.round(Math.abs(el.value.scrollLeft) / el.value.clientWidth); }
+      onMounted(() => { timer = setInterval(() => { if (ads.value.length > 1) go(i.value + 1); }, 4500); });
+      function open(a) { if (!a.url) return; if (tg && a.url.startsWith("https://t.me/") && tg.openTelegramLink) tg.openTelegramLink(a.url); else if (tg && tg.openLink) tg.openLink(a.url); else window.open(a.url, "_blank"); }
+      return { S, ads, i, el, go, onScroll, open };
+    },
+    template: `<div>
+      <div v-if="S.store.ticker && S.store.ticker.text" class="ticker" :class="{still:S.store.ticker.mode==='static'}"><span>📣 {{S.store.ticker.text}}</span></div>
+      <div v-if="ads.length" class="ads mt"><div class="track" ref="el" @scroll.passive="onScroll">
+        <div class="slide" v-for="(a,k) in ads" :key="k" @click="open(a)"><img :src="a.img" alt="" loading="lazy"><div v-if="a.text" class="cap">{{a.text}}</div></div></div>
+        <div class="dots" v-if="ads.length>1"><span v-for="(a,k) in ads" :key="k" :class="{on:k===i}" @click="go(k)"></span></div></div>
+    </div>`,
+  };
+
   // ───────────── المتجر (الرئيسية) ─────────────
+  const CAT_KEY = () => "c2:" + storeId + ":" + S.lang;
   const Home = {
-    components: { Sheet },
+    components: { BankCard, Ads },
     setup() {
       const cat = reactive({ sections: [], categories: [], products: [], loaded: false });
       const sec = ref(""), cid = ref(""), q = ref("");
       const prod = ref(null);
+      function apply(j) { Object.assign(cat, { sections: j.sections, categories: j.categories, products: j.products, loaded: true }); if (!sec.value && j.sections.length) sec.value = j.sections[0].id; }
       async function load() {
+        try { const c = JSON.parse(localStorage.getItem(CAT_KEY()) || "null"); if (c && !cat.loaded) apply(c); } catch (e) {}
         const j = await api("/catalog?lang=" + S.lang);
-        if (j.ok) { Object.assign(cat, j, { loaded: true }); if (!sec.value && j.sections.length) sec.value = j.sections[0].id; }
+        if (j.ok) { apply(j); try { localStorage.setItem(CAT_KEY(), JSON.stringify({ sections: j.sections, categories: j.categories, products: j.products })); } catch (e) {} }
       }
       onMounted(load);
-      watch(() => S.lang, load);
-      const cats = computed(() => cat.categories.filter((c) => c.sec === sec.value));
-      const list = computed(() => {
-        const s = q.value.trim().toLowerCase();
-        if (s) return cat.products.filter((p) => (p.name + " " + (p.desc || "")).toLowerCase().includes(s)).slice(0, 60);
-        if (!cid.value) return [];
-        return cat.products.filter((p) => p.cat === cid.value);
+      watch(() => S.lang, () => { cat.loaded = false; load(); });
+      const index = computed(() => {
+        const cn = Object.fromEntries(cat.categories.map((c) => [c.id, c.name])), sn = Object.fromEntries(cat.sections.map((s) => [s.id, s.name]));
+        return cat.products.map((p) => { const name = norm(p.name), all = norm([p.name, p.desc, cn[p.cat], sn[p.sec], p.id.replace(/_/g, " ")].join(" "));
+          return { name, all, words: all.split(/[\s\-—()/]+/).filter((w) => w.length >= 3) }; });
       });
+      const results = computed(() => {
+        const toks = norm(q.value).split(" ").filter(Boolean);
+        if (!toks.length) return [];
+        const out = [];
+        cat.products.forEach((p, k) => { const sc = searchScore(p, toks, index.value[k]); if (sc) out.push([sc, p]); });
+        return out.sort((a, b) => b[0] - a[0] || a[1].price_usd - b[1].price_usd).slice(0, 60).map((x) => x[1]);
+      });
+      const KW = { ar: ["ببجي", "فري فاير", "نتفلكس", "تيليجرام", "انستغرام", "تيك توك", "يوتيوب", "متابعين", "أرقام", "نجوم", "بريميوم"],
+        en: ["PUBG", "Free Fire", "Netflix", "Telegram", "Instagram", "TikTok", "YouTube", "followers", "numbers", "stars", "premium"] };
+      const suggest = computed(() => {
+        if (!cat.loaded) return [];
+        return (KW[S.lang] || KW.ar).filter((k) => { const toks = norm(k).split(" "); return cat.products.some((p, i) => searchScore(p, toks, index.value[i])); }).slice(0, 7);
+      });
+      const cats = computed(() => cat.categories.filter((c) => c.sec === sec.value));
+      const kind = ref("");
+      watch(cid, () => { kind.value = ""; });
+      const inCat = computed(() => (cid.value ? cat.products.filter((p) => p.cat === cid.value) : []));
+      const kinds = computed(() => { const m = new Map(); inCat.value.forEach((p) => { if (p.kind && !m.has(p.kind)) m.set(p.kind, p.kind_name || p.kind); });
+        return inCat.value.length > 8 && m.size > 1 ? [...m].map(([id, name]) => ({ id, name })) : []; });
+      const list = computed(() => (q.value.trim() ? results.value : inCat.value.filter((p) => !kind.value || p.kind === kind.value)));
       const catName = computed(() => (cat.categories.find((c) => c.id === cid.value) || {}).name || "");
-      return { S, t, cat, sec, cid, q, cats, list, catName, prod, money };
+      // صفحات داخلية مع زر الرجوع في تيليجرام والمتصفح
+      function openProduct(p) { prod.value = p; nav.push(() => { prod.value = null; }); window.scrollTo(0, 0); }
+      function openCat(c) { cid.value = c.id; nav.push(() => { cid.value = ""; }); window.scrollTo(0, 0); }
+      return { S, t, cat, sec, cid, q, cats, list, catName, prod, money, openProduct, openCat, suggest, nav, kind, kinds };
     },
-    template: `<div class="wrap">
-      <div v-if="S.store.announcement" class="ann">📣 {{S.store.announcement}}</div>
-      <img v-if="S.store.banner" :src="S.store.banner" class="banner mt" alt="">
-      <div class="search mt"><span>🔎</span><input class="inp" v-model="q" :placeholder="t('search')"></div>
-      <template v-if="!q">
-        <div v-if="cat.sections.length>1" class="chips mt"><button v-for="s in cat.sections" :key="s.id" class="chip" :class="{on:sec===s.id}" @click="sec=s.id;cid=''">{{s.icon}} {{s.name}}</button></div>
-        <template v-if="!cid">
-          <div class="h">{{t('categories')}}</div>
-          <div v-if="!cat.loaded" class="grid"><div class="skel" v-for="i in 6" :key="i"></div></div>
-          <div v-else class="grid"><div v-for="c in cats" :key="c.id" class="cat" @click="cid=c.id"><div class="ic">{{c.icon}}</div><b>{{c.name}}</b></div></div>
-          <div v-if="cat.loaded && !cats.length" class="empty"><div>🛍</div>{{t('no_products')}}</div>
+    template: `<div>
+      <product-page v-if="prod" :p="prod" @close="nav.back()"></product-page>
+      <div class="wrap" v-show="!prod">
+        <template v-if="!cid && !q">
+          <bank-card v-if="!S.user.is_guest"></bank-card>
+          <ads></ads>
         </template>
-        <template v-else>
-          <div class="h"><span>{{catName}}</span><button class="btn sm" @click="cid=''">↩</button></div>
+        <div class="search mt"><span>🔎</span><input class="inp" v-model="q" :placeholder="t('search')" type="search" enterkeyhint="search"><button v-if="q" class="clr" @click="q=''">✕</button></div>
+        <div v-if="!q && !cid && suggest.length" class="chips mt"><span class="tiny muted" style="align-self:center">{{t('suggest')}}</span>
+          <button v-for="s in suggest" :key="s" class="chip ghost" @click="q=s">{{s}}</button></div>
+        <template v-if="!q">
+          <div v-if="cat.sections.length>1" class="chips mt"><button v-for="s in cat.sections" :key="s.id" class="chip" :class="{on:sec===s.id}" @click="sec=s.id;cid=''">{{s.icon}} {{s.name}}</button></div>
+          <template v-if="!cid">
+            <div class="h">{{t('categories')}}</div>
+            <div v-if="!cat.loaded" class="grid"><div class="skel" v-for="i in 6" :key="i"></div></div>
+            <div v-else class="grid"><div v-for="c in cats" :key="c.id" class="cat" @click="openCat(c)"><div class="ic">{{c.icon}}</div><b>{{c.name}}</b></div></div>
+            <div v-if="cat.loaded && !cats.length" class="empty"><div>🛍</div>{{t('no_products')}}</div>
+          </template>
+          <template v-else><div class="h"><span>{{catName}}</span><button class="btn sm" @click="nav.back()">↩</button></div>
+            <div v-if="kinds.length" class="chips kinds"><button class="chip" :class="{on:!kind}" @click="kind=''">{{t('all')}}</button>
+              <button v-for="k in kinds" :key="k.id" class="chip" :class="{on:kind===k.id}" @click="kind=k.id">{{k.name}}</button></div></template>
         </template>
-      </template>
-      <div class="plist">
-        <div v-for="p in list" :key="p.id" class="prod" @click="prod=p">
-          <div class="pi"><img v-if="p.img" :src="p.img" alt=""><span v-else>{{p.icon}}</span></div>
-          <div class="grow"><div class="pn">{{p.name}}</div><div class="pd">{{p.desc}}</div>
-            <span v-if="p.instant" class="tag ok">⚡ {{t('instant')}}</span></div>
-          <div class="price">{{money(p.price_usd)}}<div v-if="p.unit==='1k'" class="tiny muted" style="font-weight:500">{{t('per1k')}}</div></div>
+        <div v-else class="h"><span>{{t('results')}} ({{list.length}})</span></div>
+        <div class="plist">
+          <div v-for="p in list" :key="p.id" class="prod" @click="openProduct(p)">
+            <div class="pi"><img v-if="p.img && !p._bad" :src="p.img" alt="" loading="lazy" @error="p._bad=1"><span v-else>{{p.icon}}</span></div>
+            <div class="grow"><div class="pn">{{p.name}}</div><div class="pd">{{p.desc}}</div>
+              <span v-if="p.instant" class="tag ok">⚡ {{t('instant')}}</span></div>
+            <div class="price">{{money(p.price_usd)}}<div v-if="p.unit==='1k'" class="tiny muted" style="font-weight:500">{{t('per1k')}}</div></div>
+          </div>
         </div>
+        <div v-if="(cid||q) && cat.loaded && !list.length" class="empty"><div>🔍</div>{{t('no_products')}}</div>
       </div>
-      <div v-if="(cid||q) && !list.length" class="empty"><div>🔍</div>{{t('no_products')}}</div>
-      <buy-sheet v-if="prod" :p="prod" @close="prod=null"></buy-sheet>
     </div>`,
   };
 
-  const BuySheet = {
-    components: { Sheet }, props: ["p"], emits: ["close"],
+  // تنقّل داخلي: زر الرجوع في تيليجرام + زر الرجوع في المتصفح
+  const nav = {
+    stack: [],
+    push(undo) {
+      this.stack.push(undo);
+      try { history.pushState({ d: this.stack.length }, ""); } catch (e) {}
+      try { if (tg && tg.BackButton) tg.BackButton.show(); } catch (e) {}
+    },
+    back() { if (this.stack.length) history.back(); },
+    pop() {
+      const u = this.stack.pop(); if (u) u();
+      try { if (tg && tg.BackButton && !this.stack.length) tg.BackButton.hide(); } catch (e) {}
+    },
+    reset() { while (this.stack.length) { const u = this.stack.pop(); u && u(); } try { tg && tg.BackButton && tg.BackButton.hide(); } catch (e) {} },
+  };
+  window.addEventListener("popstate", () => nav.pop());
+  try { tg && tg.BackButton && tg.BackButton.onClick(() => nav.back()); } catch (e) {}
+
+  const ProductPage = {
+    props: ["p"], emits: ["close"],
     setup(props, { emit }) {
       const p = props.p;
       const qty = ref(p.unit === "1k" ? p.min : 1);
@@ -198,10 +326,12 @@
       }
       watch(qty, () => { quote.total = null; quote.discount = 0; });
       const enough = computed(() => (S.user.balance_usd || 0) + 1e-9 >= total.value);
+      const valid = computed(() => { const n = Number(qty.value); return n >= p.min && n <= p.max; });
       async function buy() {
         if (S.user.is_guest) return toast(t("guest"));
+        if (!valid.value) return toast(t("min") + " " + p.min + " · " + t("max") + " " + p.max.toLocaleString());
         if (p.target && !target.value.trim()) return toast(t("target_required"));
-        if (!enough.value) { emit("close"); S.tab = "wallet"; return toast(t("insufficient")); }
+        if (!enough.value) { nav.reset(); S.tab = "wallet"; return toast(t("insufficient")); }
         S.busy = true;
         const j = await api("/order", { body: { product_id: p.id, quantity: Number(qty.value), target: target.value.trim(), coupon_code: coupon.value.trim(),
           idempotency_key: "o" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) } });
@@ -209,37 +339,43 @@
         if (j.ok) {
           haptic(); toast(j.message || t("ordered"));
           if (j.new_balance_usd != null) S.user.balance_usd = j.new_balance_usd; else refreshBalance();
-          emit("close"); S.tab = "orders";
+          nav.reset(); S.tab = "orders";
         } else { haptic("error"); toast(j.message || t("error")); refreshBalance(); }
       }
-      return { S, t, p, qty, target, coupon, showCoupon, quote, total, subtotal, presets, enough, buy, applyCoupon, money };
+      return { S, t, p, qty, target, coupon, showCoupon, quote, total, subtotal, presets, enough, buy, applyCoupon, money, emit };
     },
-    template: `<sheet :title="p.name" @close="$emit('close')">
-      <p class="muted" style="margin:6px 0 0" v-if="p.desc">{{p.desc}}</p>
-      <div class="row wrapf" style="gap:6px;margin-top:8px">
-        <span class="tag">{{money(p.price_usd)}} <span v-if="p.unit==='1k'">/ 1000</span></span>
-        <span v-if="p.instant" class="tag ok">⚡ {{t('instant')}}</span>
-        <span v-if="p.eta" class="tag">⏱ {{p.eta}}</span><span v-if="p.refill" class="tag info">♻ {{t('refill')}}</span>
+    template: `<div class="ppage">
+      <div class="phero"><div class="pimg"><img v-if="p.img && !p._bad" :src="p.img" alt="" @error="p._bad=1"><span v-else>{{p.icon}}</span></div>
+        <h2>{{p.name}}</h2>
+        <div class="row wrapf" style="gap:6px;justify-content:center">
+          <span class="tag">{{money(p.price_usd)}} <span v-if="p.unit==='1k'">/ 1000</span></span>
+          <span v-if="p.instant" class="tag ok">⚡ {{t('instant')}}</span>
+          <span v-if="p.eta" class="tag">⏱ {{p.eta}}</span><span v-if="p.refill" class="tag info">♻ {{t('refill')}}</span></div></div>
+      <div class="wrap">
+        <div class="card" v-if="p.desc"><div class="muted" style="white-space:pre-wrap">{{p.desc}}</div></div>
+        <div class="card mt">
+          <template v-if="p.max>1">
+            <label class="lbl" style="margin-top:0">{{t('qty')}} <span class="c3">({{t('min')}} {{p.min.toLocaleString()}} · {{t('max')}} {{p.max.toLocaleString()}})</span></label>
+            <div class="qty"><button class="btn" @click="qty=Math.max(p.min,(+qty)-(p.unit==='1k'?100:1))">−</button>
+              <input class="inp" type="number" inputmode="numeric" v-model.number="qty" :min="p.min" :max="p.max">
+              <button class="btn" @click="qty=Math.min(p.max,(+qty)+(p.unit==='1k'?100:1))">+</button></div>
+            <div class="presets" v-if="presets.length"><button v-for="x in presets" :key="x" class="chip" :class="{on:+qty===x}" @click="qty=x">{{x.toLocaleString()}}</button></div>
+          </template>
+          <template v-if="p.target"><label class="lbl">{{p.target.label}}</label>
+            <input class="inp" v-model="target" :placeholder="p.target.kind==='url'?'https://':(p.target.kind==='username'?'@username':'')" dir="ltr"></template>
+          <div class="mt"><a href="#" @click.prevent="showCoupon=!showCoupon" class="tiny">🎟 {{t('coupon')}}</a>
+            <div v-if="showCoupon" class="row mt"><input class="inp" v-model="coupon" dir="ltr" style="text-transform:uppercase"><button class="btn sm" @click="applyCoupon">{{t('apply')}}</button></div></div>
+          <div class="sum">
+            <div class="row sb"><span class="muted">{{t('price')}}</span><span>{{money(subtotal)}}</span></div>
+            <div class="row sb" v-if="quote.discount>0"><span class="muted">{{t('discount')}}</span><span class="plus">− {{money(quote.discount)}}</span></div>
+            <div class="row sb tot"><span>{{t('total')}}</span><span>{{money(total)}}</span></div>
+            <div class="row sb tiny muted"><span>{{t('balance')}}</span><span>{{money(S.user.balance_usd)}}</span></div></div>
+        </div>
+        <div style="height:80px"></div>
       </div>
-      <template v-if="p.max>1">
-        <label class="lbl">{{t('qty')}} <span class="c3">({{t('min')}} {{p.min}} · {{t('max')}} {{p.max.toLocaleString()}})</span></label>
-        <div class="qty"><button class="btn" @click="qty=Math.max(p.min,(+qty)-(p.unit==='1k'?100:1))">−</button>
-          <input class="inp" type="number" inputmode="numeric" v-model.number="qty" :min="p.min" :max="p.max">
-          <button class="btn" @click="qty=Math.min(p.max,(+qty)+(p.unit==='1k'?100:1))">+</button></div>
-        <div class="presets" v-if="presets.length"><button v-for="x in presets" :key="x" class="chip" :class="{on:+qty===x}" @click="qty=x">{{x.toLocaleString()}}</button></div>
-      </template>
-      <template v-if="p.target"><label class="lbl">{{p.target.label}}</label>
-        <input class="inp" v-model="target" :placeholder="p.target.kind==='url'?'https://':(p.target.kind==='username'?'@username':'')" dir="ltr"></template>
-      <div class="mt"><a href="#" @click.prevent="showCoupon=!showCoupon" class="tiny">🎟 {{t('coupon')}}</a>
-        <div v-if="showCoupon" class="row mt"><input class="inp" v-model="coupon" dir="ltr" style="text-transform:uppercase"><button class="btn sm" @click="applyCoupon">{{t('apply')}}</button></div></div>
-      <div class="sum">
-        <div class="row sb"><span class="muted">{{t('price')}}</span><span>{{money(subtotal)}}</span></div>
-        <div class="row sb" v-if="quote.discount>0"><span class="muted">{{t('discount')}}</span><span class="plus">− {{money(quote.discount)}}</span></div>
-        <div class="row sb tot"><span>{{t('total')}}</span><span>{{money(total)}}</span></div>
-        <div class="row sb tiny muted"><span>{{t('balance')}}</span><span>{{money(S.user.balance_usd)}}</span></div>
-      </div>
-      <button class="btn p blk mt" :disabled="S.busy" @click="buy">{{enough?t('buy'):t('need_topup')}}</button>
-    </sheet>`,
+      <div class="buybar"><div class="in"><div><div class="tiny muted">{{t('total')}}</div><b style="font-size:18px">{{money(total)}}</b></div>
+        <button class="btn p grow" :disabled="S.busy" @click="buy">{{enough?t('buy'):t('need_topup')}}</button></div></div>
+    </div>`,
   };
 
   async function refreshBalance() {
@@ -390,7 +526,7 @@
 
   // تُكمل لوحتا البائع والمدير في store2_dash.js
   window.__S2 = { S, t, api, toast, haptic, copy, money, usd, stLabel, stTag, Sheet, Toggle, Bars, refreshBalance, setPref, curInfo };
-  window.__S2_parts = { Home, BuySheet, Orders, Wallet, Account };
+  window.__S2_parts = { Home, ProductPage, Orders, Wallet, Account };
 
   window.__S2_start = function (Dash, Admin) {
     const Pages = {
@@ -410,17 +546,25 @@
         const page = ref(null); // help | terms
         onMounted(async () => {
           if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
+          // فتح فوري من آخر نسخة محفوظة، ثم تحديث من السيرفر بالخلفية
+          const BK = "b2:" + storeId;
+          try { const c = JSON.parse(localStorage.getItem(BK) || "null");
+            if (c && c.user && c.user.uid === ((tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {}).id) {
+              Object.assign(S, { store: c.store, user: c.user, currencies: c.currencies, lang: c.user.lang || "ar", cur: c.user.currency || c.store.currency || "USD" });
+              applyTheme(); S.ready = true; } } catch (e) {}
           const j = await api("/boot");
           if (!j.ok) { S.ready = true; S.fatal = j.message || t("error"); return; }
           Object.assign(S, { store: j.store, user: j.user, currencies: j.currencies, lang: j.user.lang || "ar", cur: j.user.currency || j.store.currency || "USD" });
           applyTheme(); S.ready = true;
+          try { localStorage.setItem(BK, JSON.stringify({ store: j.store, user: j.user, currencies: j.currencies })); } catch (e) {}
           if (isAdminApp && !S.user.is_admin) S.fatal = "403";
           const qp = new URLSearchParams(location.search);
           const sp = (qp.get("tab") || startParam || "").toLowerCase();
           if (["wallet", "orders", "account"].includes(sp) || (sp === "dash" && (S.user.is_owner || S.user.is_admin))) S.tab = sp;
         });
-        watch(() => S.tab, () => window.scrollTo(0, 0));
-        return { S, t, tabs, page, money };
+        watch(() => S.tab, () => { nav.reset(); window.scrollTo(0, 0); });
+        function openLink(u) { if (tg && u.startsWith("https://t.me/") && tg.openTelegramLink) tg.openTelegramLink(u); else window.open(u, "_blank"); }
+        return { S, t, tabs, page, money, openLink };
       },
       template: `<div>
         <div v-if="!S.ready" class="wrap"><div class="skel mt" v-for="i in 5" :key="i"></div></div>
@@ -444,7 +588,9 @@
             <div class="foot" v-if="S.tab!=='dash' && S.tab!=='admin'">
               <a href="#" v-if="S.store.help" @click.prevent="page='help'">{{t('help')}}</a>
               <a href="#" v-if="S.store.terms" @click.prevent="page='terms'">{{t('terms')}}</a>
-              <div class="mt">© {{S.store.name}}</div></div>
+              <div class="mt">© {{S.store.name}}</div>
+              <div class="mt" v-if="S.store.platform && S.store.platform.report_url"><a href="#" @click.prevent="openLink(S.store.platform.report_url)">🛡 {{t('platform_support')}}</a>
+                <div class="tiny c3">{{t('made_with')}} {{S.store.platform.name}}</div></div></div>
           </template>
           <nav class="tabs" v-if="tabs.length>1"><div class="in">
             <button v-for="x in tabs" :key="x[0]" class="tab" :class="{on:S.tab===x[0]}" @click="S.tab=x[0]"><span class="ti">{{x[1]}}</span>{{t(x[0])}}</button></div></nav>
@@ -455,7 +601,7 @@
         <div class="toast" v-if="S.toast">{{S.toast}}</div>
       </div>`,
     });
-    app.component("buy-sheet", BuySheet);
+    app.component("product-page", ProductPage);
     app.component("sheet", Sheet);
     app.component("toggle", Toggle);
     app.component("bars", Bars);

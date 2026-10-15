@@ -378,6 +378,40 @@ async def atomic_dual_refund(
     }
 
 
+@_money_write
+async def partial_dual_refund(order_id: str, fraction: float, *, reason: str = "تنفيذ جزئي") -> tuple[bool, float]:
+    """استرجاع جزئي (تنفيذ ناقص من المزود): يُرد للمشتري والبائع نفس النسبة مما دفعاه فعلاً، مرة واحدة فقط."""
+    fraction = max(0.0, min(1.0, float(fraction)))
+    if fraction <= 0:
+        return False, 0.0
+    if fraction >= 0.999:
+        ok, _m, res = await atomic_dual_refund(order_id, reason=reason)
+        return ok, float(res.get("buyer_refund_usd", 0) if ok else 0)
+    async with db.Session() as s:
+        order = (await s.execute(select(db.ServiceOrder).where(db.ServiceOrder.order_id == order_id).with_for_update())).scalars().first()
+        if not order or order.is_dual_refunded or order.status in ("refunded", "canceled"):
+            return False, 0.0
+        bot_row = await s.get(db.Bot, order.bot_id)
+        seller_id = bot_row.owner_id if bot_row else 0
+        b_amt = round(await _net_paid(s, order.bot_id, order.user_id, order_id) * fraction, 4)
+        s_amt = round(await _net_paid(s, 0, seller_id, order_id) * fraction, 4) if seller_id else 0.0
+        if b_amt > 0:
+            await _move(s, order.bot_id, order.user_id, b_amt, "credit", "order_refund", ref_id=order_id,
+                        description=f"استرجاع جزئي للطلب #{order_id}: {reason}", tx=f"rfpbuy_{order_id}")
+        if s_amt > 0:
+            await _move(s, 0, seller_id, s_amt, "credit", "order_refund_cost", ref_id=order_id,
+                        description=f"استرجاع جزئي لتكلفة المنصة #{order_id}: {reason}", tx=f"rfpsell_{order_id}")
+        order.status = "completed"
+        order.is_dual_refunded = True
+        order.refund_reason = reason[:250]
+        try:
+            await s.commit()
+        except IntegrityError:
+            await s.rollback()
+            return False, 0.0
+    return True, b_amt
+
+
 async def platform_cost_for(owner_id: int, provider_cost_usd: float, *, tpl_key: str = "",
                             category_id: str = "", product_id: str = "", variant_id: str = "") -> float:
     """سعر المنصة على البائع = تكلفة المزود + هامش المنصة (حسب قواعد الهوامش في لوحة الإدارة)."""

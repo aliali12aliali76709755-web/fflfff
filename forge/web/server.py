@@ -266,10 +266,27 @@ async def errors_mw(req: web.Request, handler):
         return render.status_page("⚠️", "حدث خطأ غير متوقع", "حاول مرة أخرى بعد قليل.", status=500)
 
 
+@web.middleware
+async def speed_mw(req: web.Request, handler):
+    """سرعة: ضغط ردود الواجهة (gzip) وتخزين ملفات التصميم في المتصفح (لها رقم إصدار)."""
+    resp = await handler(req)
+    try:
+        p = req.path
+        if p.startswith("/static/") and (req.query.get("v") or p.endswith("vue.min.js")):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif p.startswith("/media/"):
+            resp.headers["Cache-Control"] = "public, max-age=2592000"
+        if (p.startswith("/api/v2/") or p.startswith("/static/")) and isinstance(resp, web.Response) and "gzip" in req.headers.get("Accept-Encoding", ""):
+            resp.enable_compression()
+    except Exception:  # noqa: BLE001
+        pass
+    return resp
+
+
 def build(mgr) -> web.Application:
     from . import media_pipe, miniapp_api, miniapp_view
 
-    app = web.Application(middlewares=[errors_mw], client_max_size=16 * 1024 * 1024)
+    app = web.Application(middlewares=[errors_mw, speed_mw], client_max_size=16 * 1024 * 1024)
     app[MGR] = mgr
     u = r"{username:[A-Za-z][A-Za-z0-9_]{3,39}}"
     app.router.add_get("/", landing)

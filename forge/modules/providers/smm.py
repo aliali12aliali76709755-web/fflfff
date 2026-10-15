@@ -28,6 +28,20 @@ PLATFORMS: dict[str, dict[str, str]] = {
     "x": {"name_ar": "إكس (تويتر)", "name_en": "X (Twitter)", "emoji": "🐦"},
     "facebook": {"name_ar": "فيسبوك", "name_en": "Facebook", "emoji": "👤"},
 }
+# منصات إضافية تظهر فقط عندما تتوفر لها خدمات من المواقع المربوطة
+for _k, (_a, _e, _i) in __import__("forge.modules.smm_agg", fromlist=["PLAT_NAMES"]).PLAT_NAMES.items():
+    PLATFORMS.setdefault(_k, {"name_ar": _a, "name_en": _e, "emoji": _i})
+
+
+def catalog_source() -> list[dict[str, Any]]:
+    """منتجات التفاعل: من مقارنة المواقع الحقيقية إن وُجدت، وإلا الكتالوج الافتراضي (للتجربة)."""
+    from .. import smm_agg
+    return smm_agg.items_now() or list(MOCK_CATALOG)
+
+
+def platforms_with_services() -> list[str]:
+    have = {s.get("platform") for s in catalog_source()}
+    return [k for k in PLATFORMS if k in have]
 
 # الخدمات الافتراضية الجاهزة في المحاكي القياسي (أسعار التكلفة الأصلية بالدولار لكل 1000)
 MOCK_CATALOG: list[dict[str, Any]] = [
@@ -149,6 +163,8 @@ class BaseSMMAdapter:
 class StandardSMMAdapter(BaseSMMAdapter):
     """محول لبروتوكول SMM Panel v2 القياسي العالمي."""
 
+    timeout = 15
+
     def __init__(self, name: str, api_url: str, api_key: str):
         self.name = name
         self.api_url = api_url.strip()
@@ -161,7 +177,7 @@ class StandardSMMAdapter(BaseSMMAdapter):
         def _req():
             encoded = urllib.parse.urlencode(data).encode("utf-8")
             req = urllib.request.Request(self.api_url, data=encoded, headers={"User-Agent": "BotForge/1.0"})
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 return json.loads(resp.read().decode())
 
         return await loop.run_in_executor(None, _req)
@@ -246,7 +262,7 @@ class SMMManager:
         # 2. هامش الربح العام للبائع
         margin_conf = await db.kv_get(bot_id, "smm:margin", {"type": "percent", "val": 30.0})
 
-        catalog = list(MOCK_CATALOG)
+        catalog = catalog_source()
         from .. import catalog as _cat
         from ..markup import floor_pricer
         cmap = await _cat.get_map("smm")
@@ -273,7 +289,7 @@ class SMMManager:
             # أرضية السعر: لا يبيع البائع أبداً بأقل من سعر المنصة (لا خسارة عليه في أي بيعة)
             final_usd = max(final_usd, round(floor(base_cost, sid) + 0.0049, 4) if base_cost > 0 else final_usd)
 
-            item = dict(s)
+            item = {k: v for k, v in s.items() if k not in ("offers", "gk")}
             item["base_cost_per_1k"] = base_cost
             item["price_per_1k_usd"] = final_usd
             if over.get("name_ar"):
@@ -293,10 +309,16 @@ class SMMManager:
         service_id: str,
         link: str,
         quantity: int,
+        force: bool = False,
     ) -> tuple[bool, str, str, float]:
         """يرسل الطلب للمزود الأول، وإذا فشل يبدل تلقائياً للمزود الاحتياطي (Failover).
         يعيد (نجاح؟، معرّف_طلب_المزود، اسم_المزود، تكلفة_المزود_بالدولار).
         """
+        from .. import hold, smm_agg
+        if not force and await hold.enabled("smm"):
+            return True, "", hold.HOLD, 0.0      # معلّق حتى يوافق مدير المنصة (يظهر للزبون قيد التنفيذ)
+        if smm_agg.get_item(service_id) is not None:
+            return await cls._dispatch_agg(service_id, link, quantity, bot_id)
         providers = await cls.get_configured_providers(bot_id)
         last_error = ""
         from .. import catalog as _cat
@@ -313,4 +335,35 @@ class SMMManager:
                 continue
 
         log.error("All SMM providers failed for bot %d service %s: %s", bot_id, service_id, last_error)
+        return False, "", "", 0.0
+
+    @classmethod
+    async def _dispatch_agg(cls, service_id: str, link: str, quantity: int, bot_id: int = 0) -> tuple[bool, str, str, float]:
+        """منتج من المقارنة: الأرخص أولاً، وإن فشل (رصيد/تعطل/خدمة محذوفة) ينتقل تلقائياً للموقع التالي
+        طالما تكلفته لا تتجاوز سعر المنصة على البائع (المنصة لا تخسر)."""
+        from .. import catalog as _cat
+        from .. import smm_agg
+        from ..markup import floor_pricer
+        conf = {p["api_url"]: p for p in await smm_agg.providers_conf()}
+        it = smm_agg.get_item(service_id) or {}
+        cap = None
+        try:
+            base = _cat.effective_cost(await _cat.get_map("smm"), service_id, float(it.get("rate_per_1k", 0)))
+            cap = (await floor_pricer(bot_id, "smm"))(base, service_id)
+        except Exception:  # noqa: BLE001
+            cap = None
+        last = ""
+        for o in smm_agg.offers_for(service_id, int(quantity), cap):
+            p = conf.get(o["u"])
+            if not p:
+                continue
+            try:
+                res = await StandardSMMAdapter(p.get("name", o["p"]), p["api_url"], p["api_key"]).add_order(o["sid"], link, quantity)
+                cost = round(quantity / 1000.0 * float(o["rate"]), 4)
+                log.info("SMM agg order %s via %s (svc %s) cost %.4f", service_id, p.get("name"), o["sid"], cost)
+                return True, res.get("order_id", ""), p.get("name", o["p"]), cost
+            except Exception as e:  # noqa: BLE001
+                last = str(e)
+                log.warning("SMM agg: %s failed for %s: %s — trying next", o["p"], service_id, e)
+        log.error("SMM agg: all panels failed for %s: %s", service_id, last)
         return False, "", "", 0.0

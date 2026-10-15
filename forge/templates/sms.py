@@ -641,7 +641,9 @@ class Sms(Tpl):
             )
             return
 
-        # 3. حفظ الطلب في قاعدة البيانات
+        # 3. حفظ الطلب في قاعدة البيانات (إن كان معلّقاً للموافقة يظهر للزبون «قيد التنفيذ»)
+        from ..modules import hold as _hold
+        held = prov_name == _hold.HOLD
         bot_cur = await currency.get_bot_currency(c.bot_id)
         cur_price = await currency.usd_to_currency(price_usd, bot_cur, bot_id=c.bot_id)
         async with db.Session() as s:
@@ -653,20 +655,22 @@ class Sms(Tpl):
                 seller_id=c.owner_id,
                 service_id=f"{country}_{app}",
                 service_name=svc_title,
-                target=phone_number,
+                target=phone_number or "-",
                 quantity=1,
                 cost_provider_usd=prov_cost,
                 cost_platform_usd=platform_fee_usd,
                 price_user_usd=price_usd,
                 currency=bot_cur,
                 price_user_currency=cur_price,
-                status="waiting_sms",
+                status="processing" if held else "waiting_sms",
                 provider_name=prov_name,
                 provider_order_id=act_id,
                 details={"country": country, "app": app, "rent_time": dt.datetime.utcnow().isoformat()},
             )
             s.add(s_order)
             await s.commit()
+        if held:
+            await _hold.after_save(ord_key)
 
         await self._show_active_screen(c, ord_key)
 
@@ -682,7 +686,18 @@ class Sms(Tpl):
 
         phone = ord_row.target
         svc_name = ord_row.service_name
-        code_received = ord_row.details.get("sms_code", "")
+        code_received = (ord_row.details or {}).get("sms_code", "")
+        if ord_row.status == "processing":
+            await c.edit(
+                ui.head(t("⚙️ طلبك قيد التنفيذ", "⚙️ Your order is processing")) +
+                f"📌 <b>{t('الخدمة:', 'Service:')}</b> {esc(svc_name)}\n"
+                f"🧾 <b>{t('رقم الطلب:', 'Order:')}</b> <code>#{ord_row.order_id[-8:]}</code>\n\n" +
+                t("جارٍ تجهيز رقمك، وسيصلك هنا برسالة فور جاهزيته مع زر فحص الكود.",
+                  "Your number is being prepared; you will get it here in a message with a check-code button."),
+                kb([[B(t("🔄 تحديث", "🔄 Refresh"), f"t:check_sms:{ord_id}")],
+                    [B(t("❌ إلغاء واسترجاع الرصيد", "❌ Cancel & refund"), f"t:cancel_refund:{ord_id}", style="danger")],
+                    [B(t("⬅️ الرئيسية", "⬅️ Home"), "t:home")]]))
+            return
 
         if code_received:
             text = (
@@ -725,8 +740,11 @@ class Sms(Tpl):
             res = await s.execute(select(db.ServiceOrder).where(db.ServiceOrder.order_id == ord_id))
             ord_row = res.scalars().first()
 
-        if not ord_row:
+        if not ord_row or ord_row.user_id != c.uid or ord_row.bot_id != c.bot_id:
             return
+        if ord_row.status == "processing":
+            await c.answer(t("⚙️ طلبك قيد التنفيذ، سيصلك الرقم برسالة خلال دقائق", "⚙️ Processing — the number will arrive shortly"), True)
+            return await self._show_active_screen(c, ord_id)
 
         res = await SMSManager.check_sms_code(c.bot_id, ord_row.provider_order_id, ord_row.provider_name)
         status = res.get("status")

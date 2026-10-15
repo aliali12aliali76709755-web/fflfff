@@ -400,7 +400,7 @@ async def admin_catalog(m, tpl: str) -> None:
     from .modules.providers import digital as pd, smm as psm, sms as pss, tgstars as pts
     cmap = await _cat.get_map(tpl)
     if tpl == "smm":
-        items = [(x["id"], x.get("name_ar", x["id"]), float(x["rate_per_1k"]), "/1k") for x in psm.MOCK_CATALOG]
+        items = [(x["id"], x.get("name_ar", x["id"]), float(x["rate_per_1k"]), "/1k") for x in psm.catalog_source()]
     elif tpl == "tgstars":
         items = [(x["id"], x.get("name_ar", x["id"]), float(x["rate_usd"]), "") for x in pts.TGSTARS_CATALOG]
     elif tpl == "digital":

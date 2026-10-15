@@ -306,7 +306,12 @@ async def admin_home(m: mk.M) -> None:
         ("أعضاء كل البوتات", ui.num(agg["total"])), ("رسائل كل البوتات", ui.num(agg["msgs"])),
         ("أعضاء جدد اليوم", agg["new"]), ("البلاغات", reports)]) +
         f"\n\n📈 <code>{ui.spark(series)}</code> مستخدمون جدد للصانع — 7 أيام ({sum(series)})" + ("\n\n" + "\n".join(flags) if flags else ""))
+    held_n = 0
+    if fid == 0:
+        from .modules import hold as _hold
+        held_n = len(await _hold.pending())
     await m.show(text, kb([
+        [B(f"🕒 طلبات بانتظار موافقتك ({held_n})", "m:hold:list")] if fid == 0 else None,
         [B("👥 المستخدمون", "m:adm:u"), B("🤖 البوتات", "m:adm:b:0:all")],
         [B("🏆 الأفضل", "m:adm:top"), B(f"🔒 المغلقة ({locked})", "m:adm:b:0:lock")],
         [B("📢 رسالة الترويج", "m:adm:pm"), B("📣 الإذاعة", "m:adm:bcm")],

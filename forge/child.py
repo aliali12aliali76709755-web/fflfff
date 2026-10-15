@@ -49,10 +49,31 @@ async def load_core(bot_id: int) -> dict:
 
 
 # ───────────────────────── تتبّع المستخدمين ─────────────────────────
+# تخفيف الكتابة: سجل العضو يُحدَّث في قاعدة البيانات مرة كل دقيقة على الأكثر (لا مع كل ضغطة زر)
+_TOUCH: dict[tuple[int, int], tuple[float, bool, str]] = {}
+_TOUCH_PENDING: dict[tuple[int, int], int] = {}
+
+
+def touch_forget(bot_id: int, uid: int) -> None:
+    """يُستدعى عند حظر/فك حظر عضو أو تغيير لغته من خارج البوت حتى يُقرأ سجله من جديد."""
+    _TOUCH.pop((bot_id, uid), None)
+
+
 async def touch(c: Ctx, *, start: bool = False, count: bool = True, source: str = "") -> tuple[bool, bool]:
     """يسجّل المستخدم ويحدّث نشاطه. يعيد (جديد؟، محظور؟)."""
     if not c.user:
         return False, False
+    key = (c.bot_id, c.user.id)
+    hit = _TOUCH.get(key)
+    if hit is not None and not start and time.time() - hit[0] < 60:
+        if count:
+            _TOUCH_PENDING[key] = _TOUCH_PENDING.get(key, 0) + 1
+            await db.bump(c.bot_id, msgs=1, **{f"h{db.now().hour:02d}": 1})
+        if hit[2] and c.x is not None and getattr(c.x, "user_data", None) is not None:
+            c.x.user_data["lang"] = hit[2]
+            c.lang = norm(hit[2])
+        return False, hit[1]
+    extra_msgs = _TOUCH_PENDING.pop(key, 0)
     u = c.user
     is_new = False
     banned = False
@@ -76,8 +97,13 @@ async def touch(c: Ctx, *, start: bool = False, count: bool = True, source: str 
                 row.blocked = False
                 if count:
                     row.msgs = (row.msgs or 0) + 1
+                row.msgs = (row.msgs or 0) + extra_msgs
                 banned = bool(row.banned)
+                saved_lang = row.lang or ""
                 await s.commit()
+            _TOUCH[key] = (time.time(), banned, saved_lang)
+            if len(_TOUCH) > 200000:
+                _TOUCH.clear()
             break
         except Exception as e:
             if attempt == 2:
@@ -868,6 +894,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     if row is not None:
                         row.lang = code
                         await s.commit()
+                touch_forget(c.bot_id, c.uid)
                 if c.x and hasattr(c.x, "user_data") and c.x.user_data is not None:
                     c.x.user_data["lang"] = code
                 c.lang = norm(code)
@@ -1466,6 +1493,7 @@ async def owner_cb(c: Ctx, a: list[str]) -> None:  # noqa: C901
             if row is not None:
                 row.banned = not row.banned
                 await s.commit()
+        touch_forget(c.bot_id, int(arg))
         await scr_member(c, int(arg))
     elif act == "umsg" and arg.isdigit():
         await ask("o_umsg", t("✉️ أرسل الرسالة التي تريد إيصالها لهذا العضو (نص أو وسائط).", "✉️ Send the message for this member (text or media)."), f"o:u:{arg}", uid=int(arg))
@@ -1780,6 +1808,7 @@ async def owner_input(c: Ctx, st: dict) -> None:  # noqa: C901
                 s.add(row)
             row.banned = k == "o_ban"
             await s.commit()
+        touch_forget(c.bot_id, int(text))
         await done(["ban"], t("✅ تم.", "✅ Done."))
     elif k == "o_wel":
         core.setdefault("welcome", {})["text"] = c.msg.text_html or ""

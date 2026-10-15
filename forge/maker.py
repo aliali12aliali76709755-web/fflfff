@@ -795,6 +795,7 @@ async def names_menu(m: M, bot_id: int) -> None:
 
 async def wipe_bot(bot_id: int) -> None:
     async with db.Session() as s:
+        db.kv_invalidate(bot_id)
         for model in (db.BUser, db.KV, db.Rec, db.Daily):
             await s.execute(delete(model).where(model.bot_id == bot_id))
         await s.execute(delete(db.Transfer).where(db.Transfer.bot_id == bot_id))
@@ -939,6 +940,37 @@ POLICY_EN = ("📜 <b>How reports and violations are handled</b>\n\nReports are 
 
 
 # ───────────────────────── الأزرار ─────────────────────────
+async def hold_cb(m, a: list[str]) -> None:
+    """الطلبات المعلّقة بانتظار موافقة المدير: موافقة وإرسال للموقع، أو رفض واسترجاع."""
+    from .modules import hold
+    from .runtime import manager
+    sub = a[0] if a else "list"
+    pk = int(a[1]) if len(a) > 1 and a[1].isdigit() else 0
+    if sub in ("ok", "no") and pk:
+        if sub == "ok":
+            ok, msg = await hold.approve(pk, notify=manager._order_note)
+        else:
+            ok, msg = await hold.reject(pk, reason="رُفض الطلب من الإدارة", notify=manager._order_note)
+        await m.answer(msg[:190], True)
+        if ok:
+            try:
+                await m.q.edit_message_reply_markup(reply_markup=kb([[B(msg[:60], "m:hold:list")]]))
+            except Exception:  # noqa: BLE001
+                pass
+        return
+    sm = await hold.summary()
+    lines = [f"🕒 <b>طلبات بانتظار موافقتك: {len(sm['orders'])}</b>"]
+    if sm["need"]:
+        lines.append("\n💳 <b>المطلوب شحنه في كل موقع:</b>")
+        lines += [f"• {k}: <b>${v:.2f}</b>" for k, v in sorted(sm["need"].items(), key=lambda x: -x[1])]
+    rows = []
+    for o in sm["orders"][:15]:
+        lines.append(f"\n#{o['order_id'][-6:]} · {o['name'][:40]} × {o['qty']} · ${o['cost']:.3f} ({o['provider'] or '—'})")
+        rows.append([B(f"✅ #{o['order_id'][-6:]}", f"m:hold:ok:{o['id']}"), B("↩️ رفض", f"m:hold:no:{o['id']}")])
+    rows.append([B("🔄 تحديث", "m:hold:list")])
+    await m.show("\n".join(lines), kb(rows))
+
+
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  # noqa: C901
     m = M(update, context)
     if (m.q.data or "") == "noop":
@@ -1175,6 +1207,10 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await m.show(T(f"📨 <b>طلب مراجعة إغلاق @{b.username}</b>\n\nاكتب في رسالة واحدة لماذا ترى أن الإغلاق يجب أن يُرفع، وما الذي أصلحته إن وُجد.\n\n/cancel للإلغاء",
                            f"📨 <b>Request a review for @{b.username}</b>\n\nExplain in one message why the bot should be reopened and what you fixed, if anything.\n\n/cancel to abort"),
                          kb([[B(T("❌ إلغاء", "❌ Cancel"), f"m:b:{b.id}")]]))
+        elif act == "hold":
+            if not m.is_admin:
+                return await m.answer(T("هذه اللوحة لمدير المنصة فقط.", "Admins only."), True)
+            await hold_cb(m, a[1:])
         elif act == "adm":
             if m.is_admin:
                 await admin.admin_cb(m, a[1:])
@@ -1194,12 +1230,47 @@ def _home_kb(m: M):
                [B(T("🆘 مساعدة", "🆘 Help"), "m:more"), m.home_btn()]])
 
 
+async def _complaint(m: M, st: dict) -> bool:
+    """يحفظ شكوى زبون ضد صاحب متجر ويبلغ إدارة المنصة فوراً."""
+    text = (m.msg.text or m.msg.caption or "").strip()
+    if text.lower() == "/cancel":
+        m.clear_state()
+        await m.send(m.t("تم الإلغاء.", "Canceled."))
+        return True
+    photo = m.msg.photo[-1].file_id if m.msg.photo else ""
+    if len(text) < 10 and not photo:
+        await m.send(m.t("اكتب تفاصيل أكثر لنتمكن من مساعدتك.", "Please add more details."))
+        return True
+    m.clear_state()
+    async with db.Session() as s:
+        rb = await s.get(db.Bot, st["id"])
+        s.add(db.Report(factory_id=m.fid, user_id=m.uid, kind="complaint",
+                        text=f"@{rb.username if rb else '?'} [{st['id']}] owner={rb.owner_id if rb else '?'}\n{text[:3000]}"))
+        await s.commit()
+    await m.send(m.t("✅ وصلت شكواك لإدارة المنصة وستُراجع في أقرب وقت. شكراً لك.", "✅ Your complaint reached the platform team. Thank you."))
+    note = (f"🚨 <b>شكوى ضد متجر</b> @{esc(rb.username if rb else '?')} (<code>{st['id']}</code>)\n"
+            f"👤 المشتكي: {esc(m.user.full_name)} (<code>{m.uid}</code>)" + (f" @{m.user.username}" if m.user.username else "")
+            + f"\n👑 المالك: <code>{rb.owner_id if rb else '?'}</code>\n\n{esc(text[:3000])}")
+    for aid in {config.ADMIN_ID, *config.ADMIN_IDS} - {0}:
+        try:
+            if photo:
+                await m.bot.send_photo(aid, photo, caption=note[:1000], parse_mode=ParseMode.HTML,
+                                       reply_markup=kb([[B("🗂 بطاقة البوت", f"m:adm:bc:{st['id']}")]]))
+            else:
+                await m.bot.send_message(aid, note, parse_mode=ParseMode.HTML, reply_markup=kb([[B("🗂 بطاقة البوت", f"m:adm:bc:{st['id']}")]]))
+        except TelegramError:
+            pass
+    return True
+
+
 async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:  # noqa: C901
     m = M(update, context)
     if m.msg is None or m.user is None:
         return False
     await ensure_user(m)
     m.udata["mseen"] = True
+    if (m.st or {}).get("k") == "complaint":
+        return await _complaint(m, m.st)
     if not await gate(m):
         return True
     T, st = m.t, m.st
@@ -1347,6 +1418,19 @@ async def on_start(update: Update, context: ContextTypes.DEFAULT_TYPE, param: st
             except Exception:
                 pass
         context.application.create_task(_approve_user_channels(m.uid))
+
+        # شكوى ضد صاحب متجر (من رابط «دعم المنصة» أسفل أي متجر) — تعمل حتى أثناء الصيانة
+        if param.startswith("report_") and param[7:].isdigit():
+            async with db.Session() as s:
+                rb = await s.get(db.Bot, int(param[7:]))
+            if rb is None:
+                return await m.send(m.t("⚠️ المتجر غير موجود.", "⚠️ Store not found."))
+            m.set_state("complaint", id=rb.id)
+            return await m.send(m.t(
+                f"🛡 <b>دعم المنصة — شكوى ضد متجر @{esc(rb.username or '')}</b>\n\n"
+                "اكتب شكواك بالتفصيل في رسالة واحدة (ماذا حدث، رقم الطلب إن وجد، المبلغ). يمكنك إرفاق صورة.\n"
+                "تصل مباشرة لإدارة المنصة وتُراجع بسرية.\n\n/cancel للإلغاء",
+                f"🛡 <b>Platform support — complaint about @{esc(rb.username or '')}</b>\n\nDescribe the issue in one message (order id, amount). You may attach a photo.\n\n/cancel to abort"))
 
         if not await gate(m):
             log.info("▶ /start uid=%s blocked by gate", m.uid)

@@ -94,7 +94,9 @@ class Smm(Tpl):
         if act == "cats":
             rows = []
             row = []
-            for plat_key, p in PLATFORMS.items():
+            from ..modules.providers.smm import platforms_with_services
+            for plat_key in platforms_with_services():
+                p = PLATFORMS[plat_key]
                 row.append(B(f"{p['emoji']} {p['name_ar'] if c.lang == 'ar' else p['name_en']}", f"t:plat:{plat_key}"))
                 if len(row) == 2:
                     rows.append(row)
@@ -110,11 +112,33 @@ class Smm(Tpl):
             )
 
         # ── خدمات المنصة ──
-        elif act == "plat":
+        elif act in ("plat", "pm"):
             plat_key = a[1]
+            metric = a[2] if act == "pm" and len(a) > 2 else ""
             p_info = PLATFORMS.get(plat_key, {"name_ar": plat_key, "name_en": plat_key, "emoji": "📱"})
             all_services = await SMMManager.get_services_catalog(c.bot_id)
-            services = [s for s in all_services if s.get("platform") == plat_key]
+            services = [s for s in all_services if s.get("platform") == plat_key and (not metric or s.get("category") == metric)]
+            if not metric and len(services) > 12:
+                from ..modules.smm_agg import METRIC_NAMES
+                mets = []
+                for s in services:
+                    if s.get("category") not in mets:
+                        mets.append(s.get("category"))
+                mrows, row = [], []
+                for m in mets:
+                    ma, me = METRIC_NAMES.get(m, (m, m))
+                    n = sum(1 for s in services if s.get("category") == m)
+                    row.append(B(f"{t(ma, me)} ({n})", f"t:pm:{plat_key}:{m}"))
+                    if len(row) == 2:
+                        mrows.append(row)
+                        row = []
+                if row:
+                    mrows.append(row)
+                mrows.append([B(t("⬅️ كل المنصات", "⬅️ All Platforms"), "t:cats")])
+                await c.edit(ui.head(f"{p_info['emoji']} {p_info['name_ar'] if c.lang == 'ar' else p_info['name_en']}") +
+                             t("اختر نوع الخدمة:", "Choose the service type:"), kb(mrows))
+                return
+            services = services[:40]
 
             if not services:
                 await c.edit(
@@ -130,7 +154,7 @@ class Smm(Tpl):
                 s_name = s.get("name_ar" if c.lang == "ar" else "name_en", s["name_ar"])
                 label = f"{s_name} — {price_str} / 1k"[:55]
                 rows.append([B(label, f"t:svc:{s['id']}")])
-            rows.append([B(t("⬅️ كل المنصات", "⬅️ All Platforms"), "t:cats")])
+            rows.append([B(t("⬅️ رجوع", "⬅️ Back"), f"t:plat:{plat_key}") if metric else B(t("⬅️ كل المنصات", "⬅️ All Platforms"), "t:cats")])
 
             await c.edit(
                 ui.head(f"{p_info['emoji']} {p_info['name_ar']}") +
@@ -1268,6 +1292,9 @@ class Smm(Tpl):
             s.add(s_order)
             await s.commit()
 
+        if disp_ok:
+            from ..modules import hold as _hold
+            await _hold.after_save(ord_key)
         if not disp_ok:
             # تعذّر التنفيذ عند كل المزودين: استرجاع فوري للطرفين بدل ترك المال معلقاً
             await ledger.atomic_dual_refund(ord_key, reason="تعذّر تنفيذ الطلب لدى المزود")

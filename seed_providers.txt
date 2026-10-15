@@ -1,0 +1,26 @@
+# مواقع زيادة التفاعل (SMM) — تُربط تلقائياً عند أول تشغيل للمنصة، ثم تُدار من لوحة الإدارة.
+# الصيغة: الموقع | مفتاح API   (الرابط يصبح https://الموقع/api/v2)
+# ⚠️ احذف هذا الملف أو غيّر المفاتيح قبل مشاركة المشروع مع أي أحد.
+peakerr.com | 66030e995303a8cac240aeec5cf44649
+worldofsmm.com | bfc6fac12e914066ab45fa617015cfe6
+telegramsmmpanel.org | cd1edaf8807402b6056486dfc0c27649
+tgpanel.org | 63f3c6f6f7374938654d316c4bb154a3
+morethanpanel.com | b1dbf1f13a4cdd3984a64dbca3f44d7c
+smmfollows.com | b3d6018f2650270b02ed00838acae9fe
+nicesmmpanel.com | 5dfc88b57c9e857586dd8208370e1851
+1xpanel.com | 7a8b42569965eeaec97c873ff1649ee9
+reliablesmm.com | 77661271ea358c9b74c719fe9c9dd287
+bulkfollows.com | 7b84f499858cd3b79019b4cff0698ddd
+smmpwr.com | 1807a2c5c4417fbf42d5e520d9cc5a88
+smmwiz.com | 8c8f9b0448a0d6399d7db67e94ffafc0
+smmpanelone.com | 91094251e601ba6ff74939295068eb24
+smmcloud.uk | 98ba789b44369db35af7500286c30bde
+smmkings.com | 07d96fe4cc42fc8d277630474dd359b9
+daosmm.com | eedbd6a8b97726f7d6087abfb30668a5
+smmrapid.com | d9de52ad782d78ce2bcefd089bc0d93d
+secsers.com | 77dd06cbee1409e663bdd8f65094eae8
+boostero.com | 99bae9c08f1f36145ccedcd78ad81399
+
+[sms]
+# مواقع أرقام التفعيل (بروتوكول SMS-Activate)
+hero-sms.com | A03A61d78546c69fbfc5d8b9996A21fe

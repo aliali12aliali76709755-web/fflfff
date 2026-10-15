@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+import asyncio
+
 import datetime as dt
 import json
 import logging
@@ -44,6 +46,9 @@ TG_CATS = {"stars": ("نجوم", "Stars", "⭐"), "premium": ("بريميوم", 
 STORE_DEFAULTS: dict[str, Any] = {
     "name": "", "desc": "", "logo": "", "banner": "", "accent": "#6d5dfc", "theme": "auto",
     "announcement": "",
+    "ads": [],                                        # [{img, text, url}] شريط إعلانات بصور متعددة
+    "ticker": {"text": "", "mode": "scroll"},        # نص إعلاني متحرك أو ثابت
+    "bg": "",                                         # صورة خلفية المتجر (اختيارية)
     "support": {"username": "", "whatsapp": "", "email": "", "channel": "", "links": []},
     "faq_enabled": False, "faq": [],
     "terms": "", "help": "",
@@ -83,13 +88,7 @@ def _parts(bot: db.Bot) -> tuple[str, ...]:
     return out + ("custom",)
 
 
-_STORE_CFG_CACHE: dict[int, tuple[float, dict]] = {}
-
-
 async def store_cfg(bot_id: int) -> dict[str, Any]:
-    hit = _STORE_CFG_CACHE.get(bot_id)
-    if hit and time.time() - hit[0] < 60:
-        return hit[1].copy()
     cfg = dict(STORE_DEFAULTS)
     saved = await db.kv_get(bot_id, "v2:store", {}) or {}
     if isinstance(saved, dict):
@@ -97,8 +96,7 @@ async def store_cfg(bot_id: int) -> dict[str, Any]:
     sup = dict(STORE_DEFAULTS["support"])
     sup.update(cfg.get("support") or {})
     cfg["support"] = sup
-    _STORE_CFG_CACHE[bot_id] = (time.time(), cfg)
-    return cfg.copy()
+    return cfg
 
 
 def _clean_str(v: Any, n: int) -> str:
@@ -112,22 +110,11 @@ def _clean_url(v: Any) -> str:
 
 async def _currencies(bot_id: int, allowed: list[str] | None = None) -> list[dict]:
     rates = await currency.fetch_live_rates()
-    manual_rates = (await currency.get_manual_rates(bot_id)) if bot_id else {}
     out = []
     for code, info in currency.CURRENCIES.items():
         if code == "POINTS" or (allowed and code not in allowed and code != "USD"):
             continue
-        if code == "USD":
-            rate = 1.0
-        elif code in manual_rates:
-            try:
-                rate = float(manual_rates[code])
-                if rate <= 0:
-                    rate = float(rates.get(code, info["default_rate"]))
-            except (ValueError, TypeError):
-                rate = float(rates.get(code, info["default_rate"]))
-        else:
-            rate = float(rates.get(code, info["default_rate"]))
+        rate = await currency.get_effective_rate(bot_id, code) if bot_id else float(rates.get(code, info["default_rate"]))
         out.append({"code": code, "ar": info["name_ar"], "en": info["name_en"], "symbol": info["symbol"],
                     "decimals": info.get("decimals", 2), "rate": rate})
     return out
@@ -150,13 +137,18 @@ _CAT_CACHE: dict[tuple[int, str], tuple[float, dict]] = {}
 def invalidate(bot_id: int) -> None:
     for k in [k for k in _CAT_CACHE if k[0] == bot_id]:
         _CAT_CACHE.pop(k, None)
-    _STORE_CFG_CACHE.pop(bot_id, None)
-    currency.invalidate_currency_cache(bot_id)
+    db.kv_invalidate(bot_id)
     try:
         from . import miniapp_auth
         miniapp_auth.invalidate_resolve_cache(bot_id)
     except Exception:
         pass
+
+
+def _kind_name(metric: str, plat: str, ar: bool) -> str:
+    from ..modules.smm_agg import FOLLOW_WORD, METRIC_NAMES, VIEW_WORD
+    a, e = (FOLLOW_WORD.get(plat) if metric == "followers" else VIEW_WORD.get(plat) if metric == "views" else None) or METRIC_NAMES.get(metric, (metric, metric))
+    return a if ar else e
 
 
 async def build_catalog(bot: db.Bot, lang: str = "ar") -> dict[str, Any]:
@@ -195,7 +187,9 @@ async def _build_catalog(bot: db.Bot, lang: str = "ar") -> dict[str, Any]:
                           "instant": stock > 0, "stock": stock})
     if "smm" in parts:
         sec("smm")
-        for pk, p in PLATFORMS.items():
+        from ..modules.providers.smm import platforms_with_services
+        for pk in platforms_with_services():
+            p = PLATFORMS[pk]
             cats.append({"id": f"smm:{pk}", "sec": "smm", "name": p["name_ar"] if ar else p["name_en"], "icon": p["emoji"]})
         for s in await SMMManager.get_services_catalog(bot.id):
             prods.append({"id": s["id"], "sec": "smm", "cat": f"smm:{s['platform']}",
@@ -203,7 +197,8 @@ async def _build_catalog(bot: db.Bot, lang: str = "ar") -> dict[str, Any]:
                           "icon": PLATFORMS.get(s["platform"], {}).get("emoji", "🚀"), "img": "",
                           "price_usd": float(s["price_per_1k_usd"]), "_base": float(s.get("base_cost_per_1k", 0)), "unit": "1k", "min": int(s["min"]), "max": int(s["max"]),
                           "target": {"label": "رابط الحساب أو المنشور" if ar else "Account or post link", "kind": "url"},
-                          "instant": True, "eta": s.get("avg_time", ""), "refill": bool(s.get("refill"))})
+                          "instant": True, "eta": s.get("avg_time", ""), "refill": bool(s.get("refill")),
+                          "kind": s.get("category", ""), "kind_name": _kind_name(s.get("category", ""), s["platform"], ar)})
     if "sms" in parts:
         sec("sms")
         from ..modules.markup import floor_pricer
@@ -301,11 +296,22 @@ async def boot(req: web.Request) -> web.Response:
                "support": cfg["support"], "faq": faq, "terms": cfg["terms"], "help": cfg["help"],
                "packages": cfg["packages"], "custom_min": cfg["custom_min"], "custom_max": cfg["custom_max"],
                "stars_enabled": bool(cfg["stars_enabled"]), "star_rate_usd": payments.STAR_RATE_USD,
-               "maintenance": maint, "bot_link": f"https://t.me/{bot.username}"},
-        user={"uid": ctx.uid, "name": ctx.uname, "role": ctx.role, "is_owner": ctx.is_owner, "is_admin": ctx.is_admin,
+               "maintenance": maint, "bot_link": f"https://t.me/{bot.username}",
+               "ads": cfg["ads"], "ticker": cfg["ticker"], "bg": cfg["bg"], "platform": await _platform_info(bot)},
+        user={"uid": ctx.uid, "name": ctx.uname, "username": ctx.user.get("username", ""), "role": ctx.role, "is_owner": ctx.is_owner, "is_admin": ctx.is_admin,
               "is_guest": ctx.is_guest, "lang": lang, "currency": cur or store_cur, "balance_usd": bal},
         currencies=await _currencies(bot.id, cfg.get("currencies") or None),
     )
+
+
+async def _platform_info(bot: db.Bot) -> dict:
+    """دعم المنصة (صانع البوتات) لشكاوى الزبائن ضد صاحب المتجر."""
+    try:
+        from ..runtime import manager
+        mk = manager.maker.bot.username if manager.maker is not None else ""
+    except Exception:
+        mk = ""
+    return {"name": config.BRAND, "report_url": f"https://t.me/{mk}?start=report_{bot.id}" if mk else ""}
 
 
 async def prefs(req: web.Request) -> web.Response:
@@ -322,6 +328,8 @@ async def prefs(req: web.Request) -> web.Response:
                 s.add(row)
             row.lang = lang
             await s.commit()
+        from ..child import touch_forget
+        touch_forget(ctx.bot.id, ctx.uid)
         try:
             from ..runtime import manager
             app = manager.apps.get(ctx.bot.id)
@@ -521,7 +529,7 @@ async def s_overview(req: web.Request) -> web.Response:
 def _order_dict(o: db.ServiceOrder, with_cost: bool = True) -> dict:
     d = o.details or {}
     out = {"order_id": o.order_id, "bot_id": o.bot_id, "user_id": o.user_id, "sec": o.tpl_key, "service": o.service_name, "target": o.target,
-           "qty": o.quantity, "price_usd": float(o.price_user_usd), "status": o.status, "provider": o.provider_name,
+           "qty": o.quantity, "price_usd": float(o.price_user_usd), "status": o.status, "provider": "" if o.provider_name in ("__hold__", "__approving__") else o.provider_name,
            "delivery": o.delivery_text or d.get("voucher", "") or d.get("sms_code", ""), "reason": o.refund_reason or "",
            "at": o.created.strftime("%Y-%m-%d %H:%M") if o.created else ""}
     if with_cost:
@@ -675,6 +683,8 @@ async def s_customer_action(req: web.Request) -> web.Response:
                 return _err("not_found", status=404)
             row.banned = act == "ban"
             await s.commit()
+        from ..child import touch_forget
+        touch_forget(ctx.bot.id, uid)
         return _ok()
     if act == "message":
         text = _clean_str(b.get("text"), 3500)
@@ -724,7 +734,6 @@ async def s_payments(req: web.Request) -> web.Response:
                     except (TypeError, ValueError):
                         pass
         await db.kv_set(bid, "v2:store", cfg)
-        invalidate(bid)
     cfg = await store_cfg(bid)
     methods = [dict({"currency": "USD", "on": False}, **m) for m in await payments.get_payment_methods(bid) if m.get("id") != "telegram_stars"]
     return _ok(methods=methods, packages=cfg["packages"], custom_min=cfg["custom_min"], custom_max=cfg["custom_max"],
@@ -848,6 +857,13 @@ async def s_store(req: web.Request) -> web.Response:
                      if isinstance(x, dict) and _clean_url(x.get("url"))]
             cfg["support"] = {"username": _clean_str(sp.get("username"), 40).lstrip("@"), "whatsapp": _clean_str(sp.get("whatsapp"), 20),
                               "email": _clean_str(sp.get("email"), 80), "channel": _clean_str(sp.get("channel"), 60).lstrip("@"), "links": links}
+        if "bg" in b:
+            cfg["bg"] = _clean_url(b["bg"])
+        if isinstance(b.get("ads"), list):
+            cfg["ads"] = [{"img": _clean_url(x.get("img")), "text": _clean_str(x.get("text"), 80), "url": _clean_url(x.get("url"))}
+                          for x in b["ads"][:10] if isinstance(x, dict) and _clean_url(x.get("img"))]
+        if isinstance(b.get("ticker"), dict):
+            cfg["ticker"] = {"text": _clean_str(b["ticker"].get("text"), 300), "mode": "static" if b["ticker"].get("mode") == "static" else "scroll"}
         if "faq_enabled" in b:
             cfg["faq_enabled"] = bool(b["faq_enabled"])
         if isinstance(b.get("faq"), list):
@@ -924,6 +940,38 @@ async def a_sellers(req: web.Request) -> web.Response:
     return _ok(bots=out)
 
 
+async def a_hold(req: web.Request) -> web.Response:
+    """الطلبات المعلّقة بانتظار موافقة المدير (تفاعل وأرقام) + تفعيل/إيقاف الموافقة اليدوية."""
+    await _ctx(req, "admin")
+    from ..modules import hold
+    from ..runtime import manager
+    res = {}
+    if req.method == "POST":
+        b = await _body(req)
+        act = b.get("action")
+        if act == "toggle" and b.get("sec") in hold.SECS:
+            await hold.set_enabled(b["sec"], bool(b.get("on")))
+        elif act in ("approve", "reject"):
+            try:
+                pk = int(b.get("id"))
+            except (TypeError, ValueError):
+                return _err("bad_id")
+            if act == "approve":
+                ok, msg = await hold.approve(pk, notify=manager._order_note)
+            else:
+                ok, msg = await hold.reject(pk, reason=_clean_str(b.get("reason"), 200) or "رُفض الطلب من الإدارة", notify=manager._order_note)
+            res = {"done": ok, "message": msg}
+        elif act == "approve_all":
+            sm = await hold.summary()
+            ids = [o["id"] for o in sm["orders"] if (not b.get("provider") or o["provider"] == b.get("provider")) and not o["busy"]]
+            okn = 0
+            for pk in ids:
+                ok, _m = await hold.approve(pk, notify=manager._order_note)
+                okn += ok
+            res = {"done": True, "message": f"أُرسل {okn} من {len(ids)}"}
+    return _ok(**(await hold.summary()), settings=await hold.settings(), **res)
+
+
 async def a_orders(req: web.Request) -> web.Response:
     """طلبات تحتاج تنفيذاً يدوياً من المنصة (الرقمي والمنتجات العامة)، مع التسليم أو الاسترجاع."""
     ctx = await _ctx(req, "admin")
@@ -988,7 +1036,8 @@ async def a_catalog(req: web.Request) -> web.Response:
     for sec in pcat.TPLS:
         cmap = await pcat.get_map(sec)
         if sec == "smm":
-            base = [(x["id"], x["name_ar"], x["rate_per_1k"]) for x in MOCK_CATALOG]
+            from ..modules.providers.smm import catalog_source
+            base = [(x["id"], x["name_ar"], x["rate_per_1k"]) for x in catalog_source()]
         elif sec == "tgstars":
             base = [(x["id"], x["name_ar"], x["rate_usd"]) for x in TGSTARS_CATALOG]
         elif sec == "digital":
@@ -1036,13 +1085,34 @@ async def a_provider_balance(req: web.Request) -> web.Response:
     mgr = {"smm": SMMManager, "sms": SMSManager, "tgstars": TGStarsManager}.get(sec)
     if mgr is None:
         return _err("bad_sec")
-    res = []
-    for p in await mgr.get_configured_providers(0):
+    async def one(p):
         try:
-            res.append({"name": p.name, "balance": float(await p.get_balance())})
-        except Exception as e:
-            res.append({"name": p.name, "error": str(e)[:120]})
-    return _ok(results=res)
+            return {"name": p.name, "balance": round(float(await p.get_balance()), 4)}
+        except Exception as e:  # noqa: BLE001
+            return {"name": p.name, "error": str(e)[:120]}
+    res = await asyncio.gather(*(one(p) for p in await mgr.get_configured_providers(0)))
+    return _ok(results=list(res))
+
+
+async def a_smm_sync(req: web.Request) -> web.Response:
+    """مقارنة أسعار مواقع التفاعل: الحالة، التحديث الآن، واستيراد مواقع بالجملة (لصق نص)."""
+    await _ctx(req, "admin")
+    from ..modules import smm_agg
+    await smm_agg.load()
+    msg = {}
+    if req.method == "POST":
+        b = await _body(req)
+        if b.get("action") == "import":
+            added, updated = await smm_agg.import_providers(str(b.get("text") or "")[:20000])
+            msg = {"added": added, "updated": updated}
+            if added or updated:
+                smm_agg.start_refresh()
+        elif b.get("action") == "refresh":
+            msg = {"started": smm_agg.start_refresh()}
+    st = smm_agg.status()
+    top = [{"id": i["id"], "name": i["name_ar"], "rate": i["rate_per_1k"], "n": i.get("n", 1),
+            "best": (i.get("offers") or [{}])[0].get("p", "")} for i in smm_agg.items_now()[:60]]
+    return _ok(status=st, items=top, **msg)
 
 
 async def a_topups(req: web.Request) -> web.Response:
@@ -1119,6 +1189,10 @@ def setup_routes(app: web.Application) -> None:
     r.add_post(f"{P}/seller/upload", upload_ep)
     r.add_get(f"{P}/admin/overview", a_overview)
     r.add_get(f"{P}/admin/provider_balance", a_provider_balance)
+    r.add_get(f"{P}/admin/smm_sync", a_smm_sync)
+    r.add_get(f"{P}/admin/hold", a_hold)
+    r.add_post(f"{P}/admin/hold", a_hold)
+    r.add_post(f"{P}/admin/smm_sync", a_smm_sync)
     for path, h in (("sellers", a_sellers), ("orders", a_orders), ("catalog", a_catalog), ("providers", a_providers),
                     ("topups", a_topups), ("settings", a_settings)):
         r.add_get(f"{P}/admin/{path}", h)

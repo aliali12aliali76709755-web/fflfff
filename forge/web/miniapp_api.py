@@ -1116,19 +1116,25 @@ async def create_store_order(req: web.Request) -> web.Response:
             await ledger.atomic_dual_refund(idempotency_key, reason="لا توجد أرقام متاحة حالياً")
             return web.json_response({"ok": False, "success": False, "error": "no_numbers",
                                       "message": "لا توجد أرقام متاحة حالياً لهذه الدولة والتطبيق، وأُعيد المبلغ لرصيدك."}, status=503)
+        from ..modules import hold as _hold
+        held = prov_name == _hold.HOLD
         async with db.Session() as s_:
             row = (await s_.execute(select(db.ServiceOrder).where(db.ServiceOrder.order_id == idempotency_key))).scalars().first()
             if row is not None:
-                row.target, row.provider_name, row.provider_order_id = sms_phone, prov_name, str(act_id)
-                row.cost_provider_usd, row.status = float(prov_cost or 0), "waiting_sms"
+                row.target, row.provider_name, row.provider_order_id = (sms_phone or "-"), prov_name, str(act_id)
+                row.cost_provider_usd, row.status = float(prov_cost or 0), ("processing" if held else "waiting_sms")
                 row.tpl_key = "sms"
                 await s_.commit()
-        order_status = "waiting_sms"
+        order_status = "processing" if held else "waiting_sms"
+        if held:
+            await _hold.after_save(idempotency_key)
 
     # التفاعل والنجوم: تنفيذ آلي فوري عبر المزود، وإن فشل الجميع يُسترجع للطرفين
     if qt.tpl in ("smm", "tgstars"):
         if await _auto_dispatch(bot, idempotency_key, qt.tpl, product_id, target_data, quantity):
             order_status = "processing"
+            from ..modules import hold as _hold
+            await _hold.after_save(idempotency_key)
         else:
             await ledger.atomic_dual_refund(idempotency_key, reason="تعذّر تنفيذ الطلب لدى المزود")
             return web.json_response({"ok": False, "success": False, "error": "provider_failed",
