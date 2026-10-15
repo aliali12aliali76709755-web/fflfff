@@ -1240,14 +1240,15 @@ class Smm(Tpl):
             description=f"طلب {draft['svc_name']} (×{draft['qty']:,})",
         )
         if not ok_debit:
-            if why == "seller_insufficient":
+            if why in ("seller_insufficient", "store_paused"):
                 await c.edit(
                     ui.head(t("⚠️ الخدمة غير متوفرة مؤقتاً", "⚠️ Service Temporarily Unavailable")) +
                     t("نعتذر منك، الخدمة غير متوفرة في الوقت الحالي. رصيدك محفوظ كاملاً ولم يُخصم أي شيء.",
                       "We apologize, this service is temporarily unavailable. Your full balance is safe."),
                     kb([[B(t("⬅️ الرئيسية", "⬅️ Home"), "t:home")]])
                 )
-                await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
+                if why == "seller_insufficient":
+                    await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
             else:
                 await c.answer(t("رصيدك غير كافٍ", "Insufficient balance"), True)
             return

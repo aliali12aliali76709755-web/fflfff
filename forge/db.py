@@ -384,7 +384,7 @@ class DiscountUsage(Base):
 
 _pool_args = {"pool_pre_ping": True}
 if not config.DATABASE_URL.startswith("sqlite"):
-    _pool_args.update(pool_size=10, max_overflow=10, pool_timeout=20, pool_recycle=300)
+    _pool_args.update(pool_size=4, max_overflow=2, pool_timeout=10, pool_recycle=60)
 
 engine = create_async_engine(config.DATABASE_URL, **_pool_args)
 Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -403,8 +403,14 @@ async def init() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Safe per-column migration outside the main transaction
     is_pg = not config.DATABASE_URL.startswith("sqlite")
+    if is_pg:
+        try:
+            if await kv_get(0, "sys:migrated_v4", False):
+                return
+        except Exception:
+            pass
+
     cols = [
         ("cost_platform_usd", "FLOAT", "DEFAULT 0.0"),
         ("currency", "VARCHAR(16)", "DEFAULT 'USD'"),
@@ -424,46 +430,43 @@ async def init() -> None:
         ("discount_amount", "FLOAT", "DEFAULT 0.0"),
     ]
 
-    try:
-        async with engine.connect() as conn:
-            from sqlalchemy import text
-            for col_name, col_type, col_default in cols:
-                try:
-                    if is_pg:
-                        await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
-                    else:
-                        await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
-                except Exception:
-                    pass
-            await conn.commit()
-    except Exception:
-        pass
+    for col_name, col_type, col_default in cols:
+        try:
+            async with engine.connect() as conn:
+                from sqlalchemy import text
+                if is_pg:
+                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
+                else:
+                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
+                await conn.commit()
+        except Exception:
+            pass
 
     # ترقية أعمدة المال القديمة (FLOAT) إلى NUMERIC(18,4) وإضافة قيد عدم السالبية على PostgreSQL.
-    # آمنة وتُنفّذ مرة واحدة فقط عبر فحص المفتاح sys:numeric_migrated
+    # آمنة للتكرار: إن كان العمود رقمياً أصلاً أو القيد موجوداً تُتجاهل الخطوة.
     if is_pg:
-        migrated = await kv_get(0, "sys:numeric_migrated", False)
-        if not migrated:
-            try:
-                from sqlalchemy import text
-                async with engine.connect() as conn:
-                    for table in Base.metadata.sorted_tables:
-                        for col in table.columns:
-                            if isinstance(col.type, Numeric):
-                                try:
-                                    await conn.execute(text(
-                                        f'ALTER TABLE {table.name} ALTER COLUMN {col.name} TYPE NUMERIC(18,4) USING {col.name}::numeric'))
-                                except Exception:
-                                    pass
+        from sqlalchemy import text
+        for table in Base.metadata.sorted_tables:
+            for col in table.columns:
+                if isinstance(col.type, Numeric):
                     try:
-                        await conn.execute(text(
-                            "ALTER TABLE user_balances ADD CONSTRAINT ck_balance_non_negative CHECK (balance_usd >= 0)"))
+                        async with engine.connect() as conn:
+                            await conn.execute(text(
+                                f'ALTER TABLE {table.name} ALTER COLUMN {col.name} TYPE NUMERIC(18,4) USING {col.name}::numeric'))
+                            await conn.commit()
                     except Exception:
                         pass
-                    await conn.commit()
-            except Exception:
-                pass
-            await kv_set(0, "sys:numeric_migrated", True)
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text(
+                    "ALTER TABLE user_balances ADD CONSTRAINT ck_balance_non_negative CHECK (balance_usd >= 0)"))
+                await conn.commit()
+        except Exception:
+            pass
+        try:
+            await kv_set(0, "sys:migrated_v4", True)
+        except Exception:
+            pass
 
 
 # ───────────────────────── KV ─────────────────────────

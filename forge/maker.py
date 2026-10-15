@@ -399,7 +399,8 @@ async def home(m: M, *, new: bool = False) -> None:
             [B(T("➕ ابنِ بوتاً جديداً", "➕ Build a new bot"), "m:new", style="success")],
             [B(T("🗂 بوتاتي", "🗂 My bots"), "m:bots"), B(T(f"💰 رصيدي ${seller_bal:,.2f}", f"💰 Balance ${seller_bal:,.2f}"), "m:wal")],
             [B(T("📊 لوحتي", "📊 My dashboard"), "m:stats"), B(T("🖥 لوحتي على الويب", "🖥 Web dashboard"), "m:web") if bots and web.enabled() else None],
-            [B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref"), B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
+            [B(T("💎 اشتراكي", "💎 Subscription"), "m:sub"), B(T("🎁 ادعُ أصدقاءك", "🎁 Invite friends"), "m:ref")],
+            [B(T("⚙️ الإعدادات", "⚙️ Settings"), "m:set")],
             [B(T("🆘 مساعدة", "🆘 Help"), "m:more")],
             [B(T("🛡 لوحة الإدارة (التطبيق)", "🛡 Admin app"), web_app=f"{config.PUBLIC_URL.rstrip('/')}/admin_app", style="primary")] if (m.is_admin and config.PUBLIC_URL) else None,
             [B(T("👑 لوحة الإدارة", "👑 Admin panel"), "m:adm:home"),
@@ -473,10 +474,73 @@ def suggest_username() -> str:
     return "".join(random.choices(string.ascii_uppercase, k=3)) + str(random.randint(100, 999)) + "_bot"
 
 
+async def sub_screen(m: M, key: str = "", note: str = "") -> None:
+    """💎 اشتراك المتاجر: الحالة، التجربة المجانية، الدفع من الرصيد، والتجديد التلقائي."""
+    import time as _t
+
+    from .modules import ledger, subs
+    T = m.t
+    c, st = await subs.conf(), await subs.state(m.uid)
+    act = st["until"] > _t.time() or m.is_admin
+    bal = await ledger.get_seller_balance_usd(m.uid)
+    head = T("💎 <b>اشتراك المتاجر</b>", "💎 <b>Store subscription</b>")
+    if not c["on"]:
+        return await m.show(head + "\n" + T("✅ الاشتراك غير مطلوب حالياً — كل الأنواع متاحة مجاناً.", "✅ No subscription needed right now."),
+                            kb([[m.home_btn()]]))
+    if m.is_admin:
+        status = T("👑 أنت مدير المنصة — معفى من الاشتراك.", "👑 Platform admin — exempt.")
+    elif act:
+        days = max(0, int((st["until"] - _t.time()) // 86400))
+        status = T(f"🟢 فعّال حتى <b>{_t.strftime('%Y-%m-%d', _t.gmtime(st['until']))}</b> (باقي {days} يوم)",
+                   f"🟢 Active until <b>{_t.strftime('%Y-%m-%d', _t.gmtime(st['until']))}</b> ({days} days left)")
+    else:
+        status = T("⚪️ غير مشترك", "⚪️ Not subscribed")
+    text = (f"{head}\n{ui.LINE}\n{status}\n\n" +
+            T(f"السعر: <b>${c['price']:.2f}</b> لكل {c['days']} يوماً\nيشمل كل متاجرك (التفاعل، الأرقام، الألعاب، النجوم، الشامل).\n"
+              f"💰 رصيدك في الصانع: <b>${bal:.2f}</b>\n🔄 التجديد التلقائي من الرصيد: <b>{'مفعّل' if st['auto'] else 'متوقف'}</b>",
+              f"Price: <b>${c['price']:.2f}</b> per {c['days']} days — covers all your stores.\n💰 Balance: <b>${bal:.2f}</b>\n"
+              f"🔄 Auto-renew: <b>{'on' if st['auto'] else 'off'}</b>") + (f"\n\n{note}" if note else ""))
+    rows = []
+    sfx = f":{key}" if key else ""
+    if not m.is_admin:
+        if not st["trial_used"] and c["trial_days"] > 0 and not act:
+            rows.append([B(T(f"🎁 جرّب مجاناً {c['trial_days']} أيام", f"🎁 Free trial {c['trial_days']} days"), f"m:sub:trial{sfx}", style="success")])
+        rows.append([B(T(f"💳 {'جدّد' if act else 'اشترك'} الآن (${c['price']:.2f})", f"💳 {'Renew' if act else 'Subscribe'} (${c['price']:.2f})"), f"m:sub:buy{sfx}",
+                       style="primary")])
+        if bal < c["price"]:
+            rows.append([B(T("⭐ اشحن رصيدك", "⭐ Top up"), "m:wals")])
+        rows.append([B(T("🔄 إيقاف التجديد التلقائي" if st["auto"] else "🔄 تفعيل التجديد التلقائي", "🔄 Toggle auto-renew"), f"m:sub:auto{sfx}")])
+    if key and act:
+        rows.append([B(T("➡️ أكمل إنشاء البوت", "➡️ Continue"), f"m:tpl:{key}", style="success")])
+    rows.append([m.home_btn()])
+    await m.show(text, kb(rows))
+
+
+async def sub_cb(m: M, a: list[str]) -> None:
+    from .modules import subs
+    sub = a[0] if a else ""
+    key = a[1] if len(a) > 1 else ""
+    note = ""
+    if sub == "trial":
+        ok, note = await subs.start_trial(m.uid)
+    elif sub == "buy":
+        ok, note = await subs.buy(m.uid)
+    elif sub == "auto":
+        st = await subs.state(m.uid)
+        await subs.set_auto(m.uid, not st["auto"])
+    if key and await subs.active(m.uid) and sub in ("trial", "buy"):
+        await m.answer(note[:190])
+        return await tpl_card(m, key)
+    await sub_screen(m, key, note)
+
+
 async def tpl_card(m: M, key: str) -> None:
     tpls = {t.key: t for t in await available(m)}
     if key not in tpls:
         return await pick_type(m)
+    from .modules import subs
+    if await subs.needs(m.uid, key):
+        return await sub_screen(m, key, m.t("🔒 هذا نوع تجاري (متجر) ويحتاج اشتراكاً فعّالاً.", "🔒 This is a commerce type and needs an active subscription."))
     t, T = tpls[key], m.t
     sug = suggest_username()
     m.set_state("token", tpl=key, sug=sug)
@@ -534,6 +598,11 @@ async def create_bot(m: M, token: str, tpl_key: str) -> None:
         return
     if tpl_key in p["off_tpls"]:
         await m.send(T("⚠️ هذا النوع غير متاح حالياً.", "⚠️ This type is unavailable right now."))
+        return
+    from .modules import subs
+    if await subs.needs(m.uid, tpl_key):
+        await m.send(T("🔒 هذا النوع التجاري يحتاج اشتراكاً فعّالاً. افتح «💎 اشتراكي» من الرئيسية.", "🔒 This commerce type needs an active subscription."),
+                     kb([[B(T("💎 اشتراكي", "💎 Subscription"), f"m:sub:show:{tpl_key}")]]))
         return
     wait = await m.send(T("⏳ أتحقق من التوكن وأشغّل بوتك…", "⏳ Checking the token and starting your bot…"))
     try:
@@ -1207,6 +1276,8 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await m.show(T(f"📨 <b>طلب مراجعة إغلاق @{b.username}</b>\n\nاكتب في رسالة واحدة لماذا ترى أن الإغلاق يجب أن يُرفع، وما الذي أصلحته إن وُجد.\n\n/cancel للإلغاء",
                            f"📨 <b>Request a review for @{b.username}</b>\n\nExplain in one message why the bot should be reopened and what you fixed, if anything.\n\n/cancel to abort"),
                          kb([[B(T("❌ إلغاء", "❌ Cancel"), f"m:b:{b.id}")]]))
+        elif act == "sub":
+            await sub_cb(m, a[1:])
         elif act == "hold":
             if not m.is_admin:
                 return await m.answer(T("هذه اللوحة لمدير المنصة فقط.", "Admins only."), True)

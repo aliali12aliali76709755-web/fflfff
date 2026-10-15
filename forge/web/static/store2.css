@@ -154,3 +154,10 @@ body.has-bg{background-attachment:fixed;background-size:cover;background-positio
 html,body{overflow-x:hidden;max-width:100%}
 #app{overflow-x:clip}
 .plist{grid-template-columns:minmax(0,1fr)}.plist>*{min-width:0}
+.price .old{display:block;font-size:11px;font-weight:500;color:var(--c3);text-decoration:line-through}
+.tag.sm{font-size:10px;padding:1px 6px;margin-top:3px}
+.salebar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0;padding:12px 14px;border-radius:16px;
+  background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;box-shadow:0 6px 18px rgba(239,68,68,.25)}
+.salebar.agent{background:linear-gradient(135deg,#0ea5e9,#6366f1)}
+.salebar .cd{text-align:center;background:rgba(0,0,0,.18);border-radius:12px;padding:4px 10px}
+.salebar .cd small{display:block;font-size:10px;opacity:.85}.salebar .cd b{font-size:17px;font-variant-numeric:tabular-nums;letter-spacing:.5px}

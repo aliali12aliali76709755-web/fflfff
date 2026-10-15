@@ -946,8 +946,9 @@ class Tgstars(Tpl):
             description=f"شحن {draft['svc_name']} للحساب {draft['username']}",
         )
         if not ok_debit:
-            if why == "seller_insufficient":
-                await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
+            if why in ("seller_insufficient", "store_paused"):
+                if why == "seller_insufficient":
+                    await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
                 await c.answer(t("الخدمة غير متوفرة مؤقتاً، رصيدك محفوظ.", "Service temporarily unavailable; your balance is safe."), True)
             else:
                 await c.answer(t("رصيدك غير كافٍ", "Insufficient balance"), True)

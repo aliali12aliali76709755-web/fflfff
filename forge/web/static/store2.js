@@ -15,6 +15,7 @@
       min: "الأدنى", max: "الأقصى", target_required: "أدخل البيانات المطلوبة", copy: "نسخ", copied: "تم النسخ ✅",
       no_orders: "لا توجد طلبات بعد", browse: "تصفّح المتجر", check_code: "فحص الكود", cancel_refund: "إلغاء واسترجاع",
       phone: "الرقم", code: "الكود", delivery: "بيانات التسليم", refund_note: "ملاحظة",
+      ends_in: "ينتهي خلال", off: "خصم", agent_price: "سعر الوكيل", offer: "خصم العرض", reorder: "اطلب مرة ثانية", reorder_q: "إعادة نفس الطلب بسعر",
       st_completed: "مكتمل", st_processing: "قيد التنفيذ", st_queued: "بانتظار التنفيذ", st_pending: "بانتظار التنفيذ",
       st_waiting_sms: "بانتظار الكود", st_refunded: "مُسترجع", st_canceled: "ملغي", st_failed: "فشل", st_approved: "مقبول", st_rejected: "مرفوض",
       topup_wallet: "شحن المحفظة", choose_amount: "اختر الباقة أو اكتب مبلغاً", custom_amount: "مبلغ مخصص", pay_stars: "ادفع بالنجوم",
@@ -38,6 +39,7 @@
       min: "Min", max: "Max", target_required: "Enter the required details", copy: "Copy", copied: "Copied ✅",
       no_orders: "No orders yet", browse: "Browse the store", check_code: "Check code", cancel_refund: "Cancel & refund",
       phone: "Number", code: "Code", delivery: "Delivery", refund_note: "Note",
+      ends_in: "Ends in", off: "off", agent_price: "Agent price", offer: "Offer discount", reorder: "Order again", reorder_q: "Repeat this order for",
       st_completed: "Completed", st_processing: "Processing", st_queued: "Queued", st_pending: "Pending",
       st_waiting_sms: "Waiting code", st_refunded: "Refunded", st_canceled: "Canceled", st_failed: "Failed", st_approved: "Approved", st_rejected: "Rejected",
       topup_wallet: "Top up wallet", choose_amount: "Pick a pack or type an amount", custom_amount: "Custom amount", pay_stars: "Pay with Stars",
@@ -62,8 +64,24 @@
   const storeId = fromPath || (startParam && /^[A-Za-z0-9_]{3,40}$/.test(startParam) ? startParam : "") || "default";
   const S = reactive({
     ready: false, lang: "ar", cur: "USD", store: {}, user: {}, currencies: [], tab: isAdminApp ? "admin" : "home",
-    toast: "", sheet: null, busy: false,
+    toast: "", sheet: null, busy: false, perks: { sales: [], agent: 0 }, now: Date.now(),
   });
+  setInterval(() => { S.now = Date.now(); }, 1000);
+  // عروض البائع + سعر الوكيل (العرض فقط؛ السعر النهائي يحسبه السيرفر)
+  function perkPct(p) {
+    let pct = 0;
+    for (const sl of (S.perks && S.perks.sales) || []) {
+      if (sl.ends * 1000 <= S.now) continue;
+      if (sl.scope === "all" || (sl.scope === "sec" && sl.target === p.sec) || (sl.scope === "pid" && sl.target === p.id)) pct = Math.max(pct, sl.pct);
+    }
+    return Math.max(pct, (S.perks && S.perks.agent) || 0);
+  }
+  const perkPrice = (p) => p.price_usd * (1 - perkPct(p) / 100);
+  function left(ends) {
+    const s = Math.max(0, Math.floor(ends - S.now / 1000)), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return (d ? d + "d " : "") + pad(h) + ":" + pad(m) + ":" + pad(x);
+  }
   const t = (k) => (T[S.lang] || T.ar)[k] || T.ar[k] || k;
 
   function guestId() {
@@ -253,7 +271,8 @@
       // صفحات داخلية مع زر الرجوع في تيليجرام والمتصفح
       function openProduct(p) { prod.value = p; nav.push(() => { prod.value = null; }); window.scrollTo(0, 0); }
       function openCat(c) { cid.value = c.id; nav.push(() => { cid.value = ""; }); window.scrollTo(0, 0); }
-      return { S, t, cat, sec, cid, q, cats, list, catName, prod, money, openProduct, openCat, suggest, nav, kind, kinds };
+      const sale = computed(() => ((S.perks && S.perks.sales) || []).filter((x) => x.ends * 1000 > S.now).sort((a, b) => b.pct - a.pct)[0] || null);
+      return { S, t, cat, sec, cid, q, cats, list, catName, prod, money, openProduct, openCat, suggest, nav, kind, kinds, perkPct, perkPrice, sale, left };
     },
     template: `<div>
       <product-page v-if="prod" :p="prod" @close="nav.back()"></product-page>
@@ -261,6 +280,9 @@
         <template v-if="!cid && !q">
           <bank-card v-if="!S.user.is_guest"></bank-card>
           <ads></ads>
+          <div v-if="sale" class="salebar"><div><b>🔥 {{sale.title}}</b><div class="tiny">{{t('off')}} {{sale.pct}}%</div></div>
+            <div class="cd"><small>{{t('ends_in')}}</small><b dir="ltr">{{left(sale.ends)}}</b></div></div>
+          <div v-else-if="S.perks && S.perks.agent" class="salebar agent"><b>🤝 {{t('agent_price')}}</b><b>-{{S.perks.agent}}%</b></div>
         </template>
         <div class="search mt"><span>🔎</span><input class="inp" v-model="q" :placeholder="t('search')" type="search" enterkeyhint="search"><button v-if="q" class="clr" @click="q=''">✕</button></div>
         <div v-if="!q && !cid && suggest.length" class="chips mt"><span class="tiny muted" style="align-self:center">{{t('suggest')}}</span>
@@ -283,7 +305,8 @@
             <div class="pi"><img v-if="p.img && !p._bad" :src="p.img" alt="" loading="lazy" @error="p._bad=1"><span v-else>{{p.icon}}</span></div>
             <div class="grow"><div class="pn">{{p.name}}</div><div class="pd">{{p.desc}}</div>
               <span v-if="p.instant" class="tag ok">⚡ {{t('instant')}}</span></div>
-            <div class="price">{{money(p.price_usd)}}<div v-if="p.unit==='1k'" class="tiny muted" style="font-weight:500">{{t('per1k')}}</div></div>
+            <div class="price"><span v-if="perkPct(p)" class="old">{{money(p.price_usd)}}</span>{{money(perkPrice(p))}}<div v-if="p.unit==='1k'" class="tiny muted" style="font-weight:500">{{t('per1k')}}</div>
+              <span v-if="perkPct(p)" class="tag bad sm">-{{Math.round(perkPct(p))}}%</span></div>
           </div>
         </div>
         <div v-if="(cid||q) && cat.loaded && !list.length" class="empty"><div>🔍</div>{{t('no_products')}}</div>
@@ -315,16 +338,25 @@
       const p = props.p;
       const qty = ref(p.unit === "1k" ? p.min : 1);
       const target = ref(""), coupon = ref(""), showCoupon = ref(false);
-      const quote = reactive({ total: null, discount: 0, msg: "" });
+      const quote = reactive({ total: null, discount: 0, msg: "", perk: 0, label: "", list: null });
       const unitPrice = computed(() => (p.unit === "1k" ? p.price_usd / 1000 : p.price_usd));
-      const subtotal = computed(() => unitPrice.value * (Number(qty.value) || 0));
-      const total = computed(() => (quote.total != null ? quote.total : subtotal.value));
+      const subtotal = computed(() => (quote.list != null ? quote.list : unitPrice.value * (Number(qty.value) || 0)));
+      let qT = null;
+      async function liveQuote() {
+        if (!perkPct(p)) return;
+        const n = Number(qty.value); if (!(n >= p.min && n <= p.max)) return;
+        const j = await api("/quote", { body: { product_id: p.id, quantity: n, coupon: showCoupon.value ? coupon.value : "" } });
+        if (j.ok) Object.assign(quote, { total: j.total_usd, discount: j.discount_usd, perk: j.perk_usd || 0, label: j.perk_label || "", list: j.list_usd });
+      }
+      onMounted(liveQuote);
+      const total = computed(() => (quote.total != null ? quote.total : subtotal.value * (1 - perkPct(p) / 100)));
       const presets = computed(() => (p.unit === "1k" ? [p.min, 1000, 5000, 10000, 50000].filter((x, i, a) => x >= p.min && x <= p.max && a.indexOf(x) === i) : []));
       async function applyCoupon() {
         const j = await api("/quote", { body: { product_id: p.id, quantity: Number(qty.value), coupon: coupon.value } });
-        if (j.ok) { quote.total = j.total_usd; quote.discount = j.discount_usd; quote.msg = j.coupon_msg || ""; toast(j.discount_usd > 0 ? "🎉 " + money(j.discount_usd) : (j.coupon_msg || t("error"))); }
+        if (j.ok) { Object.assign(quote, { total: j.total_usd, discount: j.discount_usd, msg: j.coupon_msg || "", perk: j.perk_usd || 0, label: j.perk_label || "", list: j.list_usd });
+          toast(j.discount_usd > 0 ? "🎉 " + money(j.discount_usd) : (j.coupon_msg || t("error"))); }
       }
-      watch(qty, () => { quote.total = null; quote.discount = 0; });
+      watch(qty, () => { Object.assign(quote, { total: null, discount: 0, perk: 0, list: null }); clearTimeout(qT); qT = setTimeout(liveQuote, 350); });
       const enough = computed(() => (S.user.balance_usd || 0) + 1e-9 >= total.value);
       const valid = computed(() => { const n = Number(qty.value); return n >= p.min && n <= p.max; });
       async function buy() {
@@ -342,13 +374,14 @@
           nav.reset(); S.tab = "orders";
         } else { haptic("error"); toast(j.message || t("error")); refreshBalance(); }
       }
-      return { S, t, p, qty, target, coupon, showCoupon, quote, total, subtotal, presets, enough, buy, applyCoupon, money, emit };
+      return { S, t, p, qty, target, coupon, showCoupon, quote, total, subtotal, presets, enough, buy, applyCoupon, money, emit, perkPct, perkPrice };
     },
     template: `<div class="ppage">
       <div class="phero"><div class="pimg"><img v-if="p.img && !p._bad" :src="p.img" alt="" @error="p._bad=1"><span v-else>{{p.icon}}</span></div>
         <h2>{{p.name}}</h2>
         <div class="row wrapf" style="gap:6px;justify-content:center">
-          <span class="tag">{{money(p.price_usd)}} <span v-if="p.unit==='1k'">/ 1000</span></span>
+          <span class="tag"><s v-if="perkPct(p)" class="c3">{{money(p.price_usd)}}</s> {{money(perkPrice(p))}} <span v-if="p.unit==='1k'">/ 1000</span></span>
+          <span v-if="perkPct(p)" class="tag bad">-{{Math.round(perkPct(p))}}%</span>
           <span v-if="p.instant" class="tag ok">⚡ {{t('instant')}}</span>
           <span v-if="p.eta" class="tag">⏱ {{p.eta}}</span><span v-if="p.refill" class="tag info">♻ {{t('refill')}}</span></div></div>
       <div class="wrap">
@@ -367,6 +400,7 @@
             <div v-if="showCoupon" class="row mt"><input class="inp" v-model="coupon" dir="ltr" style="text-transform:uppercase"><button class="btn sm" @click="applyCoupon">{{t('apply')}}</button></div></div>
           <div class="sum">
             <div class="row sb"><span class="muted">{{t('price')}}</span><span>{{money(subtotal)}}</span></div>
+            <div class="row sb" v-if="quote.perk>0"><span class="muted">{{quote.label || t('offer')}}</span><span class="plus">− {{money(quote.perk)}}</span></div>
             <div class="row sb" v-if="quote.discount>0"><span class="muted">{{t('discount')}}</span><span class="plus">− {{money(quote.discount)}}</span></div>
             <div class="row sb tot"><span>{{t('total')}}</span><span>{{money(total)}}</span></div>
             <div class="row sb tiny muted"><span>{{t('balance')}}</span><span>{{money(S.user.balance_usd)}}</span></div></div>
@@ -398,7 +432,19 @@
         const j = await api("/sms/cancel", { body: { order_id: o.order_id } });
         toast(j.message || ""); if (j.ok) { o.status = "canceled"; refreshBalance(); }
       }
-      return { S, t, items, load, check, cancel, copy, money, stLabel, stTag };
+      async function again(o) {
+        const q = await api("/quote", { body: { product_id: o.product_id, quantity: o.quantity } });
+        if (!q.ok) return toast(q.message || t("error"));
+        if (!confirm(t("reorder_q") + " " + money(q.total_usd) + "؟")) return;
+        if ((S.user.balance_usd || 0) + 1e-9 < q.total_usd) { S.tab = "wallet"; return toast(t("insufficient")); }
+        S.busy = true;
+        const j = await api("/order", { body: { product_id: o.product_id, quantity: o.quantity, target: o.tpl_key === "sms" ? "" : (o.target || ""),
+          idempotency_key: "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) } });
+        S.busy = false;
+        if (j.ok) { haptic(); toast(j.message || t("ordered")); if (j.new_balance_usd != null) S.user.balance_usd = j.new_balance_usd; load(); }
+        else { haptic("error"); toast(j.message || t("error")); }
+      }
+      return { S, t, items, load, check, cancel, copy, money, stLabel, stTag, again };
     },
     template: `<div class="wrap">
       <div class="h">{{t('orders')}} <button class="btn sm" @click="load">↻</button></div>
@@ -417,6 +463,7 @@
           <div v-else-if="o.delivery_data" class="sum"><div class="row sb"><span>📦 {{t('delivery')}}</span><button class="btn sm" @click="copy(o.delivery_data)">{{t('copy')}}</button></div>
             <div style="white-space:pre-wrap;word-break:break-all;font-family:monospace;font-size:13px">{{o.delivery_data}}</div></div>
           <div v-if="o.rejection_reason" class="tiny mt" style="color:var(--bad)">{{t('refund_note')}}: {{o.rejection_reason}}</div>
+          <button v-if="o.product_id" class="btn sm mt" :disabled="S.busy" @click="again(o)">🔁 {{t('reorder')}}</button>
         </div>
       </div></div>`,
   };
@@ -554,7 +601,8 @@
               applyTheme(); S.ready = true; } } catch (e) {}
           const j = await api("/boot");
           if (!j.ok) { S.ready = true; S.fatal = j.message || t("error"); return; }
-          Object.assign(S, { store: j.store, user: j.user, currencies: j.currencies, lang: j.user.lang || "ar", cur: j.user.currency || j.store.currency || "USD" });
+          Object.assign(S, { store: j.store, user: j.user, currencies: j.currencies, lang: j.user.lang || "ar", cur: j.user.currency || j.store.currency || "USD",
+            perks: j.perks || { sales: [], agent: 0 } });
           applyTheme(); S.ready = true;
           try { localStorage.setItem(BK, JSON.stringify({ store: j.store, user: j.user, currencies: j.currencies })); } catch (e) {}
           if (isAdminApp && !S.user.is_admin) S.fatal = "403";

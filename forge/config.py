@@ -35,10 +35,9 @@ TMP_DIR.mkdir(exist_ok=True)
 
 MAKER_TOKEN = os.environ.get("MAKER_TOKEN", "").strip()
 
-# مدير المنصة الرئيسي، ومدراء إضافيون اختياريون (ADMIN_IDS=111,222).
+# مدير المنصة الرئيسي، ومدراء إضافيون اختياريون (ADMIN_IDS=111,222). لا آيديات مكتوبة في الكود سوى المالك الافتراضي.
 ADMIN_ID = _int("ADMIN_ID", 8625825633)          # مدير المنصة ومالك صانع البوتات
-ADMIN_IDS: set[int] = {int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").split(",") if x.lstrip("-").isdigit()}
-ADMIN_IDS.update({8625825633, 6641619062})
+ADMIN_IDS: set[int] = {int(x) for x in os.environ.get("ADMIN_IDS", "6641619062").replace(" ", "").split(",") if x.lstrip("-").isdigit()}
 if ADMIN_ID:
     ADMIN_IDS.add(ADMIN_ID)
 
@@ -53,12 +52,21 @@ def is_admin(uid: int | None) -> bool:
     except (ValueError, TypeError):
         return False
 
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 _raw_db = os.environ.get("DATABASE_URL", "").strip()
 if _raw_db:
     if _raw_db.startswith("postgres://"):
         _raw_db = _raw_db.replace("postgres://", "postgresql+asyncpg://", 1)
     elif _raw_db.startswith("postgresql://") and not _raw_db.startswith("postgresql+"):
         _raw_db = _raw_db.replace("postgresql://", "postgresql+asyncpg://", 1)
+    _raw_db = _raw_db.replace("sslmode=", "ssl=")
+    if "render.com" in _raw_db and "ssl=" not in _raw_db:
+        _raw_db += ("&" if "?" in _raw_db else "?") + "ssl=require"
     DATABASE_URL = _raw_db
 else:
     # لا كلمات سر داخل الكود إطلاقاً: قاعدة الإنتاج تُضبط فقط عبر DATABASE_URL في .env أو إعدادات Render.

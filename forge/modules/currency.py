@@ -94,10 +94,6 @@ async def fetch_live_rates() -> dict[str, float]:
                     for c_code in CURRENCIES:
                         if c_code == "POINTS":
                             continue
-                        # العملات ذات أسعار السوق الموازية: لا تُستبدل بالأسعار الرسمية القديمة للبنوك
-                        if c_code in ("SYP", "IRR", "LBP", "SDG", "YER"):
-                            rates[c_code] = float(CURRENCIES[c_code]["default_rate"])
-                            continue
                         if c_code in live:
                             rates[c_code] = float(live[c_code])
                     log.info("Live currency rates refreshed successfully from %s", url)

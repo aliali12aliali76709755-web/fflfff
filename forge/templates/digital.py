@@ -1178,8 +1178,9 @@ class Digital(Tpl):
                 await DigitalManager.return_voucher_to_stock(c.bot_id, draft["sid"], voucher_code)
             if why == "duplicate":
                 await c.answer(t("تم تنفيذ هذا الطلب مسبقاً ✅", "Order already placed ✅"), True)
-            elif why == "seller_insufficient":
-                await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
+            elif why in ("seller_insufficient", "store_paused"):
+                if why == "seller_insufficient":
+                    await c.notify_owner(f"⚠️ فشل طلب لزبونك #{ord_key}: رصيدك في الصانع لا يكفي تكلفة المنصة (${platform_fee_usd:.2f}). اشحن رصيدك ليستمر البيع.")
                 await c.answer(t("الخدمة غير متوفرة مؤقتاً، رصيدك محفوظ.", "Service temporarily unavailable; your balance is safe."), True)
             else:
                 await c.answer(t("رصيدك غير كافٍ", "Insufficient balance"), True)

@@ -273,6 +273,10 @@ async def purchase(
     """
     if price_usd <= 0 or platform_cost_usd < 0:
         return False, "invalid_amount", await get_user_balance_usd(bot_id, buyer_id)
+    from . import subs
+    if not await subs.store_open(bot_id, seller_id):
+        # اشتراك البائع منتهٍ: لا بيع، ورصيد الزبون محفوظ (يرى «غير متوفر مؤقتاً»)
+        return False, "store_paused", await get_user_balance_usd(bot_id, buyer_id)
     tx_buy, tx_cost = f"buy_{order_id}", f"cost_{order_id}"
     async with db.Session() as s:
         dup = (await s.execute(select(db.LedgerEntry).where(db.LedgerEntry.tx_id == tx_buy))).scalars().first()

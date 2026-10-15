@@ -215,19 +215,18 @@ class Manager:
         if not _web.enabled():        # المواقع معطّلة نهائياً: لا نشغّل خادم ويب ولا نفقاً
             self.web = None
             return
-        if self.web is None:
-            self.tunnel = None
-            try:
-                from .web import server as webserver
-                self.web = await webserver.start(self)
-            except Exception:
-                log.exception("web server failed to start; bots keep running")
-                self.web = None
-                return
+        if self.web is not None:
+            return  # الخادم يعمل مسبقاً (مثلاً عبر run.py)
+        self.tunnel = None
+        try:
+            from .web import server as webserver
+            self.web = await webserver.start(self)
+        except Exception:
+            log.exception("web server failed to start; bots keep running")
+            self.web = None
+            return
         # نفق https تلقائي (اختياري، للتشغيل من جهاز شخصي بلا نطاق): AUTO_TUNNEL=1 ولا يوجد PUBLIC_URL
         if config.PUBLIC_URL or not config.AUTO_TUNNEL:
-            return
-        if self.tunnel is not None:
             return
         try:
             from .web.tunnel import Tunnel
@@ -269,6 +268,31 @@ class Manager:
         from .modules import smm_agg
         await smm_agg.maybe_refresh()      # مقارنة أسعار مواقع التفاعل كل 24 ساعة
         await smm_agg.maybe_track(self._order_note)   # متابعة حالة الطلبات + الاسترجاع التلقائي
+        from .modules import insights, perks, subs
+        for job in (subs.sweep(self._maker_note), perks.daily_reports(self), insights.check_balances(self._admins_note)):
+            try:
+                await job
+            except Exception:  # noqa: BLE001
+                log.exception("periodic job failed")
+
+    async def _maker_note(self, uid: int, text: str) -> None:
+        """رسالة لبائع من بوت الصانع."""
+        if self.maker is None:
+            return
+        try:
+            from .ui import B, kb
+            await self.maker.bot.send_message(uid, text, parse_mode="HTML", reply_markup=kb([[B("💎 اشتراكي", "m:sub"), B("💰 رصيدي", "m:wal")]]))
+        except Exception:  # noqa: BLE001
+            pass
+
+    async def _admins_note(self, text: str) -> None:
+        if self.maker is None:
+            return
+        for aid in {config.ADMIN_ID, *config.ADMIN_IDS} - {0}:
+            try:
+                await self.maker.bot.send_message(aid, text, parse_mode="HTML")
+            except Exception:  # noqa: BLE001
+                pass
 
     async def _order_note(self, o, kind: str) -> None:
         app = self.apps.get(o.bot_id)

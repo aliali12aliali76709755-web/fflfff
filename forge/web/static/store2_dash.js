@@ -104,6 +104,7 @@
         const body = { uid: c.uid, action };
         if (action === "credit" || action === "debit") { const v = ask(AR("المبلغ بالدولار:", "Amount (USD):")); if (!v) return; body.amount_usd = Number(v); body.note = ask(AR("ملاحظة (اختياري):", "Note:")) || ""; }
         if (action === "message") { const v = ask(AR("نص الرسالة:", "Message:")); if (!v) return; body.text = v; }
+        if (action === "agent") { const v = ask(AR("نسبة خصم الوكيل % (0 لإلغائه):", "Agent discount % (0 to remove):"), c.agent_pct || 10); if (v === null) return; body.pct = Number(v); }
         const j = await api("/seller/customers", { body }); toast(j.ok ? "✅" : (j.message || "⚠️")); if (j.ok) load();
       }
       return { q, items, load, act, usd, AR };
@@ -112,9 +113,10 @@
       <div class="search"><span>🔎</span><input class="inp" v-model="q" @keyup.enter="load" :placeholder="AR('اسم، يوزر أو آيدي','Name, username or id')"></div>
       <div v-if="items===null" class="skel mt"></div>
       <div class="plist mt"><div class="card" v-for="c in items" :key="c.uid">
-        <div class="row sb"><div><b>{{c.name||c.uid}}</b> <span class="tiny muted" v-if="c.username">@{{c.username}}</span><div class="tiny c3">{{c.uid}} · {{c.last_seen}}</div></div><b>{{usd(c.balance_usd)}}</b></div>
+        <div class="row sb"><div><b>{{c.name||c.uid}}</b> <span v-if="c.agent_pct" class="tag info">🤝 {{c.agent_pct}}%</span> <span class="tiny muted" v-if="c.username">@{{c.username}}</span><div class="tiny c3">{{c.uid}} · {{c.last_seen}}</div></div><b>{{usd(c.balance_usd)}}</b></div>
         <div class="row wrapf mt" style="gap:6px"><button class="btn sm" @click="act(c,'credit')">➕ {{AR('رصيد','Credit')}}</button><button class="btn sm" @click="act(c,'debit')">➖ {{AR('خصم','Debit')}}</button>
           <button class="btn sm" @click="act(c,'message')">✉️ {{AR('رسالة','Message')}}</button>
+          <button class="btn sm" :class="{ok:c.agent_pct}" @click="act(c,'agent')">🤝 {{c.agent_pct?AR('وكيل','Agent')+' '+c.agent_pct+'%':AR('اجعله وكيلاً','Make agent')}}</button>
           <button class="btn sm" :class="c.banned?'ok':'bad'" @click="act(c,c.banned?'unban':'ban')">{{c.banned?AR('رفع الحظر','Unban'):AR('حظر','Ban')}}</button></div>
       </div></div></div>`,
   };
@@ -176,9 +178,37 @@
       async function delCoupon(c) { if (confirm(c.code + " ?")) await load({ action: "coupon_delete", code: c.code }); }
       async function saveRef() { await load(Object.assign({ action: "referral" }, d.value.referral)); toast("✅"); }
       async function send() { if (!bc.value.trim() || !confirm(AR("إرسال لكل الزبائن؟", "Send to all customers?"))) return; const j = await load({ action: "broadcast", text: bc.value }); toast(j.message || (j.ok ? "✅" : "⚠️")); if (j.ok) bc.value = ""; }
-      return { d, nc, bc, addCoupon, delCoupon, saveRef, send, AR };
+      const ns = reactive({ title: AR("عرض اليوم", "Today's deal"), pct: 10, hours: 24, scope: "all", target: "" });
+      async function addSale() { const j = await load(Object.assign({ action: "sale_create" }, ns)); if (j.ok) toast("🔥 ✅"); }
+      async function endSale(x) { if (confirm(AR("إنهاء العرض الآن؟", "End now?"))) await load({ action: "sale_end", id: x.id }); }
+      async function saveRep() { await load(Object.assign({ action: "reports" }, d.value.reports)); toast("✅"); }
+      const ina = ref(null);
+      async function loadIna() { const j = await api("/seller/marketing", { body: { action: "inactive" } }); ina.value = j.inactive || []; }
+      async function wb(c) { const j = await api("/seller/customers", { body: { uid: c.uid, action: "winback" } }); toast(j.message || (j.ok ? "✅" : "⚠️")); if (j.ok) c.sent = true; }
+      const left = (e) => { const s = Math.max(0, Math.floor(e - S.now / 1000)); return Math.floor(s / 3600) + "h " + Math.floor((s % 3600) / 60) + "m"; };
+      return { d, nc, bc, addCoupon, delCoupon, saveRef, send, AR, ns, addSale, endSale, saveRep, ina, loadIna, wb, left, secName };
     },
     template: `<div v-if="d">
+      <div class="h">🔥 {{AR('عروض بوقت محدود','Limited-time offers')}}</div>
+      <div class="card"><div class="muted tiny">{{AR('يظهر للزبائن شريط العرض مع عداد تنازلي والسعر قبل وبعد. السعر لا ينزل أبداً تحت سعر المنصة.','Customers see a countdown banner and slashed prices.')}}</div>
+        <input class="inp mt" v-model="ns.title" :placeholder="AR('اسم العرض','Offer title')">
+        <div class="row"><div class="grow"><label class="lbl">{{AR('الخصم %','Discount %')}}</label><input class="inp" type="number" v-model.number="ns.pct"></div>
+          <div class="grow"><label class="lbl">{{AR('المدة (ساعات)','Hours')}}</label><input class="inp" type="number" v-model.number="ns.hours"></div></div>
+        <label class="lbl">{{AR('على','Applies to')}}</label>
+        <div class="chips"><button class="chip" :class="{on:ns.scope==='all'}" @click="ns.scope='all'">{{AR('كل المتجر','Whole store')}}</button>
+          <button v-for="s in ['smm','sms','digital','tgstars']" :key="s" class="chip" :class="{on:ns.scope==='sec'&&ns.target===s}" @click="ns.scope='sec';ns.target=s">{{secName(s)}}</button></div>
+        <button class="btn p blk mt" @click="addSale">🔥 {{AR('ابدأ العرض','Start offer')}}</button>
+        <div class="tx mt" v-for="x in d.sales" :key="x.id"><span><b>{{x.title}}</b> · {{x.pct}}% · {{x.scope==='all'?AR('كل المتجر','all'):secName(x.target)}}<div class="tiny c3">⏳ {{left(x.ends)}}</div></span><button class="btn sm bad" @click="endSale(x)">{{AR('إنهاء','End')}}</button></div></div>
+      <div class="h">📬 {{AR('التقارير واسترجاع الزبائن','Reports & win-back')}}</div>
+      <div class="card"><div class="tx"><span>{{AR('تقرير يومي على تيليجرام (9 مساءً)','Daily Telegram report (9pm)')}}</span><toggle v-model="d.reports.daily"></toggle></div>
+        <div class="tx"><span>{{AR('تنبيه الزبائن المتوقفين عن الشراء','Alert me about inactive customers')}}</span><toggle v-model="d.reports.winback"></toggle></div>
+        <div class="row"><div class="grow"><label class="lbl">{{AR('متوقف منذ (يوم)','Inactive for (days)')}}</label><input class="inp" type="number" v-model.number="d.reports.wb_days"></div>
+          <div class="grow"><label class="lbl">{{AR('خصم الاسترجاع %','Win-back %')}}</label><input class="inp" type="number" v-model.number="d.reports.wb_pct"></div></div>
+        <button class="btn p blk mt" @click="saveRep">{{AR('حفظ','Save')}}</button>
+        <button class="btn blk mt" @click="loadIna">💤 {{AR('اعرض الزبائن المتوقفين الآن','Show inactive customers')}}</button>
+        <div v-if="ina" class="mt"><div v-if="!ina.length" class="muted tiny">{{AR('لا يوجد زبائن متوقفون 👌','Nobody inactive 👌')}}</div>
+          <div class="tx" v-for="c in ina" :key="c.uid"><span><b>{{c.username?'@'+c.username:c.name}}</b><div class="tiny c3">{{AR('آخر طلب قبل','Last order')}} {{c.days}} {{AR('يوم','days')}} · {{c.orders}} · \${{c.total}}</div></span>
+            <button class="btn sm ok" :disabled="c.sent" @click="wb(c)">{{c.sent?'✅':'🎁 '+d.reports.wb_pct+'%'}}</button></div></div></div>
       <div class="h">🎟 {{AR('أكواد الخصم','Promo codes')}}</div>
       <div class="card"><div class="row"><input class="inp" v-model="nc.code" :placeholder="AR('الكود','Code')" dir="ltr" style="text-transform:uppercase">
         <select class="inp" style="width:auto" v-model="nc.type"><option value="percent">%</option><option value="fixed">$</option></select><input class="inp" style="width:90px" type="number" v-model.number="nc.value"></div>
@@ -452,17 +482,124 @@
         <input class="inp mt" v-model="n.api_key" placeholder="API key" dir="ltr"><button class="btn p blk mt" @click="add">{{AR('إضافة','Add')}}</button></div></div><div v-else class="skel"></div>`,
   };
 
+  const AdminProfits = {
+    setup() {
+      const d = ref(null), days = ref(30), tab = ref("by_provider");
+      async function load() { d.value = null; const j = await api("/admin/profits?days=" + days.value); if (j.ok) d.value = j; }
+      onMounted(load); watch(days, load);
+      return { d, days, tab, usd, AR, secName };
+    },
+    template: `<div><div class="chips"><button v-for="x in [1,7,30,90]" :key="x" class="chip" :class="{on:days===x}" @click="days=x">{{x===1?AR('اليوم','Today'):x+' '+AR('يوم','days')}}</button></div>
+      <div v-if="!d" class="skel"></div><template v-else>
+      <div class="kpis"><div class="kpi"><small>{{AR('صافي ربحك','Your net profit')}}</small><b class="plus">{{usd(d.total)}}</b></div>
+        <div class="kpi"><small>{{AR('ربح الطلبات','Orders profit')}}</small><b>{{usd(d.profit)}}</b><div class="sub">{{d.orders}} {{AR('طلب','orders')}}</div></div>
+        <div class="kpi"><small>{{AR('الاشتراكات','Subscriptions')}}</small><b>{{usd(d.subs)}}</b></div>
+        <div class="kpi"><small>{{AR('تحصيل من البائعين','Intake')}}</small><b>{{usd(d.intake)}}</b><div class="sub">{{AR('تكلفة المواقع','Cost')}} {{usd(d.cost)}}</div></div></div>
+      <div class="chips mt"><button v-for="x in [['by_provider',AR('حسب الموقع','By provider')],['by_store',AR('حسب المتجر','By store')],['by_section',AR('حسب القسم','By section')]]" :key="x[0]" class="chip" :class="{on:tab===x[0]}" @click="tab=x[0]">{{x[1]}}</button></div>
+      <div class="card"><div v-if="!d[tab].length" class="muted tiny">{{AR('لا بيانات بعد','No data yet')}}</div>
+        <div class="tx" v-for="r in d[tab]" :key="r.name"><span><b>{{tab==='by_section'?secName(r.name):r.name}}</b><div class="tiny c3">{{r.orders}} {{AR('طلب','orders')}} · {{AR('تحصيل','in')}} {{usd(r.intake)}} · {{AR('تكلفة','cost')}} {{usd(r.cost)}}</div></span><b :class="r.profit>=0?'plus':'minus'">{{usd(r.profit)}}</b></div></div>
+      <div class="muted tiny mt">{{AR('الربح = ما يدفعه البائع للمنصة − تكلفة الموقع. منتجات الألعاب التي تسلّمها يدوياً تكلفتها غير معروفة للنظام فتظهر كربح كامل.','Profit = what sellers pay − provider cost.')}}</div>
+      </template></div>`,
+  };
+
+  const AdminBroadcast = {
+    setup() {
+      const f = reactive({ bot: "", text: "", photo: "", btn_text: "", btn_url: "" }), info = ref(null), jobs = ref([]);
+      async function loadJobs() { const j = await api("/admin/broadcast"); jobs.value = j.jobs || []; }
+      onMounted(loadJobs);
+      let tm = null;
+      async function check() { info.value = null; if (!f.bot.trim()) return; const j = await api("/admin/broadcast", { body: Object.assign({ preview: 1 }, f) }); if (j.ok) info.value = j.bot; else toast(j.message); }
+      async function upload(e) {
+        const file = e.target.files[0]; if (!file) return;
+        const fd = new FormData(); fd.append("file", file);
+        const j = await api("/seller/upload", { body: fd }); if (j.ok && j.url) { f.photo = j.url; toast("✅"); } else toast(j.message || "⚠️");
+      }
+      async function send() {
+        if (!info.value) return toast(AR("تحقق من البوت أولاً", "Check the bot first"));
+        if (!confirm(AR("إرسال لـ " + info.value.users + " مستخدم في @" + info.value.username + "؟", "Send to " + info.value.users + " users?"))) return;
+        const j = await api("/admin/broadcast", { body: f }); toast(j.message || (j.ok ? "✅" : "⚠️"));
+        if (j.ok) { jobs.value = j.jobs; f.text = ""; f.photo = ""; clearInterval(tm); tm = setInterval(loadJobs, 3000); setTimeout(() => clearInterval(tm), 600000); }
+      }
+      return { f, info, jobs, check, send, upload, loadJobs, AR };
+    },
+    template: `<div>
+      <div class="card"><label class="lbl" style="margin-top:0">{{AR('معرّف البوت','Bot username')}}</label>
+        <div class="row"><input class="inp" v-model="f.bot" placeholder="@my_store_bot" dir="ltr" @change="check"><button class="btn sm" @click="check">🔎</button></div>
+        <div v-if="info" class="sum tiny">🤖 <bdi dir="ltr"><b>@{{info.username}}</b></bdi> · {{info.name}} · 👥 <b>{{info.users}}</b> {{AR('مستخدم سيصلهم','recipients')}}</div>
+        <label class="lbl">{{AR('الرسالة (يدعم <b> و <i> والروابط)','Message (HTML allowed)')}}</label>
+        <textarea class="inp" rows="5" v-model="f.text"></textarea>
+        <div class="upl mt"><label class="btn sm">🖼 {{f.photo?AR('تغيير الصورة','Change image'):AR('إرفاق صورة (اختياري)','Attach image')}}<input type="file" accept="image/*" @change="upload"></label>
+          <button v-if="f.photo" class="btn sm ghost" @click="f.photo=''">✖</button></div>
+        <div class="row"><input class="inp" v-model="f.btn_text" :placeholder="AR('نص الزر (اختياري)','Button text')"><input class="inp" v-model="f.btn_url" placeholder="https://" dir="ltr"></div>
+        <button class="btn p blk mt" :disabled="!info" @click="send">📣 {{AR('إرسال الإذاعة','Send broadcast')}}</button></div>
+      <div class="h" v-if="jobs.length">📊 {{AR('آخر الإذاعات','Recent broadcasts')}} <button class="btn sm" @click="loadJobs">↻</button></div>
+      <div class="card" v-if="jobs.length"><div class="tx" v-for="j in jobs" :key="j.id"><span><b>@{{j.username}}</b> <span class="tag" :class="j.state==='done'?'ok':'warn'">{{j.state==='done'?AR('انتهت','done'):AR('جارية','running')}}</span>
+        <div class="tiny c3">✅ {{j.sent}} · 🚫 {{j.blocked}} · ⚠️ {{j.failed}} / {{j.total}}</div></span></div></div></div>`,
+  };
+
+  const AdminSubs = {
+    setup() {
+      const d = ref(null);
+      async function load(body) { const j = await api("/admin/subs", body ? { body } : {}); if (j.ok) d.value = j; else toast(j.message); return j; }
+      onMounted(() => load());
+      const save = async () => { const j = await load(Object.assign({}, d.value.conf)); if (j.ok) toast("✅"); };
+      async function grant(s) { const v = ask(AR("كم يوماً مجانياً تمنحه؟", "Free days to grant?"), 30); if (!v) return; await load({ action: "grant", uid: s.uid, days: Number(v) }); toast("✅"); }
+      return { d, save, grant, AR, usd };
+    },
+    template: `<div v-if="d">
+      <div class="card"><div class="tx"><span><b>{{AR('الاشتراك مطلوب لإنشاء وتشغيل المتاجر','Subscription required for stores')}}</b></span><toggle v-model="d.conf.on"></toggle></div>
+        <div class="row"><div class="grow"><label class="lbl">{{AR('السعر $','Price $')}}</label><input class="inp" type="number" step="0.01" v-model.number="d.conf.price"></div>
+          <div class="grow"><label class="lbl">{{AR('المدة (يوم)','Days')}}</label><input class="inp" type="number" v-model.number="d.conf.days"></div>
+          <div class="grow"><label class="lbl">{{AR('تجربة مجانية (يوم)','Free trial days')}}</label><input class="inp" type="number" v-model.number="d.conf.trial_days"></div></div>
+        <div class="muted tiny">{{AR('يدفع البائع من رصيده في الصانع، ويتجدد تلقائياً. عند الانتهاء تتوقف متاجره عن البيع حتى يجدد (أرصدة الزبائن محفوظة).','Paid from seller balance, auto-renews; stores pause when expired.')}}</div>
+        <button class="btn p blk mt" @click="save">{{AR('حفظ','Save')}}</button></div>
+      <div class="h">💎 {{AR('البائعون','Sellers')}} — {{d.active}} / {{d.sellers.length}} {{AR('فعّال','active')}}</div>
+      <div class="card"><div v-if="!d.sellers.length" class="muted tiny">{{AR('لا يوجد أصحاب متاجر بعد','No store owners yet')}}</div>
+        <div class="tx" v-for="s in d.sellers" :key="s.uid"><span><b>{{s.username?'@'+s.username:s.name}}</b> <span class="tag" :class="s.active?'ok':'bad'">{{s.active?AR('فعّال','active'):AR('منتهٍ','expired')}}</span>
+          <div class="tiny c3">{{s.until?AR('حتى','until')+' '+s.until:'—'}} · {{AR('دفعات','paid')}} {{s.paid}}{{s.trial?' · '+AR('جرّب','trial'):''}}</div></span>
+          <button class="btn sm" @click="grant(s)">🎁 {{AR('منح أيام','Grant')}}</button></div></div>
+    </div><div v-else class="skel"></div>`,
+  };
+
+  const AdminGuard = {
+    setup() {
+      const r = ref(null), b = ref(null);
+      async function load() { const j = await api("/admin/risk"); if (j.ok) r.value = j; const k = await api("/admin/balances"); if (k.ok) b.value = k; }
+      onMounted(load);
+      async function saveAlert() { const k = await api("/admin/balances", { body: b.value.conf }); if (k.ok) toast("✅"); }
+      return { r, b, load, saveAlert, AR, usd };
+    },
+    template: `<div>
+      <div class="h">💳 {{AR('رصيد المواقع الآن','Provider balances')}} <button class="btn sm" @click="load">↻</button></div>
+      <div v-if="!b" class="skel"></div><div v-else class="card">
+        <div v-if="!b.results.length" class="muted tiny">{{AR('لا مواقع مربوطة','No providers')}}</div>
+        <div class="tx" v-for="x in b.results" :key="x.sec+x.name"><span><b>{{x.name}}</b> <span class="tiny c3">{{x.sec==='sms'?AR('أرقام','numbers'):AR('تفاعل','social')}}</span></span>
+          <b v-if="x.balance!=null" :class="x.balance<b.conf.min?'minus':'plus'" dir="ltr">\${{x.balance}}</b><span v-else class="minus tiny">{{x.error}}</span></div>
+        <div class="tx mt"><span>{{AR('نبّهني عندما ينزل رصيد أي موقع تحت','Alert me when a balance drops below')}}</span><span class="row"><input class="inp" style="width:80px" type="number" v-model.number="b.conf.min"><toggle v-model="b.conf.on"></toggle></span></div>
+        <button class="btn sm mt" @click="saveAlert">{{AR('حفظ','Save')}}</button></div>
+      <div class="h">🕵️ {{AR('زبائن مشبوهون (استرجاع كثير)','Suspicious customers')}}</div>
+      <div v-if="!r" class="skel"></div><div v-else class="card"><div v-if="!r.customers.length" class="muted tiny">{{AR('لا شيء مريب 👌','All clear 👌')}}</div>
+        <div class="tx" v-for="c in r.customers" :key="c.bot_id+'_'+c.uid"><span><b>{{c.username?'@'+c.username:c.name}}</b> <span class="tiny c3">{{c.store}} · {{c.uid}}</span></span><span class="tag bad">↩ {{c.refunds}}/{{c.orders}}</span></div></div>
+      <div class="h">⚠️ {{AR('متاجر عليها شكاوى','Stores with complaints')}}</div>
+      <div v-if="r" class="card"><div v-if="!r.stores.length" class="muted tiny">{{AR('لا شكاوى خلال 30 يوماً','No complaints in 30 days')}}</div>
+        <div class="tx" v-for="s in r.stores" :key="s.bot_id"><span><b>{{s.store}}</b> <span class="tiny c3">{{AR('المالك','owner')}} {{s.owner}}</span></span><span class="tag bad">{{s.complaints}}</span></div></div></div>`,
+  };
+
   const Admin = {
-    components: { AdminOverview, AdminOrders, AdminSellers, AdminTopups, AdminCatalog, AdminProviders },
+    components: { AdminOverview, AdminOrders, AdminSellers, AdminTopups, AdminCatalog, AdminProviders, AdminProfits, AdminBroadcast, AdminSubs, AdminGuard },
     setup() {
       const sec = ref("ov");
       const NAV = computed(() => [["ov", "📊", AR("نظرة عامة", "Overview")], ["orders", "📦", AR("طلبات التنفيذ", "Fulfilment")], ["sellers", "🤖", AR("البائعون", "Sellers")],
-        ["topups", "🧾", AR("شحن البائعين", "Top-ups")], ["catalog", "🧩", AR("الكتالوج والهوامش", "Catalog")], ["prov", "🔌", AR("المزودون", "Providers")]]);
+        ["profits", "💹", AR("الأرباح", "Profits")], ["bc", "📣", AR("الإذاعة", "Broadcast")], ["subs", "💎", AR("الاشتراكات", "Subscriptions")],
+        ["topups", "🧾", AR("شحن البائعين", "Top-ups")], ["catalog", "🧩", AR("الكتالوج والهوامش", "Catalog")], ["prov", "🔌", AR("المزودون", "Providers")],
+        ["guard", "🛡", AR("الحماية", "Guard")]]);
       return { sec, NAV };
     },
     template: `<div class="wrap"><div class="dashnav"><div class="chips"><button v-for="n in NAV" :key="n[0]" class="chip" :class="{on:sec===n[0]}" @click="sec=n[0]">{{n[1]}} {{n[2]}}</button></div></div>
       <admin-overview v-if="sec==='ov'"></admin-overview><admin-orders v-else-if="sec==='orders'"></admin-orders><admin-sellers v-else-if="sec==='sellers'"></admin-sellers>
-      <admin-topups v-else-if="sec==='topups'"></admin-topups><admin-catalog v-else-if="sec==='catalog'"></admin-catalog><admin-providers v-else-if="sec==='prov'"></admin-providers></div>`,
+      <admin-topups v-else-if="sec==='topups'"></admin-topups><admin-catalog v-else-if="sec==='catalog'"></admin-catalog><admin-providers v-else-if="sec==='prov'"></admin-providers>
+      <admin-profits v-else-if="sec==='profits'"></admin-profits><admin-broadcast v-else-if="sec==='bc'"></admin-broadcast><admin-subs v-else-if="sec==='subs'"></admin-subs>
+      <admin-guard v-else-if="sec==='guard'"></admin-guard></div>`,
   };
 
   window.__S2_start(Dash, Admin);

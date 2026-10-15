@@ -13,9 +13,15 @@ import aiohttp
 from aiohttp import web
 from telegram import Update
 
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 for _s in (sys.stdout, sys.stderr):  # طرفية ويندوز قد لا تدعم العربية افتراضياً
     try:
-        _s.reconfigure(encoding="utf-8", errors="replace", line_buffering=True, write_through=True)
+        _s.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -33,16 +39,17 @@ class MemoryHandler(logging.Handler):
 
 
 mem_handler = MemoryHandler()
-fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-mem_handler.setFormatter(fmt)
+_fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+mem_handler.setFormatter(_fmt)
 mem_handler.setLevel(logging.INFO)
-stream_handler = logging.StreamHandler(sys.stdout)
-stream_handler.setFormatter(fmt)
-stream_handler.setLevel(logging.INFO)
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.INFO)
 root_logger.addHandler(mem_handler)
-root_logger.addHandler(stream_handler)
+
+_console = logging.StreamHandler(sys.stdout)
+_console.setFormatter(_fmt)
+_console.setLevel(logging.INFO)
+root_logger.addHandler(_console)
 
 
 def _send_tg_notification(text: str) -> None:
@@ -261,9 +268,14 @@ async def main() -> None:
     try:
         from forge import plat
         p = await plat.get(0)
-        p["maintenance"] = True
-        await plat.save(0)
-        logging.info("Platform maintenance mode activated on startup (exclusive access: 8625825633).")
+        if os.environ.get("MAINTENANCE", "0") == "1":
+            p["maintenance"] = True
+            await plat.save(0)
+            logging.info("Platform maintenance mode activated on startup (exclusive access: 8625825633).")
+        else:
+            p["maintenance"] = False
+            await plat.save(0)
+            logging.info("Bot is LIVE (maintenance mode disabled).")
     except Exception as e:
         logging.warning("Failed to set maintenance mode on startup: %s", e)
 

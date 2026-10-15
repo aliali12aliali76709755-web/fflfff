@@ -1421,6 +1421,11 @@ async def owner_cb(c: Ctx, a: list[str]) -> None:  # noqa: C901
         c.set_state(state, **data)
         await c.edit(text + t("\n\n/cancel للإلغاء", "\n\n/cancel to abort"), _cancel(c, back))
 
+    if act == "wb" and arg.isdigit():      # إرسال كود خصم لزبون توقف عن الشراء (من التقرير اليومي)
+        from .modules import perks
+        ok, msg = await perks.send_winback(c.bot_id, int(arg), c.bot)
+        await c.answer(msg[:190], True)
+        return
     if act == "home":
         await owner_home(c)
     elif act == "preview":

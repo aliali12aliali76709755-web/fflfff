@@ -137,12 +137,6 @@ _CAT_CACHE: dict[tuple[int, str], tuple[float, dict]] = {}
 def invalidate(bot_id: int) -> None:
     for k in [k for k in _CAT_CACHE if k[0] == bot_id]:
         _CAT_CACHE.pop(k, None)
-    db.kv_invalidate(bot_id)
-    try:
-        from . import miniapp_auth
-        miniapp_auth.invalidate_resolve_cache(bot_id)
-    except Exception:
-        pass
 
 
 def _kind_name(metric: str, plat: str, ar: bool) -> str:
@@ -289,7 +283,11 @@ async def boot(req: web.Request) -> web.Response:
     bal = 0.0 if ctx.is_guest else await ledger.get_user_balance_usd(bot.id, ctx.uid)
     maint = await v1._store_in_maintenance(ctx)
     faq = cfg["faq"] if cfg.get("faq_enabled") and cfg.get("faq") else []
+    from ..modules import perks
+    sales = await perks.active_sales(bot.id)
+    agent = 0.0 if ctx.is_guest else await perks.agent_pct(bot.id, ctx.uid)
     return _ok(
+        perks={"sales": sales, "agent": agent},
         store={"id": bot.id, "username": bot.username, "name": cfg["name"] or bot.name or bot.username, "desc": cfg["desc"],
                "logo": cfg["logo"], "banner": cfg["banner"], "accent": cfg["accent"], "theme": cfg["theme"],
                "announcement": cfg["announcement"], "tpl": bot.template, "currency": store_cur,
@@ -357,7 +355,7 @@ async def quote_ep(req: web.Request) -> web.Response:
         qty = int(b.get("quantity") or 1)
     except (TypeError, ValueError):
         qty = 0
-    q = await v1._quote_item(ctx.bot, str(b.get("product_id") or ""), qty)
+    q = await v1._quote_item(ctx.bot, str(b.get("product_id") or ""), qty, uid=ctx.uid)
     if not q.ok:
         return _err(q.error, "الكمية أو المنتج غير صالح")
     price = q.price_usd
@@ -366,7 +364,8 @@ async def quote_ep(req: web.Request) -> web.Response:
     if code:
         ok, d, msg = await promo.validate_promo(ctx.bot.id, ctx.uid, code, price, str(b.get("product_id")))
         disc = min(float(d), price) if ok else 0.0
-    return _ok(price_usd=round(price, 4), discount_usd=round(disc, 4), total_usd=round(price - disc, 4), coupon_msg=msg)
+    return _ok(price_usd=round(price, 4), discount_usd=round(disc, 4), total_usd=round(price - disc, 4), coupon_msg=msg,
+               list_usd=round(q.list_usd, 4), perk_usd=round(q.perk_usd, 4), perk_label=q.perk_label)
 
 
 async def wallet_ep(req: web.Request) -> web.Response:
@@ -650,8 +649,10 @@ async def s_customers(req: web.Request) -> web.Response:
         users = (await s.execute(q.order_by(desc(db.BUser.last_seen)).limit(60))).scalars().all()
         bals = {r.user_id: float(r.balance_usd) for r in (await s.execute(select(db.UserBalance).where(
             db.UserBalance.bot_id == bid, db.UserBalance.user_id.in_([u.user_id for u in users] or [0])))).scalars().all()}
+    from ..modules import perks
+    ag = await perks.agents(bid)
     return _ok(customers=[{"uid": u.user_id, "name": u.name, "username": u.username, "lang": u.lang, "banned": u.banned,
-                           "balance_usd": bals.get(u.user_id, 0.0), "last_seen": u.last_seen.strftime("%Y-%m-%d") if u.last_seen else ""} for u in users])
+                           "agent_pct": ag.get(str(u.user_id), 0.0), "balance_usd": bals.get(u.user_id, 0.0), "last_seen": u.last_seen.strftime("%Y-%m-%d") if u.last_seen else ""} for u in users])
 
 
 async def s_customer_action(req: web.Request) -> web.Response:
@@ -692,6 +693,24 @@ async def s_customer_action(req: web.Request) -> web.Response:
             return _err("empty")
         await _notify_user(ctx.bot.id, uid, text)
         return _ok()
+    if act == "agent":
+        from ..modules import perks
+        try:
+            pct = float(b.get("pct") or 0)
+        except (TypeError, ValueError):
+            return _err("bad_values")
+        await perks.set_agent(ctx.bot.id, uid, pct)
+        if pct > 0:
+            await _notify_user(ctx.bot.id, uid, f"🤝 أصبحت وكيلاً لدى المتجر — خصم {pct:g}% تلقائياً على كل طلباتك.")
+        return _ok(agent_pct=await perks.agent_pct(ctx.bot.id, uid))
+    if act == "winback":
+        from ..modules import perks
+        from ..runtime import manager
+        app = manager.apps.get(ctx.bot.id)
+        if app is None:
+            return _err("offline", "البوت غير متصل الآن")
+        ok, msg = await perks.send_winback(ctx.bot.id, uid, app.bot)
+        return _ok(message=msg) if ok else _err("failed", msg)
     return _err("bad_action")
 
 
@@ -799,6 +818,34 @@ async def s_marketing(req: web.Request) -> web.Response:
             except (TypeError, ValueError):
                 return _err("bad_values")
             await promo.save_referral_config(bid, conf)
+        elif act == "sale_create":
+            from ..modules import perks
+            try:
+                await perks.create_sale(bid, title=_clean_str(b.get("title"), 120), scope=str(b.get("scope") or "all"),
+                                        target=_clean_str(b.get("target"), 64), pct=float(b.get("pct") or 0), hours=float(b.get("hours") or 24))
+            except (TypeError, ValueError):
+                return _err("bad_values")
+        elif act == "sale_end":
+            from ..modules import perks
+            await perks.end_sale(bid, _clean_str(b.get("id"), 32))
+        elif act == "reports":
+            from ..modules import perks
+            rc = await perks.report_conf(bid)
+            for k in ("daily", "winback"):
+                if k in b:
+                    rc[k] = bool(b[k])
+            try:
+                if "wb_pct" in b:
+                    rc["wb_pct"] = max(1.0, min(float(b["wb_pct"]), 50.0))
+                if "wb_days" in b:
+                    rc["wb_days"] = max(3, min(int(b["wb_days"]), 90))
+            except (TypeError, ValueError):
+                return _err("bad_values")
+            await db.kv_set(bid, "v2:reports", rc)
+        elif act == "inactive":
+            from ..modules import perks
+            rc = await perks.report_conf(bid)
+            return _ok(inactive=await perks.inactive_customers(bid, rc["wb_days"], limit=30))
         elif act == "broadcast":
             text = _clean_str(b.get("text"), 3500)
             if not text:
@@ -811,7 +858,8 @@ async def s_marketing(req: web.Request) -> web.Response:
             asyncio.get_running_loop().create_task(_broadcast(bid, text))
             return _ok(message="بدأ الإرسال للزبائن")
     promos = await promo.get_bot_promos(bid)
-    return _ok(coupons=[{"code": k, "type": v.get("type"), "value": v.get("val"), "max_uses": v.get("max_uses"), "used": v.get("used_count", 0),
+    from ..modules import perks
+    return _ok(sales=await perks.active_sales(bid), reports=await perks.report_conf(bid), coupons=[{"code": k, "type": v.get("type"), "value": v.get("val"), "max_uses": v.get("max_uses"), "used": v.get("used_count", 0),
                          "per_user": v.get("per_user"), "min_order": v.get("min_order"), "expires": v.get("expires")} for k, v in promos.items()],
                referral=await promo.get_referral_config(bid))
 
@@ -938,6 +986,100 @@ async def a_sellers(req: web.Request) -> web.Response:
         out.append({"bot_id": r.id, "username": r.username, "name": r.name, "tpl": r.template, "status": r.status, "owner_id": r.owner_id,
                     "owner_balance_usd": bals.get(r.owner_id, 0.0), "sales_30d": (await _sales(r.id, 30))["sales_usd"]})
     return _ok(bots=out)
+
+
+async def a_profits(req: web.Request) -> web.Response:
+    await _ctx(req, "admin")
+    from ..modules import insights
+    try:
+        days = int(req.query.get("days") or 30)
+    except ValueError:
+        days = 30
+    return _ok(**await insights.profits(days))
+
+
+async def a_risk(req: web.Request) -> web.Response:
+    await _ctx(req, "admin")
+    from ..modules import insights
+    return _ok(**await insights.risk(30))
+
+
+async def a_balances(req: web.Request) -> web.Response:
+    """رصيد كل المواقع الآن + حد التنبيه."""
+    await _ctx(req, "admin")
+    from ..modules import insights
+    if req.method == "POST":
+        b = await _body(req)
+        c = await insights.alert_conf()
+        if "on" in b:
+            c["on"] = bool(b["on"])
+        try:
+            if "min" in b:
+                c["min"] = max(0.0, min(float(b["min"]), 100000.0))
+        except (TypeError, ValueError):
+            return _err("bad_values")
+        await db.kv_set(0, "sys:bal_alert", c)
+        if not b.get("check"):
+            return _ok(conf=c, results=None)
+    return _ok(conf=await insights.alert_conf(), results=await insights.balances())
+
+
+async def a_broadcast(req: web.Request) -> web.Response:
+    """إذاعة جماعية من أي بوت في المنصة بمعرّفه."""
+    await _ctx(req, "admin")
+    from ..modules import insights
+    if req.method == "POST":
+        b = await _body(req)
+        text = str(b.get("text") or "").strip()[:4000]
+        photo = _clean_url(b.get("photo")) if b.get("photo") else ""
+        if photo.startswith("/"):
+            photo = config.PUBLIC_URL.rstrip("/") + photo if config.PUBLIC_URL else ""
+        if not b.get("preview") and not text and not photo:
+            return _err("empty", "اكتب نص الرسالة")
+        if b.get("preview"):
+            bot = await insights.find_bot(_clean_str(b.get("bot"), 64))
+            if bot is None:
+                return _err("not_found", "لا يوجد بوت بهذا المعرّف")
+            async with db.Session() as s:
+                n = int((await s.execute(select(func.count()).select_from(db.BUser).where(
+                    db.BUser.bot_id == bot.id, db.BUser.kind == "private", db.BUser.blocked.is_(False), db.BUser.banned.is_(False)))).scalar() or 0)
+            return _ok(bot={"username": bot.username, "name": bot.name, "template": bot.template, "users": n})
+        ok, msg, jid = await insights.broadcast(_clean_str(b.get("bot"), 64), text, photo=photo,
+                                                btn_text=_clean_str(b.get("btn_text"), 60), btn_url=_clean_url(b.get("btn_url")))
+        if not ok:
+            return _err("failed", msg)
+        return _ok(message=msg, job=jid, jobs=insights.jobs())
+    return _ok(jobs=insights.jobs())
+
+
+async def a_subs(req: web.Request) -> web.Response:
+    """إعدادات اشتراك البائعين + قائمة المشتركين + منح أيام مجانية."""
+    import time as _t
+    await _ctx(req, "admin")
+    from ..modules import subs
+    if req.method == "POST":
+        b = await _body(req)
+        if b.get("action") == "grant":
+            try:
+                await subs.grant(int(b.get("uid")), int(b.get("days") or 0))
+            except (TypeError, ValueError):
+                return _err("bad_values")
+        else:
+            try:
+                await subs.set_conf(**{k: b[k] for k in ("on", "price", "days", "trial_days") if k in b})
+            except (TypeError, ValueError):
+                return _err("bad_values")
+    now = _t.time()
+    rows = []
+    for uid in await subs.sellers_with_commerce():
+        st = await subs.state(uid)
+        async with db.Session() as s:
+            u = await s.get(db.MUser, (0, uid)) if hasattr(db, "MUser") else None
+        rows.append({"uid": uid, "name": getattr(u, "name", "") or str(uid), "username": getattr(u, "username", "") or "",
+                     "until": _t.strftime("%Y-%m-%d", _t.gmtime(st["until"])) if st["until"] else "", "active": st["until"] > now or config.is_admin(uid),
+                     "paid": st["paid"], "trial": st["trial_used"], "auto": st["auto"]})
+    rows.sort(key=lambda r: (not r["active"], r["until"]))
+    return _ok(conf=await subs.conf(), sellers=rows, active=sum(1 for r in rows if r["active"]))
 
 
 async def a_hold(req: web.Request) -> web.Response:
@@ -1191,6 +1333,9 @@ def setup_routes(app: web.Application) -> None:
     r.add_get(f"{P}/admin/provider_balance", a_provider_balance)
     r.add_get(f"{P}/admin/smm_sync", a_smm_sync)
     r.add_get(f"{P}/admin/hold", a_hold)
+    for path, h in (("profits", a_profits), ("risk", a_risk), ("balances", a_balances), ("broadcast", a_broadcast), ("subs", a_subs)):
+        r.add_get(f"{P}/admin/{path}", h)
+        r.add_post(f"{P}/admin/{path}", h)
     r.add_post(f"{P}/admin/hold", a_hold)
     r.add_post(f"{P}/admin/smm_sync", a_smm_sync)
     for path, h in (("sellers", a_sellers), ("orders", a_orders), ("catalog", a_catalog), ("providers", a_providers),

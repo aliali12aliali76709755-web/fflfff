@@ -816,15 +816,18 @@ TEMPLATE_PARTS = {"smmsms": ("smm", "sms"), "megastore": ("digital", "smm", "sms
 
 class _Quote:
     """تسعير بند واحد في السيرفر فقط — لا يُقبل أي سعر قادم من المتصفح."""
-    __slots__ = ("ok", "error", "name", "price_usd", "platform_cost_usd", "voucher", "voucher_src", "status", "tpl")
+    __slots__ = ("ok", "error", "name", "price_usd", "platform_cost_usd", "voucher", "voucher_src", "status", "tpl",
+                 "list_usd", "perk_usd", "perk_label")
 
     def __init__(self):
         self.ok, self.error, self.name = False, "invalid_product", ""
+        self.list_usd = self.perk_usd = 0.0
+        self.perk_label = ""
         self.price_usd = self.platform_cost_usd = 0.0
         self.voucher, self.voucher_src, self.status, self.tpl = "", "", "queued", ""
 
 
-async def _quote_item(bot: db.Bot, product_id: str, quantity: int, price_option_id: str = "") -> _Quote:
+async def _quote_item(bot: db.Bot, product_id: str, quantity: int, price_option_id: str = "", uid: int = 0) -> _Quote:
     q = _Quote()
     pid = str(product_id or "")
     if not pid or quantity < 1 or quantity > MAX_QTY:
@@ -903,6 +906,10 @@ async def _quote_item(bot: db.Bot, product_id: str, quantity: int, price_option_
     if q.price_usd <= 0:
         q.error = "invalid_price"
         return q
+    # عروض البائع المؤقتة + أسعار الوكلاء (لا تنزل تحت سعر المنصة)
+    q.list_usd = q.price_usd
+    from ..modules import perks
+    q.price_usd, q.perk_usd, q.perk_label = await perks.apply(bot.id, uid, pid, q.tpl, q.price_usd, q.platform_cost_usd)
     q.ok, q.error = True, ""
     return q
 
@@ -1028,7 +1035,7 @@ async def create_store_order(req: web.Request) -> web.Response:
         quantity = 0
 
     # تسعير صارم في السيرفر
-    qt = await _quote_item(bot, product_id, quantity, str(data.get("priceOptionId") or data.get("price_option_id") or ""))
+    qt = await _quote_item(bot, product_id, quantity, str(data.get("priceOptionId") or data.get("price_option_id") or ""), uid=ctx.uid)
     if not qt.ok:
         msg = {"missing_product": "المنتج غير محدد", "invalid_quantity": "الكمية غير صالحة"}.get(qt.error, "المنتج غير موجود")
         return web.json_response({"ok": False, "success": False, "error": qt.error, "message": msg}, status=400 if qt.error != "invalid_product" else 404)
@@ -1063,8 +1070,9 @@ async def create_store_order(req: web.Request) -> web.Response:
         if why == "duplicate":
             return web.json_response({"ok": True, "success": True, "order_id": idempotency_key, "is_duplicate": True,
                                       "data": {"order_id": idempotency_key, "order_ref": idempotency_key}})
-        if why == "seller_insufficient":
-            await _notify_seller_low_balance(bot, qt.platform_cost_usd)
+        if why in ("seller_insufficient", "store_paused"):
+            if why == "seller_insufficient":
+                await _notify_seller_low_balance(bot, qt.platform_cost_usd)
             return web.json_response({"ok": False, "success": False, "error": "service_unavailable",
                                       "message": "الخدمة غير متوفرة مؤقتاً، رصيدك محفوظ ولم يُخصم شيء."}, status=503)
         bal = await ledger.get_user_balance_usd(bot.id, ctx.uid)
@@ -1208,7 +1216,8 @@ async def get_user_orders(req: web.Request) -> web.Response:
             "order_id": o.order_id,
             "order_ref": o.order_id,
             "product_name": o.service_name,
-            "target": o.target,
+            "product_id": o.service_id,
+            "target": "" if o.target == "-" else o.target,
             "quantity": o.quantity,
             "price_usd": o.price_user_usd,
             "total_price": o.price_user_usd,
@@ -1219,7 +1228,7 @@ async def get_user_orders(req: web.Request) -> web.Response:
             "rejection_reason": rejection_reason,
             "details": safe_details,
             "tpl_key": o.tpl_key,
-            "phone": o.target if o.tpl_key == "sms" else "",
+            "phone": o.target if o.tpl_key == "sms" and o.target != "-" else "",
             "sms_code": details.get("sms_code", ""),
             "created": o.created.strftime("%Y-%m-%d %H:%M") if o.created else "",
         })
@@ -1562,7 +1571,7 @@ async def checkout_cart_order(req: web.Request) -> web.Response:
             qty = int(it.get("quantity", 1))
         except (TypeError, ValueError):
             qty = 0
-        qt = await _quote_item(bot, pid, qty, str(it.get("priceOptionId") or it.get("price_option_id") or ""))
+        qt = await _quote_item(bot, pid, qty, str(it.get("priceOptionId") or it.get("price_option_id") or ""), uid=ctx.uid)
         if not qt.ok:
             return web.json_response({"ok": False, "success": False, "error": qt.error,
                                       "message": f"عنصر غير صالح في السلة: {pid}"}, status=400)
@@ -1620,8 +1629,9 @@ async def checkout_cart_order(req: web.Request) -> web.Response:
         # السلة كلها أو لا شيء: استرجاع ما دُفع من بنود قبل الفشل
         for oid in paid_ids:
             await ledger.atomic_dual_refund(oid, reason="إلغاء السلة لتعذّر إتمام أحد عناصرها")
-        if fail_reason == "seller_insufficient":
-            await _notify_seller_low_balance(bot, sum(q.platform_cost_usd for *_, q in quotes))
+        if fail_reason in ("seller_insufficient", "store_paused"):
+            if fail_reason == "seller_insufficient":
+                await _notify_seller_low_balance(bot, sum(q.platform_cost_usd for *_, q in quotes))
             return web.json_response({"ok": False, "success": False, "error": "service_unavailable",
                                       "message": "الخدمة غير متوفرة مؤقتاً، رصيدك محفوظ ولم يُخصم شيء."}, status=503)
         return web.json_response({"ok": False, "success": False, "error": "insufficient_balance",

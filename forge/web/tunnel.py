@@ -49,7 +49,12 @@ def _local() -> Path:
 def find() -> str | None:
     if config.CLOUDFLARED:
         return config.CLOUDFLARED if Path(config.CLOUDFLARED).exists() else None
-    return shutil.which("cloudflared") or (str(_local()) if _local().exists() else None)
+    if _local().exists():
+        return str(_local())
+    cand = shutil.which("cloudflared")
+    if cand and (not sys.platform.startswith("win") or cand.lower().endswith(".exe")):
+        return cand
+    return None
 
 
 async def download() -> str | None:
