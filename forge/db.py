@@ -424,39 +424,46 @@ async def init() -> None:
         ("discount_amount", "FLOAT", "DEFAULT 0.0"),
     ]
 
-    for col_name, col_type, col_default in cols:
-        try:
-            async with engine.connect() as conn:
-                from sqlalchemy import text
-                if is_pg:
-                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
-                else:
-                    await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
-                await conn.commit()
-        except Exception:
-            pass
+    try:
+        async with engine.connect() as conn:
+            from sqlalchemy import text
+            for col_name, col_type, col_default in cols:
+                try:
+                    if is_pg:
+                        await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS {col_name} {col_type} {col_default}"))
+                    else:
+                        await conn.execute(text(f"ALTER TABLE service_orders ADD COLUMN {col_name} {col_type} {col_default}"))
+                except Exception:
+                    pass
+            await conn.commit()
+    except Exception:
+        pass
 
     # ترقية أعمدة المال القديمة (FLOAT) إلى NUMERIC(18,4) وإضافة قيد عدم السالبية على PostgreSQL.
-    # آمنة للتكرار: إن كان العمود رقمياً أصلاً أو القيد موجوداً تُتجاهل الخطوة.
+    # آمنة وتُنفّذ مرة واحدة فقط عبر فحص المفتاح sys:numeric_migrated
     if is_pg:
-        from sqlalchemy import text
-        for table in Base.metadata.sorted_tables:
-            for col in table.columns:
-                if isinstance(col.type, Numeric):
+        migrated = await kv_get(0, "sys:numeric_migrated", False)
+        if not migrated:
+            try:
+                from sqlalchemy import text
+                async with engine.connect() as conn:
+                    for table in Base.metadata.sorted_tables:
+                        for col in table.columns:
+                            if isinstance(col.type, Numeric):
+                                try:
+                                    await conn.execute(text(
+                                        f'ALTER TABLE {table.name} ALTER COLUMN {col.name} TYPE NUMERIC(18,4) USING {col.name}::numeric'))
+                                except Exception:
+                                    pass
                     try:
-                        async with engine.connect() as conn:
-                            await conn.execute(text(
-                                f'ALTER TABLE {table.name} ALTER COLUMN {col.name} TYPE NUMERIC(18,4) USING {col.name}::numeric'))
-                            await conn.commit()
+                        await conn.execute(text(
+                            "ALTER TABLE user_balances ADD CONSTRAINT ck_balance_non_negative CHECK (balance_usd >= 0)"))
                     except Exception:
                         pass
-        try:
-            async with engine.connect() as conn:
-                await conn.execute(text(
-                    "ALTER TABLE user_balances ADD CONSTRAINT ck_balance_non_negative CHECK (balance_usd >= 0)"))
-                await conn.commit()
-        except Exception:
-            pass
+                    await conn.commit()
+            except Exception:
+                pass
+            await kv_set(0, "sys:numeric_migrated", True)
 
 
 # ───────────────────────── KV ─────────────────────────
